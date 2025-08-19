@@ -1,0 +1,25 @@
+name: cactus
+description: "Framework for running AI models on mobile devices"
+version: 0.2.8
+homepage: https://cactuscompute.com
+repository: https://github.com/cactus-compute/cactus
+
+environment:
+  sdk: '>=3.3.3 <4.0.0'
+  flutter: ">=1.17.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  plugin:
+    platforms:
+      android:
+        ffiPlugin: true
+      ios:
+        ffiPlugin: true
