@@ -38,10 +38,6 @@ task unzipJniLibsTask(type: Copy) {
         if (!jniLibsZipFile.exists()) {
             throw new InvalidUserDataException("!!! ERROR: jniLibs.zip not found at ${jniLibsZipFile.absolutePath}. Run the script that creates this (scripts/build-flutter-android.sh) first. This file is required for the cactus-flutter plugin.")
         }
-        println "=== CACTUS PLUGIN: unzipJniLibsTask: Deleting old jniLibs directory: ${jniLibsDir}"
-        delete(jniLibsDir)
-        println "=== CACTUS PLUGIN: unzipJniLibsTask: Creating jniLibs directory: ${jniLibsDir}"
-        jniLibsDir.mkdirs()
         println "=== CACTUS PLUGIN: unzipJniLibsTask: Unzipping ${jniLibsZipFile.name} to ${jniLibsDir}"
     }
 
