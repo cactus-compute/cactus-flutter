@@ -26,9 +26,16 @@ typedef CactusCompleteDart = int Function(
 typedef CactusDestroyNative = Void Function(CactusModel model);
 typedef CactusDestroyDart = void Function(CactusModel model);
 
+typedef RegisterAppNative = Int32 Function(
+    Pointer<Utf8> telemetryToken, Pointer<Utf8> enterpriseKey, Pointer<Utf8> deviceMetadata);
+typedef RegisterAppDart = int Function(
+    Pointer<Utf8> telemetryToken, Pointer<Utf8> enterpriseKey, Pointer<Utf8> deviceMetadata);
+
+typedef GetAllEntriesNative = Pointer<Utf8> Function();
+typedef GetAllEntriesDart = Pointer<Utf8> Function();
+
 // Helper function to get the library path based on platform
-String _getLibraryPath() {
-  const String libName = 'cactus';
+String _getLibraryPath(String libName) {
   if (Platform.isIOS || Platform.isMacOS) {
     return '$libName.framework/$libName';
   }
@@ -39,7 +46,7 @@ String _getLibraryPath() {
 }
 
 // Load the dynamic library
-final DynamicLibrary cactusLib = DynamicLibrary.open(_getLibraryPath());
+final DynamicLibrary cactusLib = DynamicLibrary.open(_getLibraryPath('cactus'));
 
 // Bind the native functions
 final cactusInit = cactusLib
@@ -53,3 +60,14 @@ final cactusComplete = cactusLib
 final cactusDestroy = cactusLib
     .lookup<NativeFunction<CactusDestroyNative>>('cactus_destroy')
     .asFunction<CactusDestroyDart>();
+
+final DynamicLibrary cactusUtil = DynamicLibrary.open(_getLibraryPath('cactus_util'));
+
+final registerApp = cactusUtil
+    .lookup<NativeFunction<RegisterAppNative>>('register_app')
+    .asFunction<RegisterAppDart>();
+
+final getAllEntries = cactusUtil
+    .lookup<NativeFunction<GetAllEntriesNative>>('get_all_entries')
+    .asFunction<GetAllEntriesDart>();
+

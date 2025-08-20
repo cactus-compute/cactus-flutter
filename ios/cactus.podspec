@@ -37,7 +37,7 @@ A Flutter plugin for Cactus Utilities, providing access to native Cactus functio
   s.dependency 'Flutter'
   s.platform = :ios, '11.0'
   s.swift_version = '5.0'
-  s.vendored_frameworks = 'cactus.xcframework'
+  s.vendored_frameworks = 'cactus.xcframework', 'cactus_util.xcframework'
   s.ios.framework = 'cactus'
   s.frameworks = 'Accelerate', 'Foundation', 'Metal', 'MetalKit'
 
