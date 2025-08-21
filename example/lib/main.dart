@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:cactus/utils.dart';
+import 'package:cactus_example/device_info_helper.dart';
 import 'package:cactus_example/log_entry.dart';
 import 'package:flutter/material.dart';
 
@@ -42,6 +43,18 @@ class _MyHomePageState extends State<MyHomePage> {
   void initState() {
     super.initState();
     _loadEntries();
+    _loadDeviceInfo();
+  }
+
+  Future<void> _loadDeviceInfo() async {
+    try {
+      final deviceMetadata = await DeviceInfoHelper.getDeviceMetadataJson();
+      setState(() {
+        _deviceMetadataController.text = deviceMetadata;
+      });
+    } catch (e) {
+      print('Error loading device info: $e');
+    }
   }
 
   Future<void> _loadEntries() async {
@@ -117,7 +130,16 @@ class _MyHomePageState extends State<MyHomePage> {
                   ),
                   TextFormField(
                     controller: _deviceMetadataController,
-                    decoration: const InputDecoration(labelText: 'Device Metadata'),
+                    decoration: InputDecoration(
+                      labelText: 'Device Metadata',
+                      suffixIcon: IconButton(
+                        icon: const Icon(Icons.refresh),
+                        onPressed: _loadDeviceInfo,
+                        tooltip: 'Refresh device info',
+                      ),
+                    ),
+                    maxLines: 5,
+                    minLines: 1,
                     validator: (value) {
                       if (value == null || value.isEmpty) {
                         return 'Please enter device metadata';
