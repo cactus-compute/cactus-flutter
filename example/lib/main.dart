@@ -73,9 +73,13 @@ class _MyHomePageState extends State<MyHomePage> {
       }
     } catch (e) {
       print('Error loading entries: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to load entries: $e')),
-      );
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to load entries: $e')),
+          );
+        }
+      });
     }
   }
 
