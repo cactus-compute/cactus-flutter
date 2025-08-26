@@ -6,10 +6,14 @@ import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
 import './types.dart';
+import './telemetry.dart';
 
 class CactusLM {
   int? _handle;
   String? _lastDownloadedFilename;
+  String? _currentModelPath;
+  String? _currentModelUrl;
+  final CactusTelemetry telemetry = CactusTelemetry('projectId', 'deviceId');
 
   Future<bool> downloadModel({
     String url = "https://huggingface.co/Cactus-Compute/Qwen3-600m-Instruct-GGUF/resolve/main/Qwen3-0.6B-Q8_0.gguf",
@@ -19,6 +23,7 @@ class CactusLM {
     final success = await _downloadModel(url, actualFilename);
     if (success) {
       _lastDownloadedFilename = actualFilename;
+      _currentModelUrl = url;
     }
     return success;
   }
@@ -39,9 +44,35 @@ class CactusLM {
     required CactusCompletionParams params,
   }) async {
     final currentHandle = _handle;
-    if (currentHandle == null) return null;
+    print(currentHandle);
+    if (currentHandle == null) {
+      telemetry.logError(null, CactusInitParams());
+      return null;}
 
-    return await CactusContext.completion(currentHandle, messages, params);
+    try {
+      final result = await CactusContext.completion(currentHandle, messages, params);
+      
+      // Track telemetry for successful completions (if telemetry is initialized)
+      if (result.success && CactusTelemetry.isInitialized) {
+        final initParams = CactusInitParams(
+          modelPath: _currentModelPath,
+          modelUrl: _currentModelUrl,
+        );
+        telemetry.logCompletion(result, initParams);
+      }
+      
+      return result;
+    } catch (e) {
+      // Track telemetry for errors (if telemetry is initialized)
+      if (CactusTelemetry.isInitialized) {
+        final initParams = CactusInitParams(
+          modelPath: _currentModelPath,
+          modelUrl: _currentModelUrl,
+        );
+        telemetry.logError(e, initParams);
+      }
+      rethrow;
+    }
   }
 
   void unload() {

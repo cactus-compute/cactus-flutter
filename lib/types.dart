@@ -79,3 +79,17 @@ class CactusException implements Exception {
     return 'CactusException: $message';
   }
 }
+
+class CactusInitParams {
+  final String? modelPath;
+  final String? modelUrl;
+  final int? contextSize;
+  final int? gpuLayers;
+
+  CactusInitParams({
+    this.modelPath,
+    this.modelUrl,
+    this.contextSize,
+    this.gpuLayers,
+  });
+}
