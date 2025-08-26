@@ -27,9 +27,9 @@ typedef CactusDestroyNative = Void Function(CactusModel model);
 typedef CactusDestroyDart = void Function(CactusModel model);
 
 typedef RegisterAppNative = Int32 Function(
-    Pointer<Utf8> telemetryToken, Pointer<Utf8> enterpriseKey, Pointer<Utf8> deviceMetadata);
+    Pointer<Utf8> encData);
 typedef RegisterAppDart = int Function(
-    Pointer<Utf8> telemetryToken, Pointer<Utf8> enterpriseKey, Pointer<Utf8> deviceMetadata);
+    Pointer<Utf8> encData);
 
 typedef GetAllEntriesNative = Pointer<Utf8> Function();
 typedef GetAllEntriesDart = Pointer<Utf8> Function();
@@ -67,7 +67,6 @@ final registerApp = cactusUtil
     .lookup<NativeFunction<RegisterAppNative>>('register_app')
     .asFunction<RegisterAppDart>();
 
-final getAllEntries = cactusUtil
-    .lookup<NativeFunction<GetAllEntriesNative>>('get_all_entries')
-    .asFunction<GetAllEntriesDart>();
-
+final setAndroidDataDirectory = cactusUtil
+    .lookup<NativeFunction<Void Function(Pointer<Utf8>)>>('set_android_data_directory')
+    .asFunction<void Function(Pointer<Utf8>)>();

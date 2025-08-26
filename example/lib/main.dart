@@ -42,7 +42,6 @@ class _MyHomePageState extends State<MyHomePage> {
   @override
   void initState() {
     super.initState();
-    _loadEntries();
     _loadDeviceInfo();
   }
 
@@ -57,45 +56,16 @@ class _MyHomePageState extends State<MyHomePage> {
     }
   }
 
-  Future<void> _loadEntries() async {
-    try {
-      final entriesJsonList = getAllEntries();
-      if (entriesJsonList.isNotEmpty) {
-        final entriesJson = entriesJsonList.join(',');
-        final decoded = jsonDecode(entriesJson);
-        print("Decoded Entries: ${decoded['entries']}");
-        if (decoded is Map<String, dynamic> && decoded['entries'] is List) {
-          final entries = List<Map<String, dynamic>>.from(decoded['entries']);
-          setState(() {
-            _logEntries = entries.map((e) => LogEntry.fromJson(e)).toList();
-          });
-        }
-      }
-    } catch (e) {
-      print('Error loading entries: $e');
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to load entries: $e')),
-          );
-        }
-      });
-    }
-  }
-
   Future<void> _registerApp() async {
     if (_formKey.currentState!.validate()) {
-      final success = registerApp(
-        telemetryToken: _telemetryTokenController.text,
-        enterpriseKey: _enterpriseKeyController.text,
-        deviceMetadata: _deviceMetadataController.text,
+      final success = await registerApp(
+        encString: "22cf52364d87b3761a7fb15b7ed0ac83b765e4ca08e0a4a7503dca158f30d26bb259876f0fa63006d6b8973054c308522892154a4920cfb71f3a66af143f5c0f20664a7dd5ef7d69bfbb76d35c1144c92116c5d7b5c72569c3de5a7de392"
       );
 
       if (success) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('App registered successfully!')),
         );
-        _loadEntries();
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Failed to register app.')),
