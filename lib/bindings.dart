@@ -7,8 +7,8 @@ final class CactusModelOpaque extends Opaque {}
 typedef CactusModel = Pointer<CactusModelOpaque>;
 
 // Function type definitions
-typedef CactusInitNative = CactusModel Function(Pointer<Utf8> modelPath);
-typedef CactusInitDart = CactusModel Function(Pointer<Utf8> modelPath);
+typedef CactusInitNative = CactusModel Function(Pointer<Utf8> modelPath, Size contextSize);
+typedef CactusInitDart = CactusModel Function(Pointer<Utf8> modelPath, int contextSize);
 
 typedef CactusCompleteNative = Int32 Function(
     CactusModel model,

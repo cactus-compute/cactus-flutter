@@ -18,12 +18,12 @@ class CactusContext {
         .replaceAll('\t', '\\t');
   }
 
-  static Future<int?> initContext(String modelPath) async {
+  static Future<int?> initContext(String modelPath, {int contextSize = 2048}) async {
     try {
-      debugPrint('Initializing context with model: $modelPath');
+      debugPrint('Initializing context with model: $modelPath, contextSize: $contextSize');
       final modelPathC = modelPath.toNativeUtf8(allocator: calloc);
       try {
-        final handle = bindings.cactusInit(modelPathC);
+        final handle = bindings.cactusInit(modelPathC, contextSize);
         if (handle != nullptr) {
           debugPrint('Context initialized successfully');
           return handle.address;
