@@ -1,6 +1,6 @@
 // The Android Gradle Plugin builds the native code with the Android NDK.
 
-group = "com.cactus.flutter"
+group = "com.cactus.example"
 version = "0.0.1"
 
 buildscript {
@@ -61,7 +61,7 @@ task unzipJniLibsTask(type: Copy) {
 }
 
 android {
-    namespace = "com.cactus.flutter"
+    namespace = "com.cactus.example"
     compileSdk = 35 // Or your preferred compile SDK
     ndkVersion = rootProject.ext.has("ndkVersion") ? rootProject.ext.get("ndkVersion") : "26.1.10909125"
 
