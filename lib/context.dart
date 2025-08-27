@@ -120,7 +120,7 @@ class CactusContext {
         .replaceAll('\t', '\\t');
   }
 
-  static Future<int?> initContext(String modelPath, {int contextSize = 2048}) async {
+  static Future<int?> initContext(String modelPath, int contextSize) async {
     // Run the heavy initialization in an isolate using compute
     final isolateParams = {
       'modelPath': modelPath,

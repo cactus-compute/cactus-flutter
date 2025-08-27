@@ -28,14 +28,14 @@ class CactusLM {
     return success;
   }
 
-  Future<bool> initializeModel({String? filename}) async {
+  Future<bool> initializeModel({String? filename, int contextSize = 2048}) async {
     final modelFolder = filename ?? _lastDownloadedModel ?? "qwen3-600m";
     final appDocDir = await getApplicationDocumentsDirectory();
     final modelPath = '${appDocDir.path}/$modelFolder';
 
     print('Initializing model from $modelPath');
 
-    _handle = await CactusContext.initContext(modelPath);
+    _handle = await CactusContext.initContext(modelPath, contextSize);
     CactusTelemetry.instance?.logInit(_handle != null, CactusInitParams(
       modelPath: modelPath,
       modelUrl: _currentModelUrl,
