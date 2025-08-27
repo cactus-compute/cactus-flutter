@@ -1,11 +1,17 @@
-import 'dart:convert';
-
-import 'package:cactus/utils.dart';
-import 'package:cactus_example/device_info_helper.dart';
-import 'package:cactus_example/log_entry.dart';
+import 'package:cactus/lm.dart';
+import 'package:cactus/types.dart';
+import 'package:cactus/telemetry.dart';
 import 'package:flutter/material.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  final deviceId = await CactusTelemetry.fetchDeviceId();
+  
+  if(deviceId != null) {
+    CactusTelemetry('f3a1c0b0-4c6f-4261-ac15-0c03b12d83a2', deviceId);
+  }
+  
   runApp(const MyApp());
 }
 
@@ -32,46 +38,115 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  final _formKey = GlobalKey<FormState>();
-  final _telemetryTokenController = TextEditingController();
-  final _enterpriseKeyController = TextEditingController();
-  final _deviceMetadataController = TextEditingController();
-
-  List<LogEntry> _logEntries = [];
+  final lm = CactusLM();
+  bool isModelLoaded = false;
+  bool isLoading = false;
+  String outputText = 'Ready to start. Click "Download and Load Model" to begin.';
+  String? lastResponse;
+  double? lastTPS;
+  double? lastTTFS;
 
   @override
   void initState() {
     super.initState();
-    _loadDeviceInfo();
   }
 
-  Future<void> _loadDeviceInfo() async {
+  Future<void> downloadAndLoadModel() async {
+    setState(() {
+      isLoading = true;
+      outputText = 'Downloading model...';
+    });
+    
     try {
-      final deviceMetadata = await DeviceInfoHelper.getDeviceMetadataJson();
-      setState(() {
-        _deviceMetadataController.text = deviceMetadata;
-      });
+      final downloadSuccess = await lm.downloadModel();
+      if (downloadSuccess) {
+        setState(() {
+          outputText = 'Model downloaded. Loading...';
+        });
+        
+        final loadSuccess = await lm.initializeModel();
+        if (loadSuccess) {
+          setState(() {
+            isModelLoaded = true;
+            outputText = 'Model loaded successfully!';
+          });
+        } else {
+          setState(() {
+            outputText = 'Failed to load model.';
+          });
+        }
+      } else {
+        setState(() {
+          outputText = 'Failed to download model.';
+        });
+      }
     } catch (e) {
-      print('Error loading device info: $e');
+      setState(() {
+        outputText = 'Error downloading/loading model: $e';
+      });
+    } finally {
+      setState(() {
+        isLoading = false;
+      });
     }
   }
 
-  Future<void> _registerApp() async {
-    if (_formKey.currentState!.validate()) {
-      final success = await registerApp(
-        encString: "22cf52364d87b3761a7fb15b7ed0ac83b765e4ca08e0a4a7503dca158f30d26bb259876f0fa63006d6b8973054c308522892154a4920cfb71f3a66af143f5c0f20664a7dd5ef7d69bfbb76d35c1144c92116c5d7b5c72569c3de5a7de392"
-      );
-
-      if (success) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('App registered successfully!')),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to register app.')),
-        );
-      }
+  Future<void> generateCompletion() async {
+    if (!isModelLoaded) {
+      setState(() {
+        outputText = 'Please download and load model first.';
+      });
+      return;
     }
+    
+    setState(() {
+      isLoading = true;
+      outputText = 'Generating response...';
+    });
+    
+    try {
+      final resp = await lm.generateCompletion(
+        messages: [ChatMessage(content: 'Hi, tell me a short joke', role: "user")], 
+        params: CactusCompletionParams(bufferSize: 1024, maxTokens: 50)
+      );
+      
+      if (resp != null && resp.success) {
+        setState(() {
+          lastResponse = resp.response;
+          lastTPS = resp.tokensPerSecond;
+          lastTTFS = resp.timeToFirstTokenMs;
+          outputText = 'Generation completed successfully!';
+        });
+      } else {
+        setState(() {
+          outputText = 'Failed to generate response.';
+          lastResponse = null;
+          lastTPS = null;
+          lastTTFS = null;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        outputText = 'Error generating response: $e';
+        lastResponse = null;
+        lastTPS = null;
+        lastTTFS = null;
+      });
+    } finally {
+      setState(() {
+        isLoading = false;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    destroyContext();
+    super.dispose();
+  }
+
+  void destroyContext() {
+    lm.unload();
   }
 
   @override
@@ -83,79 +158,83 @@ class _MyHomePageState extends State<MyHomePage> {
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Form(
-              key: _formKey,
-              child: Column(
-                children: [
-                  TextFormField(
-                    controller: _telemetryTokenController,
-                    decoration: const InputDecoration(labelText: 'Telemetry Token'),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please enter a telemetry token';
-                      }
-                      return null;
-                    },
-                  ),
-                  TextFormField(
-                    controller: _enterpriseKeyController,
-                    decoration: const InputDecoration(labelText: 'Enterprise Key (Optional)'),
-                  ),
-                  TextFormField(
-                    controller: _deviceMetadataController,
-                    decoration: InputDecoration(
-                      labelText: 'Device Metadata',
-                      suffixIcon: IconButton(
-                        icon: const Icon(Icons.refresh),
-                        onPressed: _loadDeviceInfo,
-                        tooltip: 'Refresh device info',
-                      ),
-                    ),
-                    maxLines: 5,
-                    minLines: 1,
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please enter device metadata';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 20),
-                  ElevatedButton(
-                    onPressed: _registerApp,
-                    child: const Text('Register App'),
-                  ),
-                ],
-              ),
+            // Buttons section
+            ElevatedButton(
+              onPressed: isLoading ? null : downloadAndLoadModel,
+              child: Text(isModelLoaded ? 'Model Loaded ✓' : 'Download and Load Model'),
+            ),
+            const SizedBox(height: 10),
+            ElevatedButton(
+              onPressed: (isLoading || !isModelLoaded) ? null : generateCompletion,
+              child: const Text('Generate'),
             ),
             const SizedBox(height: 20),
-            const Text('Log Entries', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            
+            // Status section
+            if (isLoading)
+              const Center(
+                child: Column(
+                  children: [
+                    CircularProgressIndicator(),
+                    SizedBox(height: 10),
+                    Text('Processing...'),
+                  ],
+                ),
+              ),
+            
+            // Output section
             Expanded(
-              child: _logEntries.isEmpty
-                  ? const Center(child: Text('No entries found.'))
-                  : ListView.builder(
-                      itemCount: _logEntries.length,
-                      itemBuilder: (context, index) {
-                        final entry = _logEntries[index];
-                        return Card(
-                          margin: const EdgeInsets.symmetric(vertical: 8.0),
-                          child: ListTile(
-                            title: Text('ID: ${entry.id}'),
-                            subtitle: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text('Token: ${entry.telemetryToken}'),
-                                if (entry.enterpriseKey != null) Text('Key: ${entry.enterpriseKey}'),
-                                Text('Metadata: ${entry.deviceMetadata}'),
-                                Text('Created At: ${entry.createdAt}'),
-                                Text('Updated At: ${entry.updatedAt}'),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Output:',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                     ),
+                    const SizedBox(height: 8),
+                    Text(outputText),
+                    if (lastResponse != null) ...[
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Response:',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 4),
+                      Expanded(
+                        child: SingleChildScrollView(
+                          child: Text(lastResponse!),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        children: [
+                          Column(
+                            children: [
+                              const Text('TTFS', style: TextStyle(fontWeight: FontWeight.bold)),
+                              Text('${lastTTFS?.toStringAsFixed(2)} ms'),
+                            ],
+                          ),
+                          Column(
+                            children: [
+                              const Text('TPS', style: TextStyle(fontWeight: FontWeight.bold)),
+                              Text('${lastTPS?.toStringAsFixed(2)}'),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
             ),
           ],
         ),
