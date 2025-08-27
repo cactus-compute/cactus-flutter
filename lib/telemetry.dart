@@ -1,5 +1,9 @@
 import 'dart:io';
 import 'dart:convert';
+
+import 'package:cactus/device_info.dart';
+import 'package:cactus/utils.dart';
+
 import './types.dart';
 
 class LogRecord {
@@ -8,9 +12,9 @@ class LogRecord {
   final String deviceId;
   final double? ttfs;
   final double? tps;
-  final double responseTime;
+  final double? responseTime;
   final String model;
-  final double tokens;
+  final double? tokens;
   final String? mode;
 
   LogRecord({
@@ -19,9 +23,9 @@ class LogRecord {
     required this.deviceId,
     this.ttfs,
     this.tps,
-    required this.responseTime,
+    this.responseTime,
     required this.model,
-    required this.tokens,
+    this.tokens,
     this.mode,
   });
 
@@ -55,18 +59,33 @@ class CactusTelemetry {
   }
 
   static bool get isInitialized => _instance != null;
+  static CactusTelemetry? get instance => _instance;
 
-  static String _getFilename(String? path) {
-    if (path == null || path.isEmpty) return 'unknown';
-    try {
-      final uri = Uri.tryParse(path);
-      if (uri != null) {
-        return uri.pathSegments.isNotEmpty ? uri.pathSegments.last : 'unknown';
+  static Future<String?> fetchDeviceId() async {
+    String? deviceId = await getDeviceId();
+    if (deviceId == null) {
+      print('Failed to get device ID, registering device...');
+      try {
+        final deviceData = await getDeviceMetadata();
+        return await _registerDevice(deviceData);
+      } catch (e) {
+        return null;
       }
-      return path.split(Platform.pathSeparator).last;
-    } catch (e) {
-      return 'unknown';
     }
+    return deviceId;
+  }
+
+  Future<void> logInit(bool success, CactusInitParams options) async {
+    print("init log");
+    final record = LogRecord(
+      eventType: success ? 'init_success' : 'init_failure',
+      projectId: projectId,
+      deviceId: deviceId,
+      model: _getFilename(options.modelPath ?? options.modelUrl),
+      mode: 'chat',
+    );
+
+    await _sendLogRecord(record);
   }
 
   Future<void> logCompletion(CactusCompletionResult result, CactusInitParams options) async {
@@ -99,6 +118,19 @@ class CactusTelemetry {
     await _sendLogRecord(record);
   }
 
+  static String _getFilename(String? path) {
+    if (path == null || path.isEmpty) return 'unknown';
+    try {
+      final uri = Uri.tryParse(path);
+      if (uri != null) {
+        return uri.pathSegments.isNotEmpty ? uri.pathSegments.last : 'unknown';
+      }
+      return path.split(Platform.pathSeparator).last;
+    } catch (e) {
+      return 'unknown';
+    }
+  }
+
   Future<void> _sendLogRecord(LogRecord record) async {
     try {
       final client = HttpClient();
@@ -125,6 +157,37 @@ class CactusTelemetry {
       client.close();
     } catch (e) {
       print('Error sending log record: $e');
+    }
+  }
+
+  static Future<String?> _registerDevice(Map<String, dynamic> deviceData) async {
+    try {
+      final client = HttpClient();
+      final uri = Uri.parse('$_supabaseUrl/functions/v1/device-registration');
+      final request = await client.postUrl(uri);
+      
+      // Set headers
+      request.headers.set('Content-Type', 'application/json');
+      
+      // Send device data wrapped in device_data object as per API spec
+      final body = jsonEncode({
+        'device_data': deviceData
+      });
+      request.write(body);
+      
+      final response = await request.close();
+      
+      if (response.statusCode == 200) {
+        final responseBody = await response.transform(utf8.decoder).join();
+        print('Device registered successfully');        
+        final responseJson = jsonDecode(responseBody) as Map<String, dynamic>;
+        final deviceId = await registerApp(encString: responseJson['encrypted_payload']);
+        return deviceId;
+      } else {
+        return null;
+      }
+    } catch (e) {
+      return null;
     }
   }
 }
