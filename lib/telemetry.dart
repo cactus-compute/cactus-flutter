@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:convert';
 
 import 'package:cactus/device_info.dart';
+import 'package:cactus/src/version.dart';
 import 'package:cactus/utils.dart';
 
 import './types.dart';
@@ -16,6 +17,8 @@ class LogRecord {
   final String model;
   final double? tokens;
   final String? mode;
+  final String? framework = 'flutter';
+  final String? frameworkVersion = packageVersion;
 
   LogRecord({
     required this.eventType,
@@ -40,6 +43,8 @@ class LogRecord {
       'model': model,
       'tokens': tokens,
       if (mode != null) 'mode': mode,
+      'framework': framework,
+      'framework_version': frameworkVersion,
     };
   }
 }
