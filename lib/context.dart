@@ -8,6 +8,83 @@ import 'package:flutter/foundation.dart';
 import './bindings.dart' as bindings;
 import './types.dart';
 
+Future<CactusCompletionResult> _completionInIsolate(Map<String, dynamic> params) async {
+  final handle = params['handle'] as int;
+  final messagesJson = params['messagesJson'] as String;
+  final optionsJson = params['optionsJson'] as String;
+  final bufferSize = params['bufferSize'] as int;
+
+  final responseBuffer = calloc<Uint8>(bufferSize);
+  final messagesJsonC = messagesJson.toNativeUtf8(allocator: calloc);
+  final optionsJsonC = optionsJson.toNativeUtf8(allocator: calloc);
+
+  try {
+    final result = bindings.cactusComplete(
+      Pointer.fromAddress(handle),
+      messagesJsonC,
+      responseBuffer.cast<Utf8>(),
+      bufferSize,
+      optionsJsonC,
+    );
+
+    debugPrint('Received completion result code: $result');
+
+    if (result > 0) {
+      final responseText = responseBuffer.cast<Utf8>().toDartString().trim();
+      
+      try {
+        final jsonResponse = jsonDecode(responseText) as Map<String, dynamic>;
+        final success = jsonResponse['success'] as bool? ?? true;
+        final response = jsonResponse['response'] as String? ?? responseText;
+        final timeToFirstTokenMs = (jsonResponse['time_to_first_token_ms'] as num?)?.toDouble() ?? 0.0;
+        final totalTimeMs = (jsonResponse['total_time_ms'] as num?)?.toDouble() ?? 0.0;
+        final tokensPerSecond = (jsonResponse['tokens_per_second'] as num?)?.toDouble() ?? 0.0;
+        final prefillTokens = jsonResponse['prefill_tokens'] as int? ?? 0;
+        final decodeTokens = jsonResponse['decode_tokens'] as int? ?? 0;
+        final totalTokens = jsonResponse['total_tokens'] as int? ?? 0;
+
+        return CactusCompletionResult(
+          success: success,
+          response: response,
+          timeToFirstTokenMs: timeToFirstTokenMs,
+          totalTimeMs: totalTimeMs,
+          tokensPerSecond: tokensPerSecond,
+          prefillTokens: prefillTokens,
+          decodeTokens: decodeTokens,
+          totalTokens: totalTokens,
+        );
+      } catch (e) {
+        debugPrint('Unable to parse the response json: $e');
+        return CactusCompletionResult(
+          success: false,
+          response: 'Error: Unable to parse the response',
+          timeToFirstTokenMs: 0.0,
+          totalTimeMs: 0.0,
+          tokensPerSecond: 0.0,
+          prefillTokens: 0,
+          decodeTokens: 0,
+          totalTokens: 0,
+        );
+      }
+    } else {
+      return CactusCompletionResult(
+        success: false,
+        response: 'Error: completion failed with code $result',
+        timeToFirstTokenMs: 0.0,
+        totalTimeMs: 0.0,
+        tokensPerSecond: 0.0,
+        prefillTokens: 0,
+        decodeTokens: 0,
+        totalTokens: 0,
+      );
+    }
+  } finally {
+    calloc.free(responseBuffer);
+    calloc.free(messagesJsonC);
+    calloc.free(optionsJsonC);
+  }
+}
+
 class CactusContext {
   static String _escapeJsonString(String input) {
     return input
@@ -54,6 +131,7 @@ class CactusContext {
     List<ChatMessage> messages,
     CactusCompletionParams params,
   ) async {
+    // Prepare JSON data on main thread
     final messagesJsonBuffer = StringBuffer('[');
     for (int i = 0; i < messages.length; i++) {
       if (i > 0) messagesJsonBuffer.write(',');
@@ -81,74 +159,14 @@ class CactusContext {
     optionsJsonBuffer.write('}');
     final optionsJson = optionsJsonBuffer.toString();
 
-    final responseBuffer = calloc<Uint8>(params.bufferSize);
-    final messagesJsonC = messagesJson.toNativeUtf8(allocator: calloc);
-    final optionsJsonC = optionsJson.toNativeUtf8(allocator: calloc);
+    // Run the heavy computation in an isolate using compute
+    final isolateParams = {
+      'handle': handle,
+      'messagesJson': messagesJson,
+      'optionsJson': optionsJson,
+      'bufferSize': params.bufferSize,
+    };
 
-    try {
-      final result = bindings.cactusComplete(
-        Pointer.fromAddress(handle),
-        messagesJsonC,
-        responseBuffer.cast<Utf8>(),
-        params.bufferSize,
-        optionsJsonC,
-      );
-
-      debugPrint('Received completion result code: $result');
-
-      if (result > 0) {
-        final responseText = responseBuffer.cast<Utf8>().toDartString().trim();
-        
-        try {
-          final jsonResponse = jsonDecode(responseText) as Map<String, dynamic>;
-          final success = jsonResponse['success'] as bool? ?? true;
-          final response = jsonResponse['response'] as String? ?? responseText;
-          final timeToFirstTokenMs = (jsonResponse['time_to_first_token_ms'] as num?)?.toDouble() ?? 0.0;
-          final totalTimeMs = (jsonResponse['total_time_ms'] as num?)?.toDouble() ?? 0.0;
-          final tokensPerSecond = (jsonResponse['tokens_per_second'] as num?)?.toDouble() ?? 0.0;
-          final prefillTokens = jsonResponse['prefill_tokens'] as int? ?? 0;
-          final decodeTokens = jsonResponse['decode_tokens'] as int? ?? 0;
-          final totalTokens = jsonResponse['total_tokens'] as int? ?? 0;
-
-          return CactusCompletionResult(
-            success: success,
-            response: response,
-            timeToFirstTokenMs: timeToFirstTokenMs,
-            totalTimeMs: totalTimeMs,
-            tokensPerSecond: tokensPerSecond,
-            prefillTokens: prefillTokens,
-            decodeTokens: decodeTokens,
-            totalTokens: totalTokens,
-          );
-        } catch (e) {
-          debugPrint('Unable to parse the response json: $e');
-          return CactusCompletionResult(
-            success: false,
-            response: 'Error: Unable to parse the response',
-            timeToFirstTokenMs: 0.0,
-            totalTimeMs: 0.0,
-            tokensPerSecond: 0.0,
-            prefillTokens: 0,
-            decodeTokens: 0,
-            totalTokens: 0,
-          );
-        }
-      } else {
-        return CactusCompletionResult(
-          success: false,
-          response: 'Error: completion failed with code $result',
-          timeToFirstTokenMs: 0.0,
-          totalTimeMs: 0.0,
-          tokensPerSecond: 0.0,
-          prefillTokens: 0,
-          decodeTokens: 0,
-          totalTokens: 0,
-        );
-      }
-    } finally {
-      calloc.free(responseBuffer);
-      calloc.free(messagesJsonC);
-      calloc.free(optionsJsonC);
-    }
+    return await compute(_completionInIsolate, isolateParams);
   }
 }
