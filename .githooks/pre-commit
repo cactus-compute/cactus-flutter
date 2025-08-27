@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if git diff --name-only --cached | grep -Eq '^(pubspec\.yaml)$'; then
+  echo "pubspec.yaml changed → regenerating version…"
+  dart run build_runner build --delete-conflicting-outputs
+  git add lib/src/version.dart 2>/dev/null || true
+fi
