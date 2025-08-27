@@ -4,13 +4,19 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-int register_app(const char* telemetry_token, const char* enterprise_key, const char* device_metadata);
 
-int update_token(const char* enterprise_key);
+const char* register_app(const char* encrypted_data);
 
-char* get_all_entries(void);
+const char* get_device_id();
 
-void free_string(char* str);
+// Helper function to free memory allocated by register_app
+void free_string(const char* str);
+
+#ifdef __ANDROID__
+// Function to set the Android app data directory
+// This should be called from Flutter/Java side before any other functions
+void set_android_data_directory(const char* data_dir);
+#endif
 
 #ifdef __cplusplus
 }
