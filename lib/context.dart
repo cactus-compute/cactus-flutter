@@ -8,6 +8,31 @@ import 'package:flutter/foundation.dart';
 import './bindings.dart' as bindings;
 import './types.dart';
 
+Future<int?> _initContextInIsolate(Map<String, dynamic> params) async {
+  final modelPath = params['modelPath'] as String;
+  final contextSize = params['contextSize'] as int;
+
+  try {
+    debugPrint('Initializing context with model: $modelPath, contextSize: $contextSize');
+    final modelPathC = modelPath.toNativeUtf8(allocator: calloc);
+    try {
+      final handle = bindings.cactusInit(modelPathC, contextSize);
+      if (handle != nullptr) {
+        debugPrint('Context initialized successfully');
+        return handle.address;
+      } else {
+        debugPrint('Failed to initialize context');
+        return null;
+      }
+    } finally {
+      calloc.free(modelPathC);
+    }
+  } catch (e) {
+    debugPrint('Exception during context initialization: $e');
+    return null;
+  }
+}
+
 Future<CactusCompletionResult> _completionInIsolate(Map<String, dynamic> params) async {
   final handle = params['handle'] as int;
   final messagesJson = params['messagesJson'] as String;
@@ -96,25 +121,13 @@ class CactusContext {
   }
 
   static Future<int?> initContext(String modelPath, {int contextSize = 2048}) async {
-    try {
-      debugPrint('Initializing context with model: $modelPath, contextSize: $contextSize');
-      final modelPathC = modelPath.toNativeUtf8(allocator: calloc);
-      try {
-        final handle = bindings.cactusInit(modelPathC, contextSize);
-        if (handle != nullptr) {
-          debugPrint('Context initialized successfully');
-          return handle.address;
-        } else {
-          debugPrint('Failed to initialize context');
-          return null;
-        }
-      } finally {
-        calloc.free(modelPathC);
-      }
-    } catch (e) {
-      debugPrint('Exception during context initialization: $e');
-      return null;
-    }
+    // Run the heavy initialization in an isolate using compute
+    final isolateParams = {
+      'modelPath': modelPath,
+      'contextSize': contextSize,
+    };
+
+    return await compute(_initContextInIsolate, isolateParams);
   }
 
   static void freeContext(int handle) {
