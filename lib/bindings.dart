@@ -26,13 +26,16 @@ typedef CactusCompleteDart = int Function(
 typedef CactusDestroyNative = Void Function(CactusModel model);
 typedef CactusDestroyDart = void Function(CactusModel model);
 
-typedef RegisterAppNative = Int32 Function(
+typedef RegisterAppNative = Pointer<Utf8> Function(
     Pointer<Utf8> encData);
-typedef RegisterAppDart = int Function(
+typedef RegisterAppDart = Pointer<Utf8> Function(
     Pointer<Utf8> encData);
 
 typedef GetAllEntriesNative = Pointer<Utf8> Function();
 typedef GetAllEntriesDart = Pointer<Utf8> Function();
+
+typedef GetDeviceIdNative = Pointer<Utf8> Function();
+typedef GetDeviceIdDart = Pointer<Utf8> Function();
 
 // Helper function to get the library path based on platform
 String _getLibraryPath(String libName) {
@@ -70,3 +73,7 @@ final registerApp = cactusUtil
 final setAndroidDataDirectory = cactusUtil
     .lookup<NativeFunction<Void Function(Pointer<Utf8>)>>('set_android_data_directory')
     .asFunction<void Function(Pointer<Utf8>)>();
+
+final getDeviceId = cactusUtil
+    .lookup<NativeFunction<GetDeviceIdNative>>('get_device_id')
+    .asFunction<GetDeviceIdDart>();

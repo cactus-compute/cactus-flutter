@@ -5,24 +5,47 @@ import 'package:ffi/ffi.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:ffi';
 
-/// Registers the app with the Cactus backend.
-///
-/// Returns `true` on success, `false` on failure.
-Future<bool> registerApp(
+
+Future<String?> registerApp(
     {required String encString}
 ) async {
-  await setupAndroidDataDirectory();
+  await _setupAndroidDataDirectory();
   final encStringPtr = encString.toNativeUtf8();
 
   try {
-    final result = bindings.registerApp(encStringPtr);
-    return result == 1;
+    final resultPtr = bindings.registerApp(encStringPtr);
+    
+    if (resultPtr == nullptr) {
+      return null;
+    }
+    
+    // Convert the returned C string to Dart string
+    final resultString = resultPtr.toDartString();
+    
+    // Note: We don't free resultPtr here as it's managed by the C library
+    return resultString;
   } finally {
     malloc.free(encStringPtr);
   }
 }
 
-Future<void> setupAndroidDataDirectory() async {
+Future<String?> getDeviceId() async {
+  try {
+    await _setupAndroidDataDirectory();
+    final resultPtr = bindings.getDeviceId();
+
+    if (resultPtr == nullptr) {
+      return null;
+    }
+    final deviceId = resultPtr.toDartString();
+    return deviceId;
+  } catch (e) {
+    print('Error getting device ID: $e');
+    return null;
+  }
+}
+
+Future<void> _setupAndroidDataDirectory() async {
   if (Platform.isAndroid) {
     try {
       // Get the app's data directory
@@ -35,8 +58,6 @@ Future<void> setupAndroidDataDirectory() async {
 
       // Clean up the allocated string
       malloc.free(nativeDataPath);
-      
-      print('Android data directory set to: $dataPath');
     } catch (e) {
       print('Failed to set Android data directory: $e');
     }
