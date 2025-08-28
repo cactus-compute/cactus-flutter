@@ -19,6 +19,8 @@ class LogRecord {
   final String? mode;
   final String? framework = 'flutter';
   final String? frameworkVersion = packageVersion;
+  final bool? success;
+  final String? message;
 
   LogRecord({
     required this.eventType,
@@ -30,6 +32,8 @@ class LogRecord {
     required this.model,
     this.tokens,
     this.mode,
+    this.success,
+    this.message
   });
 
   Map<String, dynamic> toJson() {
@@ -45,6 +49,8 @@ class LogRecord {
       if (mode != null) 'mode': mode,
       'framework': framework,
       'framework_version': frameworkVersion,
+      if (success != null) 'success': success,
+      if (message != null) 'message': message,
     };
   }
 }
@@ -83,41 +89,30 @@ class CactusTelemetry {
   Future<void> logInit(bool success, CactusInitParams options) async {
     print("init log");
     final record = LogRecord(
-      eventType: success ? 'init_success' : 'init_failure',
+      eventType: 'init',
       projectId: projectId,
       deviceId: deviceId,
       model: _getFilename(options.modelPath ?? options.modelUrl),
       mode: 'chat',
+      success: success
     );
 
     await _sendLogRecord(record);
   }
 
-  Future<void> logCompletion(CactusCompletionResult result, CactusInitParams options) async {
+  Future<void> logCompletion(CactusCompletionResult? result, CactusInitParams options, {String? message, bool? success}) async {
     final record = LogRecord(
       eventType: 'completion',
       projectId: projectId,
       deviceId: deviceId,
-      ttfs: result.timeToFirstTokenMs,
-      tps: result.tokensPerSecond,
-      responseTime: result.totalTimeMs,
+      ttfs: result?.timeToFirstTokenMs,
+      tps: result?.tokensPerSecond,
+      responseTime: result?.totalTimeMs,
       model: _getFilename(options.modelPath ?? options.modelUrl),
-      tokens: result.totalTokens.toDouble(),
+      tokens: result?.totalTokens.toDouble(),
       mode: 'chat',
-    );
-
-    await _sendLogRecord(record);
-  }
-
-  Future<void> logError(Object? error, CactusInitParams options) async {
-    final record = LogRecord(
-      eventType: 'error',
-      projectId: projectId,
-      deviceId: deviceId,
-      responseTime: 0.0,
-      model: _getFilename(options.modelPath ?? options.modelUrl),
-      tokens: 0.0,
-      mode: error.runtimeType.toString(),
+      success: success,
+      message: message
     );
 
     await _sendLogRecord(record);

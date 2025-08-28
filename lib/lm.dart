@@ -49,8 +49,9 @@ class CactusLM {
   }) async {
     final currentHandle = _handle;
     if (currentHandle == null) {
-      CactusTelemetry.instance?.logError(null, CactusInitParams());
-      return null;}
+      CactusTelemetry.instance?.logCompletion(null, CactusInitParams(), message: "Context not initialized", success: false);
+      return null;
+    }
 
     try {
       final result = await CactusContext.completion(currentHandle, messages, params);
@@ -61,7 +62,7 @@ class CactusLM {
           modelPath: _currentModelPath,
           modelUrl: _currentModelUrl,
         );
-        CactusTelemetry.instance?.logCompletion(result, initParams);
+        CactusTelemetry.instance?.logCompletion(result, initParams, success: true);
       }
       
       return result;
@@ -72,7 +73,7 @@ class CactusLM {
           modelPath: _currentModelPath,
           modelUrl: _currentModelUrl,
         );
-        CactusTelemetry.instance?.logError(e, initParams);
+        CactusTelemetry.instance?.logCompletion(null, initParams, message: e.toString(), success: false);
       }
       rethrow;
     }
