@@ -44,7 +44,7 @@ class _MyHomePageState extends State<MyHomePage> {
   String outputText = 'Ready to start. Click "Download and Load Model" to begin.';
   String? lastResponse;
   double? lastTPS;
-  double? lastTTFS;
+  double? lastTTFT;
 
   @override
   void initState() {
@@ -114,7 +114,7 @@ class _MyHomePageState extends State<MyHomePage> {
         setState(() {
           lastResponse = resp.response;
           lastTPS = resp.tokensPerSecond;
-          lastTTFS = resp.timeToFirstTokenMs;
+          lastTTFT = resp.timeToFirstTokenMs;
           outputText = 'Generation completed successfully!';
         });
       } else {
@@ -122,7 +122,7 @@ class _MyHomePageState extends State<MyHomePage> {
           outputText = 'Failed to generate response.';
           lastResponse = null;
           lastTPS = null;
-          lastTTFS = null;
+          lastTTFT = null;
         });
       }
     } catch (e) {
@@ -130,7 +130,7 @@ class _MyHomePageState extends State<MyHomePage> {
         outputText = 'Error generating response: $e';
         lastResponse = null;
         lastTPS = null;
-        lastTTFS = null;
+        lastTTFT = null;
       });
     } finally {
       setState(() {
@@ -219,8 +219,8 @@ class _MyHomePageState extends State<MyHomePage> {
                         children: [
                           Column(
                             children: [
-                              const Text('TTFS', style: TextStyle(fontWeight: FontWeight.bold)),
-                              Text('${lastTTFS?.toStringAsFixed(2)} ms'),
+                              const Text('TTFT', style: TextStyle(fontWeight: FontWeight.bold)),
+                              Text('${lastTTFT?.toStringAsFixed(2)} ms'),
                             ],
                           ),
                           Column(

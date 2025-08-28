@@ -11,7 +11,7 @@ class LogRecord {
   final String eventType;
   final String projectId;
   final String deviceId;
-  final double? ttfs;
+  final double? ttft;
   final double? tps;
   final double? responseTime;
   final String model;
@@ -26,7 +26,7 @@ class LogRecord {
     required this.eventType,
     required this.projectId,
     required this.deviceId,
-    this.ttfs,
+    this.ttft,
     this.tps,
     this.responseTime,
     required this.model,
@@ -41,7 +41,7 @@ class LogRecord {
       'event_type': eventType,
       'project_id': projectId,
       'device_id': deviceId,
-      if (ttfs != null) 'ttfs': ttfs,
+      if (ttft != null) 'ttft': ttft,
       if (tps != null) 'tps': tps,
       'response_time': responseTime,
       'model': model,
@@ -105,7 +105,7 @@ class CactusTelemetry {
       eventType: 'completion',
       projectId: projectId,
       deviceId: deviceId,
-      ttfs: result?.timeToFirstTokenMs,
+      ttft: result?.timeToFirstTokenMs,
       tps: result?.tokensPerSecond,
       responseTime: result?.totalTimeMs,
       model: _getFilename(options.modelPath ?? options.modelUrl),
