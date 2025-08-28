@@ -16,7 +16,6 @@ class LogRecord {
   final double? responseTime;
   final String model;
   final double? tokens;
-  final String? mode;
   final String? framework = 'flutter';
   final String? frameworkVersion = packageVersion;
   final bool? success;
@@ -31,7 +30,6 @@ class LogRecord {
     this.responseTime,
     required this.model,
     this.tokens,
-    this.mode,
     this.success,
     this.message
   });
@@ -46,7 +44,6 @@ class LogRecord {
       'response_time': responseTime,
       'model': model,
       'tokens': tokens,
-      if (mode != null) 'mode': mode,
       'framework': framework,
       'framework_version': frameworkVersion,
       if (success != null) 'success': success,
@@ -93,7 +90,6 @@ class CactusTelemetry {
       projectId: projectId,
       deviceId: deviceId,
       model: _getFilename(options.modelPath ?? options.modelUrl),
-      mode: 'chat',
       success: success
     );
 
@@ -110,7 +106,6 @@ class CactusTelemetry {
       responseTime: result?.totalTimeMs,
       model: _getFilename(options.modelPath ?? options.modelUrl),
       tokens: result?.totalTokens.toDouble(),
-      mode: 'chat',
       success: success,
       message: message
     );
