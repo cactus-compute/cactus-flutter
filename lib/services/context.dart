@@ -2,11 +2,11 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:ffi';
 
+import 'package:cactus/models/types.dart';
 import 'package:ffi/ffi.dart';
 import 'package:flutter/foundation.dart';
 
-import './bindings.dart' as bindings;
-import './types.dart';
+import 'bindings.dart' as bindings;
 
 Future<int?> _initContextInIsolate(Map<String, dynamic> params) async {
   final modelPath = params['modelPath'] as String;

@@ -2,12 +2,12 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:archive/archive.dart';
-import 'package:cactus/context.dart';
+import 'package:cactus/services/context.dart';
+import 'package:cactus/models/types.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
-import './types.dart';
-import './telemetry.dart';
+import 'telemetry.dart';
 
 class CactusLM {
   int? _handle;

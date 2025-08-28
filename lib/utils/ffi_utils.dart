@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import './bindings.dart' as bindings;
+import 'package:cactus/services/bindings.dart' as bindings;
 import 'package:ffi/ffi.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:ffi';
