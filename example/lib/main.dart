@@ -70,7 +70,7 @@ class _MyHomePageState extends State<MyHomePage> {
           outputText = 'Model downloaded. Loading...';
         });
         
-        final loadSuccess = await lm.initializeModel();
+        final loadSuccess = await lm.initializeModel(CactusInitParams(contextSize: 2048));
         if (loadSuccess) {
           setState(() {
             isModelLoaded = true;

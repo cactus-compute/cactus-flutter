@@ -29,17 +29,15 @@ class CactusLM {
     return success;
   }
 
-  Future<bool> initializeModel({String? slug, int contextSize = 2048}) async {
-    final modelFolder = slug ?? _lastDownloadedModel ?? "qwen3-0.6";
+  Future<bool> initializeModel(CactusInitParams params) async {
+    final modelFolder = params.model ?? _lastDownloadedModel ?? "qwen3-0.6";
     final appDocDir = await getApplicationDocumentsDirectory();
     final modelPath = '${appDocDir.path}/$modelFolder';
 
-    print('Initializing model from $modelPath');
-
-    _handle = await CactusContext.initContext(modelPath, contextSize);
-    Telemetry.instance?.logInit(_handle != null, CactusInitParams(
-      model: _lastDownloadedModel
-    ));
+    _handle = await CactusContext.initContext(modelPath, params.contextSize ?? 2048);
+    if(Telemetry.isInitialized) {
+      Telemetry.instance?.logInit(_handle != null, params);
+    }
     return _handle != null;
   }
 
@@ -49,7 +47,9 @@ class CactusLM {
   }) async {
     final currentHandle = _handle;
     if (currentHandle == null) {
-      Telemetry.instance?.logCompletion(null, CactusInitParams(), message: "Context not initialized", success: false);
+      if(Telemetry.isInitialized) {
+        Telemetry.instance?.logCompletion(null, CactusInitParams(), message: "Context not initialized", success: false);
+      }
       return null;
     }
 
