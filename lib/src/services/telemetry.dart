@@ -31,7 +31,6 @@ class Telemetry {
   }
 
   Future<void> logInit(bool success, CactusInitParams options) async {
-    print("init log");
     final record = LogRecord(
       eventType: 'init',
       projectId: projectId,

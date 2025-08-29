@@ -16,6 +16,7 @@ dependencies:
   path_provider: ^2.1.5
   archive: ^4.0.7
   device_info_plus: ^11.5.0
+  shared_preferences: ^2.5.3
 
 dev_dependencies:
   flutter_test:

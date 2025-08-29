@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:cactus/src/models/log_record.dart';
 import 'package:cactus/models/types.dart';
+import 'package:cactus/src/services/log_buffer.dart';
 import 'package:cactus/src/utils/ffi_utils.dart';
 
 class _InternalModel {
@@ -58,7 +59,45 @@ class Supabase {
 
   static Future<void> sendLogRecord(LogRecord record) async {
     try {
-      final client = HttpClient();
+      // First, try to send just the current record
+      final success = await _sendLogRecordsBatch([record]);
+      
+      if (success) {
+        print('Successfully sent current log record');
+        
+        // Only if current record was successful, try to send buffered records
+        final failedRecords = await LogBuffer.loadFailedLogRecords();
+        if (failedRecords.isNotEmpty) {
+          print('Attempting to send ${failedRecords.length} buffered log records...');
+          
+          final bufferedSuccess = await _sendLogRecordsBatch(
+            failedRecords.map((buffered) => buffered.record).toList()
+          );
+          
+          if (bufferedSuccess) {
+            await LogBuffer.clearFailedLogRecords();
+            print('Successfully sent ${failedRecords.length} buffered log records');
+          } else {
+            for (final buffered in failedRecords) {
+              await LogBuffer.handleRetryFailedLogRecord(buffered.record);
+            }
+            print('Failed to send buffered records, keeping them for next successful attempt');
+          }
+        }
+      } else {
+        // Current record failed, add it to buffer
+        await LogBuffer.handleFailedLogRecord(record);
+        print('Current log record failed, added to buffer');
+      }
+    } catch (e) {
+      print('Error sending log record: $e');
+      await LogBuffer.handleFailedLogRecord(record);
+    }
+  }
+  
+  static Future<bool> _sendLogRecordsBatch(List<LogRecord> records) async {
+    final client = HttpClient();
+    try {
       final uri = Uri.parse('$_supabaseUrl/rest/v1/logs');
       final request = await client.postUrl(uri);
       
@@ -67,7 +106,8 @@ class Supabase {
       request.headers.set('Content-Type', 'application/json');
       request.headers.set('Prefer', 'return=minimal');
       
-      final body = jsonEncode(record.toJson());
+      // Send records as an array
+      final body = jsonEncode(records.map((record) => record.toJson()).toList());
       request.write(body);
       
       final response = await request.close();
@@ -76,12 +116,13 @@ class Supabase {
       if (response.statusCode != 201 && response.statusCode != 200) {
         final responseBody = await response.transform(utf8.decoder).join();
         print("Error response body: $responseBody");
+        return false;
       }
       
       await response.drain();
+      return true;
+    } finally {
       client.close();
-    } catch (e) {
-      print('Error sending log record: $e');
     }
   }
 

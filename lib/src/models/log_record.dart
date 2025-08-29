@@ -32,15 +32,59 @@ class LogRecord {
       'event_type': eventType,
       'project_id': projectId,
       'device_id': deviceId,
-      if (ttft != null) 'ttft': ttft,
-      if (tps != null) 'tps': tps,
+      'ttft': ttft,
+      'tps': tps,
       'response_time': responseTime,
       'model': model,
       'tokens': tokens,
       'framework': framework,
       'framework_version': frameworkVersion,
-      if (success != null) 'success': success,
-      if (message != null) 'message': message,
+      'success': success,
+      'message': message,
     };
+  }
+  
+  factory LogRecord.fromJson(Map<String, dynamic> json) {
+    return LogRecord(
+      eventType: json['event_type'] as String,
+      projectId: json['project_id'] as String,
+      deviceId: json['device_id'] as String,
+      ttft: json['ttft'] as double?,
+      tps: json['tps'] as double?,
+      responseTime: json['response_time'] as double?,
+      model: json['model'] as String?,
+      tokens: json['tokens'] as double?,
+      success: json['success'] as bool?,
+      message: json['message'] as String?,
+    );
+  }
+}
+
+class BufferedLogRecord {
+  final LogRecord record;
+  int retryCount;
+  final DateTime firstAttempt;
+  
+  BufferedLogRecord({
+    required this.record,
+    this.retryCount = 0,
+    required this.firstAttempt,
+  });
+  
+  // JSON serialization
+  Map<String, dynamic> toJson() {
+    return {
+      'record': record.toJson(),
+      'retryCount': retryCount,
+      'firstAttempt': firstAttempt.toIso8601String(),
+    };
+  }
+  
+  factory BufferedLogRecord.fromJson(Map<String, dynamic> json) {
+    return BufferedLogRecord(
+      record: LogRecord.fromJson(json['record'] as Map<String, dynamic>),
+      retryCount: json['retryCount'] as int,
+      firstAttempt: DateTime.parse(json['firstAttempt'] as String),
+    );
   }
 }

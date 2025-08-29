@@ -36,7 +36,9 @@ class CactusLM {
     final modelPath = '${appDocDir.path}/$modelFolder';
 
     _handle = await CactusContext.initContext(modelPath, params.contextSize ?? 2048);
+    _lastDownloadedModel = modelFolder;
     if(Telemetry.isInitialized) {
+      params.model = modelFolder;
       Telemetry.instance?.logInit(_handle != null, params);
     }
     return _handle != null;
