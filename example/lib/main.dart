@@ -37,9 +37,11 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
   final lm = CactusLM();
+  bool isModelDownloaded = false;
   bool isModelLoaded = false;
-  bool isLoading = false;
-  String outputText = 'Ready to start. Click "Download and Load Model" to begin.';
+  bool isDownloading = false;
+  bool isInitializing = false;
+  String outputText = 'Ready to start. Click "Download Model" to begin.';
   String? lastResponse;
   double? lastTPS;
   double? lastTTFT;
@@ -50,9 +52,9 @@ class _MyHomePageState extends State<MyHomePage> {
     super.initState();
   }
 
-  Future<void> downloadAndLoadModel() async {
+  Future<void> downloadModel() async {
     setState(() {
-      isLoading = true;
+      isDownloading = true;
       outputText = 'Downloading model...';
     });
     
@@ -60,20 +62,9 @@ class _MyHomePageState extends State<MyHomePage> {
       final downloadSuccess = await lm.downloadModel();
       if (downloadSuccess) {
         setState(() {
-          outputText = 'Model downloaded. Loading...';
+          isModelDownloaded = true;
+          outputText = 'Model downloaded successfully! Click "Initialize Model" to load it.';
         });
-        
-        final loadSuccess = await lm.initializeModel(CactusInitParams(contextSize: 2048));
-        if (loadSuccess) {
-          setState(() {
-            isModelLoaded = true;
-            outputText = 'Model loaded successfully!';
-          });
-        } else {
-          setState(() {
-            outputText = 'Failed to load model.';
-          });
-        }
       } else {
         setState(() {
           outputText = 'Failed to download model.';
@@ -81,11 +72,40 @@ class _MyHomePageState extends State<MyHomePage> {
       }
     } catch (e) {
       setState(() {
-        outputText = 'Error downloading/loading model: $e';
+        outputText = 'Error downloading model: $e';
       });
     } finally {
       setState(() {
-        isLoading = false;
+        isDownloading = false;
+      });
+    }
+  }
+
+  Future<void> initializeModel() async {
+    setState(() {
+      isInitializing = true;
+      outputText = 'Initializing model...';
+    });
+    
+    try {
+      final loadSuccess = await lm.initializeModel(CactusInitParams(contextSize: 2048));
+      if (loadSuccess) {
+        setState(() {
+          isModelLoaded = true;
+          outputText = 'Model initialized successfully! Ready to generate completions.';
+        });
+      } else {
+        setState(() {
+          outputText = 'Failed to initialize model.';
+        });
+      }
+    } catch (e) {
+      setState(() {
+        outputText = 'Error initializing model: $e';
+      });
+    } finally {
+      setState(() {
+        isInitializing = false;
       });
     }
   }
@@ -93,13 +113,13 @@ class _MyHomePageState extends State<MyHomePage> {
   Future<void> generateCompletion() async {
     if (!isModelLoaded) {
       setState(() {
-        outputText = 'Please download and load model first.';
+        outputText = 'Please download and initialize model first.';
       });
       return;
     }
     
     setState(() {
-      isLoading = true;
+      isInitializing = true;
       outputText = 'Generating response...';
     });
     
@@ -133,7 +153,7 @@ class _MyHomePageState extends State<MyHomePage> {
       });
     } finally {
       setState(() {
-        isLoading = false;
+        isInitializing = false;
       });
     }
   }
@@ -161,18 +181,23 @@ class _MyHomePageState extends State<MyHomePage> {
           children: [
             // Buttons section
             ElevatedButton(
-              onPressed: isLoading ? null : downloadAndLoadModel,
-              child: Text(isModelLoaded ? 'Model Loaded ✓' : 'Download and Load Model'),
+              onPressed: isDownloading ? null : downloadModel,
+              child: Text(isModelDownloaded ? 'Model Downloaded ✓' : 'Download Model'),
             ),
             const SizedBox(height: 10),
             ElevatedButton(
-              onPressed: (isLoading || !isModelLoaded) ? null : generateCompletion,
+              onPressed: isInitializing ? null : initializeModel,
+              child: Text(isModelLoaded ? 'Model Initialized ✓' : 'Initialize Model'),
+            ),
+            const SizedBox(height: 10),
+            ElevatedButton(
+              onPressed: (isDownloading || isInitializing || !isModelLoaded) ? null : generateCompletion,
               child: const Text('Generate'),
             ),
             const SizedBox(height: 20),
             
             // Status section
-            if (isLoading)
+            if (isDownloading || isInitializing)
               const Center(
                 child: Column(
                   children: [
