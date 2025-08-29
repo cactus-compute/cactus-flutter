@@ -22,7 +22,8 @@ class CactusLM {
       debugPrint('No download URL found for model: $model');
       return false;
     }
-    final success = await _downloadAndExtractModel(url, model);
+    final actualFilename = url.split('?').first.split('/').last;
+    final success = await _downloadAndExtractModel(url, actualFilename, model);
     if (success) {
       _lastDownloadedModel = model;
     }
@@ -87,12 +88,11 @@ class CactusLM {
 
   bool isLoaded() => _handle != null;
 
-  Future<bool> _downloadAndExtractModel(String url, String filename) async {
+  Future<bool> _downloadAndExtractModel(String url, String filename, String folder) async {
     final appDocDir = await getApplicationDocumentsDirectory();
     
     // Create a folder for the extracted model weights
-    final modelFolderName = filename.replaceAll('.zip', '');
-    final modelFolderPath = '${appDocDir.path}/$modelFolderName';
+    final modelFolderPath = '${appDocDir.path}/$folder';
     final modelFolder = Directory(modelFolderPath);
     
     // Check if the model folder already exists and contains files
