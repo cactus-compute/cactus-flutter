@@ -50,13 +50,6 @@ class _MyHomePageState extends State<MyHomePage> {
     super.initState();
   }
 
-  // Future<void> init() async {
-  //   List<Model> _models = await Supabase.fetchModels();
-  //   setState(() {
-  //     availableModels = _models;
-  //   });
-  // }
-
   Future<void> downloadAndLoadModel() async {
     setState(() {
       isLoading = true;

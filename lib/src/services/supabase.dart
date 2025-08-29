@@ -149,6 +149,9 @@ class Supabase {
   }
 
   static String? getModelDownloadUrl(String slug) {
+    if(_modelDownloadUrls.isEmpty) {
+      fetchModels();
+    }
     return _modelDownloadUrls[slug];
   }
 }
