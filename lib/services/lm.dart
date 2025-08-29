@@ -17,7 +17,7 @@ class CactusLM {
   Future<bool> downloadModel({
     String model = "qwen3-0.6"
   }) async {
-    final url = Supabase.getModelDownloadUrl(model);
+    final url = await Supabase.getModelDownloadUrl(model);
     if (url == null) {
       debugPrint('No download URL found for model: $model');
       return false;

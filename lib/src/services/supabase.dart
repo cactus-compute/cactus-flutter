@@ -148,9 +148,9 @@ class Supabase {
     }
   }
 
-  static String? getModelDownloadUrl(String slug) {
-    if(_modelDownloadUrls.isEmpty) {
-      fetchModels();
+  static Future<String?> getModelDownloadUrl(String slug) async {
+    if (_modelDownloadUrls.isEmpty) {
+      await fetchModels();
     }
     return _modelDownloadUrls[slug];
   }
