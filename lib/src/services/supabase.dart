@@ -1,14 +1,60 @@
 import 'dart:io';
 import 'dart:convert';
 
-import 'package:cactus/models/log_record.dart';
-import 'package:cactus/models/models.dart';
-import 'package:cactus/utils/ffi_utils.dart';
+import 'package:cactus/src/models/log_record.dart';
+import 'package:cactus/models/types.dart';
+import 'package:cactus/src/utils/ffi_utils.dart';
+
+class _InternalModel {
+  final DateTime createdAt;
+  final String slug;
+  final String downloadUrl;
+  final int sizeMb;
+  final bool supportsToolCalling;
+  final bool supportsVision;
+  final String name;
+
+  _InternalModel({
+    required this.createdAt,
+    required this.slug,
+    required this.downloadUrl,
+    required this.sizeMb,
+    required this.supportsToolCalling,
+    required this.supportsVision,
+    required this.name,
+  });
+
+  factory _InternalModel.fromJson(Map<String, dynamic> json) {
+    return _InternalModel(
+      createdAt: DateTime.parse(json['created_at'] as String),
+      slug: json['slug'] as String,
+      downloadUrl: json['download_url'] as String,
+      sizeMb: json['size_mb'] as int,
+      supportsToolCalling: json['supports_tool_calling'] as bool,
+      supportsVision: json['supports_vision'] as bool,
+      name: json['name'] as String,
+    );
+  }
+
+  CactusModel toPublicModel() {
+    return CactusModel(
+      createdAt: createdAt,
+      slug: slug,
+      sizeMb: sizeMb,
+      supportsToolCalling: supportsToolCalling,
+      supportsVision: supportsVision,
+      name: name,
+    );
+  }
+}
 
 class Supabase {
 
   static const String _supabaseUrl = 'https://ytmrvwsckmqyfpnwfcme.supabase.co';
   static const String _supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl0bXJ2d3Nja21xeWZwbndmY21lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU3MzE0MjIsImV4cCI6MjA3MTMwNzQyMn0.7SjWKuOSPpu2OI7g6BEgDw6SgDgcJ0TgXkI_wm9M-PA';
+  
+  // Private map to store slug to downloadUrl mappings
+  static final Map<String, String> _modelDownloadUrls = <String, String>{};
 
   static Future<void> sendLogRecord(LogRecord record) async {
     try {
@@ -70,7 +116,7 @@ class Supabase {
     }
   }
 
-  static Future<List<Model>> fetchModels() async {
+  static Future<List<CactusModel>> fetchModels() async {
     try {
       final client = HttpClient();
       final uri = Uri.parse('$_supabaseUrl/rest/v1/models?select=*');
@@ -84,7 +130,15 @@ class Supabase {
       if (response.statusCode == 200) {
         final responseBody = await response.transform(utf8.decoder).join();
         final List<dynamic> jsonList = jsonDecode(responseBody) as List<dynamic>;
-        final models = jsonList.map((json) => Model.fromJson(json as Map<String, dynamic>)).toList();
+        
+        _modelDownloadUrls.clear();
+        
+        final models = jsonList.map((json) {
+          final internalModel = _InternalModel.fromJson(json as Map<String, dynamic>);
+          _modelDownloadUrls[internalModel.slug] = internalModel.downloadUrl;
+          return internalModel.toPublicModel();
+        }).toList();
+        
         return models;
       } else {
         return [];
@@ -92,5 +146,9 @@ class Supabase {
     } catch (e) {
       return [];
     }
+  }
+
+  static String? getModelDownloadUrl(String slug) {
+    return _modelDownloadUrls[slug];
   }
 }

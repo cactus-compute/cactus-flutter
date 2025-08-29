@@ -2,43 +2,43 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:archive/archive.dart';
-import 'package:cactus/services/context.dart';
+import 'package:cactus/src/services/context.dart';
 import 'package:cactus/models/types.dart';
+import 'package:cactus/src/services/supabase.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
-import 'telemetry.dart';
+import '../src/services/telemetry.dart';
 
 class CactusLM {
   int? _handle;
   String? _lastDownloadedModel;
-  String? _currentModelPath;
-  String? _currentModelUrl;
 
   Future<bool> downloadModel({
-    String url = "https://ytmrvwsckmqyfpnwfcme.supabase.co/storage/v1/object/sign/cactus-models/qwen3-600m.zip?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV9kMjQzNjhmOS02MmEzLTQ2NDQtYjI0Ni01NjdjZWEyYjk2MTIiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJjYWN0dXMtbW9kZWxzL3F3ZW4zLTYwMG0uemlwIiwiaWF0IjoxNzU2MjcwNzI5LCJleHAiOjE3ODc4MDY3Mjl9.UJoA6ORgZ67FKXneN_ekyU3lTe1fJ4siryFM6uR3pMU",
-    String? filename,
+    String model = "qwen3-0.6"
   }) async {
-    final actualFilename = filename ?? url.split('?').first.split('/').last;
-    final success = await _downloadAndExtractModel(url, actualFilename);
+    final url = Supabase.getModelDownloadUrl(model);
+    if (url == null) {
+      debugPrint('No download URL found for model: $model');
+      return false;
+    }
+    final success = await _downloadAndExtractModel(url, model);
     if (success) {
-      _lastDownloadedModel = actualFilename.replaceAll('.zip', '');
-      _currentModelUrl = url;
+      _lastDownloadedModel = model;
     }
     return success;
   }
 
-  Future<bool> initializeModel({String? filename, int contextSize = 2048}) async {
-    final modelFolder = filename ?? _lastDownloadedModel ?? "qwen3-600m";
+  Future<bool> initializeModel({String? slug, int contextSize = 2048}) async {
+    final modelFolder = slug ?? _lastDownloadedModel ?? "qwen3-0.6";
     final appDocDir = await getApplicationDocumentsDirectory();
     final modelPath = '${appDocDir.path}/$modelFolder';
 
     print('Initializing model from $modelPath');
 
     _handle = await CactusContext.initContext(modelPath, contextSize);
-    CactusTelemetry.instance?.logInit(_handle != null, CactusInitParams(
-      modelPath: modelPath,
-      modelUrl: _currentModelUrl,
+    Telemetry.instance?.logInit(_handle != null, CactusInitParams(
+      model: _lastDownloadedModel
     ));
     return _handle != null;
   }
@@ -49,7 +49,7 @@ class CactusLM {
   }) async {
     final currentHandle = _handle;
     if (currentHandle == null) {
-      CactusTelemetry.instance?.logCompletion(null, CactusInitParams(), message: "Context not initialized", success: false);
+      Telemetry.instance?.logCompletion(null, CactusInitParams(), message: "Context not initialized", success: false);
       return null;
     }
 
@@ -57,23 +57,21 @@ class CactusLM {
       final result = await CactusContext.completion(currentHandle, messages, params);
       
       // Track telemetry for successful completions (if telemetry is initialized)
-      if (result.success && CactusTelemetry.isInitialized) {
+      if (result.success && Telemetry.isInitialized) {
         final initParams = CactusInitParams(
-          modelPath: _currentModelPath,
-          modelUrl: _currentModelUrl,
+          model: _lastDownloadedModel,
         );
-        CactusTelemetry.instance?.logCompletion(result, initParams, success: true);
+        Telemetry.instance?.logCompletion(result, initParams, success: true);
       }
       
       return result;
     } catch (e) {
       // Track telemetry for errors (if telemetry is initialized)
-      if (CactusTelemetry.isInitialized) {
+      if (Telemetry.isInitialized) {
         final initParams = CactusInitParams(
-          modelPath: _currentModelPath,
-          modelUrl: _currentModelUrl,
+          model: _lastDownloadedModel,
         );
-        CactusTelemetry.instance?.logCompletion(null, initParams, message: e.toString(), success: false);
+        Telemetry.instance?.logCompletion(null, initParams, message: e.toString(), success: false);
       }
       rethrow;
     }

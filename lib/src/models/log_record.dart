@@ -7,7 +7,7 @@ class LogRecord {
   final double? ttft;
   final double? tps;
   final double? responseTime;
-  final String model;
+  final String? model;
   final double? tokens;
   final String? framework = 'flutter';
   final String? frameworkVersion = packageVersion;

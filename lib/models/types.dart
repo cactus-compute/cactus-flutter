@@ -81,15 +81,40 @@ class CactusException implements Exception {
 }
 
 class CactusInitParams {
-  final String? modelPath;
-  final String? modelUrl;
+  final String? model;
   final int? contextSize;
-  final int? gpuLayers;
 
   CactusInitParams({
-    this.modelPath,
-    this.modelUrl,
+    this.model,
     this.contextSize,
-    this.gpuLayers,
   });
+}
+
+class CactusModel {
+  final DateTime createdAt;
+  final String slug;
+  final int sizeMb;
+  final bool supportsToolCalling;
+  final bool supportsVision;
+  final String name;
+
+  CactusModel({
+    required this.createdAt,
+    required this.slug,
+    required this.sizeMb,
+    required this.supportsToolCalling,
+    required this.supportsVision,
+    required this.name,
+  });
+
+  factory CactusModel.fromJson(Map<String, dynamic> json) {
+    return CactusModel(
+      createdAt: DateTime.parse(json['created_at'] as String),
+      slug: json['slug'] as String,
+      sizeMb: json['size_mb'] as int,
+      supportsToolCalling: json['supports_tool_calling'] as bool,
+      supportsVision: json['supports_vision'] as bool,
+      name: json['name'] as String,
+    );
+  }
 }

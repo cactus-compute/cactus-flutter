@@ -1,15 +1,13 @@
-import 'package:cactus/lm.dart';
-import 'package:cactus/types.dart';
-import 'package:cactus/telemetry.dart';
+import 'package:cactus/cactus.dart';
 import 'package:flutter/material.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   final deviceId = await CactusTelemetry.fetchDeviceId();
-  
+
   if(deviceId != null) {
-    CactusTelemetry('f3a1c0b0-4c6f-4261-ac15-0c03b12d83a2', deviceId);
+    CactusTelemetry.init('f3a1c0b0-4c6f-4261-ac15-0c03b12d83a2', deviceId);
   }
   
   runApp(const MyApp());
@@ -45,11 +43,19 @@ class _MyHomePageState extends State<MyHomePage> {
   String? lastResponse;
   double? lastTPS;
   double? lastTTFT;
+  List<CactusModel> availableModels = [];
 
   @override
   void initState() {
     super.initState();
   }
+
+  // Future<void> init() async {
+  //   List<Model> _models = await Supabase.fetchModels();
+  //   setState(() {
+  //     availableModels = _models;
+  //   });
+  // }
 
   Future<void> downloadAndLoadModel() async {
     setState(() {
