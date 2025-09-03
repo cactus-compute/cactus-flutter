@@ -17,6 +17,8 @@ dependencies:
   archive: ^4.0.7
   device_info_plus: ^11.5.0
   shared_preferences: ^2.5.3
+  package_info_plus: ^8.3.1
+  uuid: ^4.5.1
 
 dev_dependencies:
   flutter_test:
