@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:archive/archive.dart';
+import 'package:archive/archive_io.dart';
 import 'package:cactus/src/services/context.dart';
 import 'package:cactus/models/types.dart';
 import 'package:cactus/src/services/supabase.dart';
@@ -137,28 +138,45 @@ class CactusLM {
       await sink.close();
       debugPrint('Downloaded ${totalBytes} bytes to $zipFilePath');
       
-      // Now extract the ZIP file from disk
-      debugPrint('Reading ZIP file for extraction...');
-      final zipBytes = await zipFile.readAsBytes();
-      
       // Create the model folder if it doesn't exist
       await modelFolder.create(recursive: true);
       
-      // Extract the ZIP file
-      debugPrint('Extracting ZIP file...');
-      final archive = ZipDecoder().decodeBytes(zipBytes);
+      // Extract the ZIP file using streaming
+      debugPrint('Extracting ZIP file with streaming...');
       
-      for (final file in archive) {
-        if (file.isFile) {
-          final extractedFilePath = '$modelFolderPath/${file.name}';
-          final extractedFile = File(extractedFilePath);
+      final inputStream = InputFileStream(zipFilePath);
+      
+      try {
+        final archive = ZipDecoder().decodeStream(inputStream);
+        final symbolicLinks = [];
+        
+        for (final file in archive) {
+          if (file.isSymbolicLink) {
+            symbolicLinks.add(file);
+            continue;
+          }
           
-          // Create subdirectories if they don't exist
-          await extractedFile.parent.create(recursive: true);
-          
-          // Write the file content
-          await extractedFile.writeAsBytes(file.content as List<int>);
+          if (file.isFile) {
+            final extractedFilePath = '$modelFolderPath/${file.name}';
+            
+            final extractedFileParent = File(extractedFilePath).parent;
+            await extractedFileParent.create(recursive: true);            
+            final outputStream = OutputFileStream(extractedFilePath);
+            file.writeContent(outputStream);
+            outputStream.closeSync();
+          } else {
+            final dirPath = '$modelFolderPath/${file.name}';
+            await Directory(dirPath).create(recursive: true);
+          }
         }
+        
+        for (final file in symbolicLinks) {
+          final linkPath = '$modelFolderPath/${file.name}';
+          final link = Link(linkPath);
+          await link.create(file.symbolicLink!, recursive: true);
+        }
+      } finally {
+        inputStream.close();
       }
       
       // Clean up the temporary ZIP file
@@ -173,7 +191,18 @@ class CactusLM {
         if (await zipFile.exists()) {
           await zipFile.delete();
         }
-      } catch (_) {}
+        
+        // Also try to clean up partial extraction if it failed midway
+        if (await modelFolder.exists()) {
+          // Only delete if it seems to be incomplete (has few files compared to expected)
+          final files = await modelFolder.list().toList();
+          if (files.length < 5) { // Assuming a model should have more than a few files
+            await modelFolder.delete(recursive: true);
+          }
+        }
+      } catch (cleanupError) {
+        debugPrint('Error during cleanup: $cleanupError');
+      }
       return false;
     } finally {
       client.close();
