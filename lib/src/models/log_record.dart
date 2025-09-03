@@ -2,8 +2,8 @@ import 'package:cactus/src/version.dart';
 
 class LogRecord {
   final String eventType;
-  final String projectId;
-  final String deviceId;
+  final String? projectId;
+  final String? deviceId;
   final double? ttft;
   final double? tps;
   final double? responseTime;
@@ -13,6 +13,7 @@ class LogRecord {
   final String? frameworkVersion = packageVersion;
   final bool? success;
   final String? message;
+  final String? telemetryToken;
 
   LogRecord({
     required this.eventType,
@@ -24,7 +25,8 @@ class LogRecord {
     required this.model,
     this.tokens,
     this.success,
-    this.message
+    this.message,
+    this.telemetryToken
   });
 
   Map<String, dynamic> toJson() {
@@ -41,6 +43,7 @@ class LogRecord {
       'framework_version': frameworkVersion,
       'success': success,
       'message': message,
+      'telemetry_token': telemetryToken
     };
   }
   

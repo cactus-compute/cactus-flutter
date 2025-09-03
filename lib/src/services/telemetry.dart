@@ -6,8 +6,8 @@ import 'package:cactus/src/utils/ffi_utils.dart';
 
 class Telemetry {
   static Telemetry? _instance;
-  final String projectId;
-  final String deviceId;
+  final String? projectId;
+  final String? deviceId;
   final String? cactusTelemetryToken;
 
   Telemetry(this.projectId, this.deviceId, this.cactusTelemetryToken) {
@@ -37,7 +37,8 @@ class Telemetry {
       projectId: projectId,
       deviceId: deviceId,
       model: options.model,
-      success: success
+      success: success,
+      telemetryToken: cactusTelemetryToken
     );
 
     await Supabase.sendLogRecord(record);
@@ -54,7 +55,8 @@ class Telemetry {
       model: options.model,
       tokens: result?.totalTokens.toDouble(),
       success: success,
-      message: message
+      message: message,
+      telemetryToken: cactusTelemetryToken
     );
 
     await Supabase.sendLogRecord(record);

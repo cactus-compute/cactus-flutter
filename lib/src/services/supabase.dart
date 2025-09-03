@@ -105,7 +105,7 @@ class Supabase {
       request.headers.set('Authorization', 'Bearer $_supabaseKey');
       request.headers.set('Content-Type', 'application/json');
       request.headers.set('Prefer', 'return=minimal');
-      request.headers.set('Accept-Profile', 'cactus');
+      request.headers.set('Content-Profile', 'cactus');
       
       // Send records as an array
       final body = jsonEncode(records.map((record) => record.toJson()).toList());
