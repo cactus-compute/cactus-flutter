@@ -8,8 +8,9 @@ class Telemetry {
   static Telemetry? _instance;
   final String projectId;
   final String deviceId;
+  final String? cactusTelemetryToken;
 
-  Telemetry(this.projectId, this.deviceId) {
+  Telemetry(this.projectId, this.deviceId, this.cactusTelemetryToken) {
     _instance = this;
   }
 

@@ -51,9 +51,9 @@ class _InternalModel {
 
 class Supabase {
 
-  static const String _supabaseUrl = 'https://ytmrvwsckmqyfpnwfcme.supabase.co';
-  static const String _supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl0bXJ2d3Nja21xeWZwbndmY21lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU3MzE0MjIsImV4cCI6MjA3MTMwNzQyMn0.7SjWKuOSPpu2OI7g6BEgDw6SgDgcJ0TgXkI_wm9M-PA';
-  
+  static const String _supabaseUrl = 'https://vlqqczxwyaodtcdmdmlw.supabase.co';
+  static const String _supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZscXFjenh3eWFvZHRjZG1kbWx3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE1MTg2MzIsImV4cCI6MjA2NzA5NDYzMn0.nBzqGuK9j6RZ6mOPWU2boAC_5H9XDs-fPpo5P3WZYbI';
+
   // Private map to store slug to downloadUrl mappings
   static final Map<String, String> _modelDownloadUrls = <String, String>{};
 
@@ -105,6 +105,7 @@ class Supabase {
       request.headers.set('Authorization', 'Bearer $_supabaseKey');
       request.headers.set('Content-Type', 'application/json');
       request.headers.set('Prefer', 'return=minimal');
+      request.headers.set('Accept-Profile', 'cactus');
       
       // Send records as an array
       final body = jsonEncode(records.map((record) => record.toJson()).toList());
@@ -146,8 +147,7 @@ class Supabase {
       if (response.statusCode == 200) {
         final responseBody = await response.transform(utf8.decoder).join();
         print('Device registered successfully');        
-        final responseJson = jsonDecode(responseBody) as Map<String, dynamic>;
-        final deviceId = await registerApp(encString: responseJson['encrypted_payload']);
+        final deviceId = await registerApp(responseBody);
         return deviceId;
       } else {
         return null;
@@ -165,6 +165,7 @@ class Supabase {
       
       request.headers.set('apikey', _supabaseKey);
       request.headers.set('Authorization', 'Bearer $_supabaseKey');
+      request.headers.set('Accept-Profile', 'cactus');
       
       final response = await request.close();
       

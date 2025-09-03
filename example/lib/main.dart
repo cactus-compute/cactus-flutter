@@ -7,7 +7,7 @@ void main() async {
   final deviceId = await CactusTelemetry.fetchDeviceId();
 
   if(deviceId != null) {
-    CactusTelemetry.init('f3a1c0b0-4c6f-4261-ac15-0c03b12d83a2', deviceId);
+    CactusTelemetry.init(deviceId, cactusTelemetryToken: 'f3a1c0b0-4c6f-4261-ac15-0c03b12d83a2');
   }
   
   runApp(const MyApp());

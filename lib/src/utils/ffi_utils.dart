@@ -7,7 +7,7 @@ import 'dart:ffi';
 
 
 Future<String?> registerApp(
-    {required String encString}
+  String encString
 ) async {
   await _setupAndroidDataDirectory();
   final encStringPtr = encString.toNativeUtf8();
