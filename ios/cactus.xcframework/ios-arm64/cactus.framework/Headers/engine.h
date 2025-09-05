@@ -122,18 +122,50 @@ private:
 
 
 struct KVCache {
-    std::vector<std::vector<uint8_t>> keys;
-    std::vector<std::vector<uint8_t>> values;
+    static constexpr size_t CACHE_PAGE_SIZE = 16;
+    
+    struct Page {
+        std::vector<uint8_t> data;
+        int ref_count = 0;
+        bool in_use = false;
+    };
+    
+    struct LayerPageTable {
+        std::vector<size_t> key_pages;
+        std::vector<size_t> value_pages;
+    };
+    
+    std::vector<Page> page_pool;
+    std::vector<LayerPageTable> layer_tables;
+    std::vector<size_t> free_pages;
+    
+    std::vector<std::vector<uint8_t>> continuous_keys;
+    std::vector<std::vector<uint8_t>> continuous_values;
+    
     size_t current_seq_len = 0;
     size_t max_seq_len = 2048;
+    size_t num_kv_heads = 0;
+    size_t head_dim = 0;
+    size_t num_layers = 0;
     Precision precision;
     size_t element_size = 4;
+    size_t tokens_per_page = CACHE_PAGE_SIZE;
+    size_t bytes_per_page = 0;
     
     void init(size_t num_layers, size_t max_seq, size_t num_kv_heads, size_t head_dim, Precision model_precision);
     void reset();
+    void update_from_graph(CactusGraph* gb, const std::vector<size_t>& k_nodes, 
+                          const std::vector<size_t>& v_nodes, size_t seq_len, 
+                          size_t num_layers, size_t kv_heads, size_t head_dim);
     bool is_empty() const { return current_seq_len == 0; }
-    void* get_key_ptr(size_t layer) { return keys[layer].data(); }
-    void* get_value_ptr(size_t layer) { return values[layer].data(); }
+    void* get_key_ptr(size_t layer);
+    void* get_value_ptr(size_t layer);
+    
+private:
+    size_t allocate_page();
+    void free_page(size_t page_idx);
+    void materialize_continuous_buffer(size_t layer);
+    size_t get_num_pages_needed(size_t seq_len) const;
 };
 
 class Model {
@@ -146,12 +178,15 @@ public:
     BPETokenizer* get_tokenizer() const { return tokenizer_.get(); }
 
     bool init(const std::string& model_folder, size_t context_size, const std::string& system_prompt = "");
-    uint32_t forward(const std::vector<uint32_t>& tokens, float temperature = 0.6f, float top_p = 0.95f, 
-                     size_t top_k = 20, const std::string& profile_file = "");
+    uint32_t generate(const std::vector<uint32_t>& tokens, float temperature = 0.6f, float top_p = 0.95f, 
+                      size_t top_k = 20, const std::string& profile_file = "");
+    
+    std::vector<float> get_embeddings(const std::vector<uint32_t>& tokens, bool pooled = true);
     
     void reset_cache() { kv_cache_.reset(); }
     
 private:
+    size_t forward(const std::vector<uint32_t>& tokens, bool use_cache = false);
     void load_weights_to_graph(CactusGraph* gb);
     size_t build_attention(CactusGraph* gb, size_t normalized_input, uint32_t layer_idx, 
                           ComputeBackend backend, bool use_cache = false, size_t position_offset = 0);
