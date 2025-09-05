@@ -53,7 +53,7 @@ class Telemetry {
       tps: result?.tokensPerSecond,
       responseTime: result?.totalTimeMs,
       model: options.model,
-      tokens: result?.totalTokens.toDouble(),
+      tokens: result?.totalTokens,
       success: success,
       message: message,
       telemetryToken: cactusTelemetryToken

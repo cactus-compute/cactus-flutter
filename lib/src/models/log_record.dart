@@ -8,7 +8,7 @@ class LogRecord {
   final double? tps;
   final double? responseTime;
   final String? model;
-  final double? tokens;
+  final int? tokens;
   final String? framework = 'flutter';
   final String? frameworkVersion = packageVersion;
   final bool? success;
@@ -56,7 +56,7 @@ class LogRecord {
       tps: json['tps'] as double?,
       responseTime: json['response_time'] as double?,
       model: json['model'] as String?,
-      tokens: json['tokens'] as double?,
+      tokens: json['tokens'] as int?,
       success: json['success'] as bool?,
       message: json['message'] as String?,
     );
