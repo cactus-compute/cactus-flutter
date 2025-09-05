@@ -1,12 +1,33 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:ffi';
+import 'dart:isolate';
 
 import 'package:cactus/models/types.dart';
 import 'package:ffi/ffi.dart';
 import 'package:flutter/foundation.dart';
 
 import 'bindings.dart' as bindings;
+
+// Global callback storage for streaming completions
+CactusTokenCallback? _activeTokenCallback;
+
+// Static callback function that can be used with Pointer.fromFunction
+@pragma('vm:entry-point')
+int _staticTokenCallbackDispatcher(Pointer<Utf8> tokenC, Pointer<Void> userData) {
+  try {
+    final callback = _activeTokenCallback;
+    if (callback != null) {
+      final tokenString = tokenC.toDartString();
+      final shouldContinue = callback(tokenString);
+      return shouldContinue ? 1 : 0; // Return 1 to continue, 0 to stop
+    }
+    return 1; // Continue if no callback is set
+  } catch (e) {
+    debugPrint('Token callback error: $e');
+    return 0; // Stop on error
+  }
+}
 
 Future<int?> _initContextInIsolate(Map<String, dynamic> params) async {
   final modelPath = params['modelPath'] as String;
@@ -38,18 +59,37 @@ Future<CactusCompletionResult> _completionInIsolate(Map<String, dynamic> params)
   final messagesJson = params['messagesJson'] as String;
   final optionsJson = params['optionsJson'] as String;
   final bufferSize = params['bufferSize'] as int;
+  final hasCallback = params['hasCallback'] as bool;
+  final SendPort? replyPort = params['replyPort'] as SendPort?;
 
   final responseBuffer = calloc<Uint8>(bufferSize);
   final messagesJsonC = messagesJson.toNativeUtf8(allocator: calloc);
   final optionsJsonC = optionsJson.toNativeUtf8(allocator: calloc);
 
+  Pointer<NativeFunction<bindings.CactusTokenCallbackNative>>? callbackPointer;
+
   try {
+    if (hasCallback && replyPort != null) {
+      // Set up token callback to send tokens back through isolate
+      _activeTokenCallback = (token) {
+        replyPort.send({'type': 'token', 'data': token});
+        return true; // Always continue in isolate mode
+      };
+      
+      callbackPointer = Pointer.fromFunction<bindings.CactusTokenCallbackNative>(
+        _staticTokenCallbackDispatcher,
+        1, // Default return value (continue)
+      );
+    }
+
     final result = bindings.cactusComplete(
       Pointer.fromAddress(handle),
       messagesJsonC,
       responseBuffer.cast<Utf8>(),
       bufferSize,
       optionsJsonC,
+      callbackPointer ?? nullptr,
+      nullptr,
     );
 
     debugPrint('Received completion result code: $result');
@@ -104,6 +144,7 @@ Future<CactusCompletionResult> _completionInIsolate(Map<String, dynamic> params)
       );
     }
   } finally {
+    _activeTokenCallback = null;
     calloc.free(responseBuffer);
     calloc.free(messagesJsonC);
     calloc.free(optionsJsonC);
@@ -172,14 +213,61 @@ class CactusContext {
     optionsJsonBuffer.write('}');
     final optionsJson = optionsJsonBuffer.toString();
 
-    // Run the heavy computation in an isolate using compute
-    final isolateParams = {
-      'handle': handle,
-      'messagesJson': messagesJson,
-      'optionsJson': optionsJson,
-      'bufferSize': params.bufferSize,
-    };
+    final replyPort = ReceivePort();
+    final completer = Completer<CactusCompletionResult>();
 
-    return await compute(_completionInIsolate, isolateParams);
+    // Listen for tokens and final result
+    late StreamSubscription subscription;
+    subscription = replyPort.listen((message) {
+      if (message is Map) {
+        final type = message['type'] as String;
+        if (type == 'token') {
+          final token = message['data'] as String;
+          try {
+            params.onToken?.call(token);
+          } catch (e) {
+            debugPrint('Error in token callback: $e');
+          }
+        } else if (type == 'result') {
+          completer.complete(message['data'] as CactusCompletionResult);
+          subscription.cancel();
+          replyPort.close();
+        } else if (type == 'error') {
+          completer.completeError(message['data']);
+          subscription.cancel();
+          replyPort.close();
+        }
+      }
+    });
+
+    // Start the completion in an isolate
+    try {
+      final isolate = await Isolate.spawn(_isolateCompletionEntry, {
+        'handle': handle,
+        'messagesJson': messagesJson,
+        'optionsJson': optionsJson,
+        'bufferSize': params.bufferSize,
+        'hasCallback': params.onToken != null,
+        'replyPort': replyPort.sendPort,
+      });
+
+      final result = await completer.future;
+      isolate.kill();
+      return result;
+    } catch (e) {
+      subscription.cancel();
+      replyPort.close();
+      rethrow;
+    }
+  }
+
+  static Future<void> _isolateCompletionEntry(Map<String, dynamic> params) async {
+    final replyPort = params['replyPort'] as SendPort;
+    try {
+      final result = await _completionInIsolate(params);
+      replyPort.send({'type': 'result', 'data': result});
+    } catch (e) {
+      replyPort.send({'type': 'error', 'data': e});
+    }
   }
 }

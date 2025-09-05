@@ -32,6 +32,7 @@ class CactusCompletionParams {
   final int maxTokens;
   final List<String> stopSequences;
   final int bufferSize;
+  final CactusTokenCallback? onToken;
 
   CactusCompletionParams({
     this.temperature = 0.8,
@@ -40,6 +41,7 @@ class CactusCompletionParams {
     this.maxTokens = 1024,
     this.stopSequences = const [],
     this.bufferSize = 1024,
+    this.onToken,
   });
 }
 
