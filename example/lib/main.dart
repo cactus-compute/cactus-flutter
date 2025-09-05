@@ -158,6 +158,63 @@ class _MyHomePageState extends State<MyHomePage> {
     }
   }
 
+  Future<void> generateStreamingCompletion() async {
+    if (!isModelLoaded) {
+      setState(() {
+        outputText = 'Please download and initialize model first.';
+      });
+      return;
+    }
+    
+    setState(() {
+      isInitializing = true;
+      outputText = 'Generating streaming response...';
+      lastResponse = ''; // Clear previous response
+    });
+    
+    try {
+      final resp = await lm.generateCompletion(
+        messages: [ChatMessage(content: 'Hi, tell me a short joke', role: "user")], 
+        params: CactusCompletionParams(
+          bufferSize: 1024, 
+          maxTokens: 50,
+          onToken: (token) {
+            setState(() {
+              lastResponse = (lastResponse ?? '') + token;
+            });
+            return true; // Continue generation
+          },
+        ),
+      );
+      
+      if (resp != null && resp.success) {
+        setState(() {
+          lastTPS = resp.tokensPerSecond;
+          lastTTFT = resp.timeToFirstTokenMs;
+          outputText = 'Streaming generation completed successfully!';
+        });
+      } else {
+        setState(() {
+          outputText = 'Failed to generate streaming response.';
+          lastResponse = null;
+          lastTPS = null;
+          lastTTFT = null;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        outputText = 'Error generating streaming response: $e';
+        lastResponse = null;
+        lastTPS = null;
+        lastTTFT = null;
+      });
+    } finally {
+      setState(() {
+        isInitializing = false;
+      });
+    }
+  }
+
   @override
   void dispose() {
     destroyContext();
@@ -193,6 +250,11 @@ class _MyHomePageState extends State<MyHomePage> {
             ElevatedButton(
               onPressed: (isDownloading || isInitializing || !isModelLoaded) ? null : generateCompletion,
               child: const Text('Generate'),
+            ),
+            const SizedBox(height: 10),
+            ElevatedButton(
+              onPressed: (isDownloading || isInitializing || !isModelLoaded) ? null : generateStreamingCompletion,
+              child: const Text('Generate Streaming'),
             ),
             const SizedBox(height: 20),
             
