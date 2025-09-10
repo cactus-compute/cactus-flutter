@@ -215,6 +215,27 @@ class _MyHomePageState extends State<MyHomePage> {
     }
   }
 
+  Future<void> generateEmbeddings() async {
+    final resp = await lm.generateEmbedding(
+      text: 'Hi, tell me a short joke',
+      bufferSize: 1024,
+    );
+
+    if (resp != null && resp.success) {
+      setState(() {
+        lastResponse = "Dimensions: ${resp.dimension.toString()} \nLength: ${resp.embeddings.length} \nEmbeddings: [${resp.embeddings.take(5).join(', ')}...]";
+        outputText = 'Embedding generation completed successfully!';
+      });
+    } else {
+      setState(() {
+        outputText = 'Failed to generate embedding.';
+        lastResponse = null;
+        lastTPS = null;
+        lastTTFT = null;
+      });
+    }
+  }
+
   @override
   void dispose() {
     destroyContext();
@@ -255,6 +276,11 @@ class _MyHomePageState extends State<MyHomePage> {
             ElevatedButton(
               onPressed: (isDownloading || isInitializing || !isModelLoaded) ? null : generateStreamingCompletion,
               child: const Text('Generate Streaming'),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: (isDownloading || isInitializing || !isModelLoaded) ? null : generateEmbeddings,
+              child: const Text('Generate Embeddings'),
             ),
             const SizedBox(height: 20),
             
