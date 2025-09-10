@@ -4,6 +4,7 @@ import 'dart:ffi';
 import 'dart:isolate';
 
 import 'package:cactus/models/types.dart';
+import 'package:cactus/src/models/binding.dart';
 import 'package:ffi/ffi.dart';
 import 'package:flutter/foundation.dart';
 
@@ -66,7 +67,7 @@ Future<CactusCompletionResult> _completionInIsolate(Map<String, dynamic> params)
   final messagesJsonC = messagesJson.toNativeUtf8(allocator: calloc);
   final optionsJsonC = optionsJson.toNativeUtf8(allocator: calloc);
 
-  Pointer<NativeFunction<bindings.CactusTokenCallbackNative>>? callbackPointer;
+  Pointer<NativeFunction<CactusTokenCallbackNative>>? callbackPointer;
 
   try {
     if (hasCallback && replyPort != null) {
@@ -76,7 +77,7 @@ Future<CactusCompletionResult> _completionInIsolate(Map<String, dynamic> params)
         return true; // Always continue in isolate mode
       };
       
-      callbackPointer = Pointer.fromFunction<bindings.CactusTokenCallbackNative>(
+      callbackPointer = Pointer.fromFunction<CactusTokenCallbackNative>(
         _staticTokenCallbackDispatcher,
         1, // Default return value (continue)
       );
@@ -148,6 +149,80 @@ Future<CactusCompletionResult> _completionInIsolate(Map<String, dynamic> params)
     calloc.free(responseBuffer);
     calloc.free(messagesJsonC);
     calloc.free(optionsJsonC);
+  }
+}
+
+Future<CactusEmbeddingResult> _generateEmbeddingInIsolate(Map<String, dynamic> params) async {
+  final handle = params['handle'] as int;
+  final text = params['text'] as String;
+  final bufferSize = params['bufferSize'] as int;
+
+  final textC = text.toNativeUtf8(allocator: calloc);
+  final embeddingDimPtr = calloc<Size>();
+  final embeddingsBuffer = calloc<Float>(bufferSize);
+
+  try {
+    debugPrint('Generating embedding for text: ${text.length > 50 ? text.substring(0, 50) + "..." : text}');
+    debugPrint('Buffer allocated for $bufferSize float elements');
+
+    // Calculate buffer size in bytes (bufferSize * sizeof(float))
+    final bufferSizeInBytes = bufferSize * 4;
+
+    final result = bindings.cactusEmbed(
+      Pointer.fromAddress(handle),
+      textC,
+      embeddingsBuffer,
+      bufferSizeInBytes,
+      embeddingDimPtr,
+    );
+
+    debugPrint('Received embedding result code: $result');
+
+    if (result > 0) {
+      final actualEmbeddingDim = embeddingDimPtr.value;
+      debugPrint('Actual embedding dimension: $actualEmbeddingDim');
+      
+      if (actualEmbeddingDim > bufferSize) {
+        return CactusEmbeddingResult(
+          success: false,
+          embeddings: [],
+          dimension: 0,
+          errorMessage: 'Embedding dimension ($actualEmbeddingDim) exceeds allocated buffer size ($bufferSize)',
+        );
+      }
+      
+      final embeddings = <double>[];
+      for (int i = 0; i < actualEmbeddingDim; i++) {
+        embeddings.add(embeddingsBuffer[i]);
+      }
+      
+      debugPrint('Successfully extracted ${embeddings.length} embedding values');
+      
+      return CactusEmbeddingResult(
+        success: true,
+        embeddings: embeddings,
+        dimension: actualEmbeddingDim,
+      );
+    } else {
+      return CactusEmbeddingResult(
+        success: false,
+        embeddings: [],
+        dimension: 0,
+        errorMessage: 'Embedding generation failed with code $result',
+      );
+    }
+  } catch (e) {
+    debugPrint('Exception during embedding generation: $e');
+    return CactusEmbeddingResult(
+      success: false,
+      embeddings: [],
+      dimension: 0,
+      errorMessage: 'Exception: $e',
+    );
+  } finally {
+    calloc.free(textC);
+    calloc.free(embeddingDimPtr);
+    calloc.free(embeddingsBuffer);
   }
 }
 
@@ -259,6 +334,18 @@ class CactusContext {
       replyPort.close();
       rethrow;
     }
+  }
+
+  static Future<CactusEmbeddingResult> generateEmbedding(
+    int handle,
+    String text, {
+    int bufferSize = 2048,
+  }) async {
+    return await compute(_generateEmbeddingInIsolate, {
+      'handle': handle,
+      'text': text,
+      'bufferSize': bufferSize,
+    });
   }
 
   static Future<void> _isolateCompletionEntry(Map<String, dynamic> params) async {

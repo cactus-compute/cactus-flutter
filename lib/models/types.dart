@@ -92,6 +92,20 @@ class CactusInitParams {
   });
 }
 
+class CactusEmbeddingResult {
+  final bool success;
+  final List<double> embeddings;
+  final int dimension;
+  final String? errorMessage;
+
+  CactusEmbeddingResult({
+    required this.success,
+    required this.embeddings,
+    required this.dimension,
+    this.errorMessage,
+  });
+}
+
 class CactusModel {
   final DateTime createdAt;
   final String slug;

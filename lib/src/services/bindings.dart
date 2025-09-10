@@ -1,51 +1,8 @@
 import 'dart:ffi';
 import 'dart:io' show Platform;
+import 'package:cactus/src/models/binding.dart';
 import 'package:ffi/ffi.dart';
 
-// Opaque pointer type for the model handle
-final class CactusModelOpaque extends Opaque {}
-typedef CactusModel = Pointer<CactusModelOpaque>;
-
-// Token callback function type
-typedef CactusTokenCallbackNative = Int32 Function(Pointer<Utf8> token, Pointer<Void> userData);
-typedef CactusTokenCallbackDart = int Function(Pointer<Utf8> token, Pointer<Void> userData);
-
-// Function type definitions
-typedef CactusInitNative = CactusModel Function(Pointer<Utf8> modelPath, Size contextSize);
-typedef CactusInitDart = CactusModel Function(Pointer<Utf8> modelPath, int contextSize);
-
-typedef CactusCompleteNative = Int32 Function(
-    CactusModel model,
-    Pointer<Utf8> messagesJson,
-    Pointer<Utf8> responseBuffer,
-    Size bufferSize,
-    Pointer<Utf8> optionsJson,
-    Pointer<NativeFunction<CactusTokenCallbackNative>> callback,
-    Pointer<Void> userData);
-typedef CactusCompleteDart = int Function(
-    CactusModel model,
-    Pointer<Utf8> messagesJson,
-    Pointer<Utf8> responseBuffer,
-    int bufferSize,
-    Pointer<Utf8> optionsJson,
-    Pointer<NativeFunction<CactusTokenCallbackNative>> callback,
-    Pointer<Void> userData);
-
-typedef CactusDestroyNative = Void Function(CactusModel model);
-typedef CactusDestroyDart = void Function(CactusModel model);
-
-typedef RegisterAppNative = Pointer<Utf8> Function(
-    Pointer<Utf8> encData);
-typedef RegisterAppDart = Pointer<Utf8> Function(
-    Pointer<Utf8> encData);
-
-typedef GetAllEntriesNative = Pointer<Utf8> Function();
-typedef GetAllEntriesDart = Pointer<Utf8> Function();
-
-typedef GetDeviceIdNative = Pointer<Utf8> Function();
-typedef GetDeviceIdDart = Pointer<Utf8> Function();
-
-// Helper function to get the library path based on platform
 String _getLibraryPath(String libName) {
   if (Platform.isIOS || Platform.isMacOS) {
     return '$libName.framework/$libName';
@@ -56,10 +13,8 @@ String _getLibraryPath(String libName) {
   throw UnsupportedError('Unsupported platform: ${Platform.operatingSystem}');
 }
 
-// Load the dynamic library
 final DynamicLibrary cactusLib = DynamicLibrary.open(_getLibraryPath('cactus'));
 
-// Bind the native functions
 final cactusInit = cactusLib
     .lookup<NativeFunction<CactusInitNative>>('cactus_init')
     .asFunction<CactusInitDart>();
@@ -71,6 +26,10 @@ final cactusComplete = cactusLib
 final cactusDestroy = cactusLib
     .lookup<NativeFunction<CactusDestroyNative>>('cactus_destroy')
     .asFunction<CactusDestroyDart>();
+
+final cactusEmbed = cactusLib
+    .lookup<NativeFunction<CactusEmbedNative>>('cactus_embed')
+    .asFunction<CactusEmbedDart>();
 
 final DynamicLibrary cactusUtil = DynamicLibrary.open(_getLibraryPath('cactus_util'));
 

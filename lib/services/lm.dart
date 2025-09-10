@@ -81,6 +81,39 @@ class CactusLM {
     }
   }
 
+  Future<CactusEmbeddingResult?> generateEmbedding({
+    required String text,
+    int bufferSize = 2048,
+  }) async {
+    final currentHandle = _handle;
+    if (currentHandle == null) {
+      debugPrint('Cannot generate embedding: Context not initialized');
+      return null;
+    }
+
+    try {
+      final result = await CactusContext.generateEmbedding(
+        currentHandle,
+        text,
+        bufferSize: bufferSize,
+      );
+      
+      debugPrint('Embedding generation ${result.success ? 'successful' : 'failed'}: '
+                'dimension=${result.dimension}, '
+                'embeddings_length=${result.embeddings.length}');
+      
+      return result;
+    } catch (e) {
+      debugPrint('Exception during embedding generation: $e');
+      return CactusEmbeddingResult(
+        success: false,
+        embeddings: [],
+        dimension: 0,
+        errorMessage: e.toString(),
+      );
+    }
+  }
+
   void unload() {
     final currentHandle = _handle;
     if (currentHandle != null) {
