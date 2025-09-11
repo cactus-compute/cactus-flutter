@@ -2,7 +2,7 @@ name: cactus
 description: "Framework for running AI models on mobile devices"
 version: 0.2.8
 homepage: https://cactuscompute.com
-repository: https://github.com/cactus-compute/cactus
+repository: https://github.com/cactus-compute/cactus-flutter
 
 environment:
   sdk: '>=3.3.3 <4.0.0'
