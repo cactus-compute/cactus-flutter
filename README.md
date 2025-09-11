@@ -25,11 +25,7 @@ Then run:
 flutter pub get
 ```
 
-### iOS Setup
-
-No additional permissions are required for the current version of the Cactus Flutter plugin, which focuses on text-based language model functionality.
-
-### Android Setup
+### Android specific setup
 
 For Android, add the following permissions to your `android/app/src/main/AndroidManifest.xml`:
 
