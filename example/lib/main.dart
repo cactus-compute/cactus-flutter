@@ -4,11 +4,7 @@ import 'package:flutter/material.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  final deviceId = await CactusTelemetry.fetchDeviceId();
-
-  if(deviceId != null) {
-    CactusTelemetry.init(deviceId, cactusTelemetryToken: 'a83c7f7a-43ad-4823-b012-cbeb587ae788');
-  }
+  CactusTelemetry.setTelemetryToken('a83c7f7a-43ad-4823-b012-cbeb587ae788');
   
   runApp(const MyApp());
 }

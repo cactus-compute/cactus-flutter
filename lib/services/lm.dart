@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:archive/archive.dart';
 import 'package:archive/archive_io.dart';
+import 'package:cactus/services/telemetry.dart';
+import 'package:cactus/src/services/cactus_id.dart';
 import 'package:cactus/src/services/context.dart';
 import 'package:cactus/models/types.dart';
 import 'package:cactus/src/services/supabase.dart';
@@ -32,6 +34,11 @@ class CactusLM {
   }
 
   Future<bool> initializeModel(CactusInitParams params) async {
+    if (!Telemetry.isInitialized) {
+      final String projectId = await CactusId.getProjectId();
+      final String? deviceId = await Telemetry.fetchDeviceId();
+      Telemetry(projectId, deviceId, CactusTelemetry.telemetryToken);
+    }
     final modelFolder = params.model ?? _lastDownloadedModel ?? "qwen3-0.6";
     final appDocDir = await getApplicationDocumentsDirectory();
     final modelPath = '${appDocDir.path}/$modelFolder';
@@ -61,11 +68,11 @@ class CactusLM {
       final result = await CactusContext.completion(currentHandle, messages, params);
       
       // Track telemetry for successful completions (if telemetry is initialized)
-      if (result.success && Telemetry.isInitialized) {
+      if (Telemetry.isInitialized) {
         final initParams = CactusInitParams(
           model: _lastDownloadedModel,
         );
-        Telemetry.instance?.logCompletion(result, initParams, success: true);
+        Telemetry.instance?.logCompletion(result, initParams);
       }
       
       return result;
@@ -101,10 +108,21 @@ class CactusLM {
       debugPrint('Embedding generation ${result.success ? 'successful' : 'failed'}: '
                 'dimension=${result.dimension}, '
                 'embeddings_length=${result.embeddings.length}');
-      
+      if (Telemetry.isInitialized) {
+        final initParams = CactusInitParams(
+          model: _lastDownloadedModel,
+        );
+        Telemetry.instance?.logEmbedding(result, initParams, success: result.success);
+      }
       return result;
     } catch (e) {
       debugPrint('Exception during embedding generation: $e');
+      if (Telemetry.isInitialized) {
+        final initParams = CactusInitParams(
+          model: _lastDownloadedModel,
+        );
+        Telemetry.instance?.logEmbedding(null, initParams, message: e.toString(), success: false);
+      }
       return CactusEmbeddingResult(
         success: false,
         embeddings: [],

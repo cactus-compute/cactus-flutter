@@ -61,4 +61,18 @@ class Telemetry {
 
     await Supabase.sendLogRecord(record);
   }
+
+  Future<void> logEmbedding(CactusEmbeddingResult? result, CactusInitParams options, {String? message, bool? success}) async {
+    final record = LogRecord(
+      eventType: 'embedding',
+      projectId: projectId,
+      deviceId: deviceId,
+      model: options.model,
+      success: result?.success,
+      message: message,
+      telemetryToken: cactusTelemetryToken
+    );
+
+    await Supabase.sendLogRecord(record);
+  }
 }
