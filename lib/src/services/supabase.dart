@@ -4,68 +4,21 @@ import 'dart:convert';
 import 'package:cactus/src/models/log_record.dart';
 import 'package:cactus/models/types.dart';
 import 'package:cactus/src/services/log_buffer.dart';
+import 'package:cactus/src/services/model_cache.dart';
 import 'package:cactus/src/utils/ffi_utils.dart';
-
-class _InternalModel {
-  final DateTime createdAt;
-  final String slug;
-  final String downloadUrl;
-  final int sizeMb;
-  final bool supportsToolCalling;
-  final bool supportsVision;
-  final String name;
-
-  _InternalModel({
-    required this.createdAt,
-    required this.slug,
-    required this.downloadUrl,
-    required this.sizeMb,
-    required this.supportsToolCalling,
-    required this.supportsVision,
-    required this.name,
-  });
-
-  factory _InternalModel.fromJson(Map<String, dynamic> json) {
-    return _InternalModel(
-      createdAt: DateTime.parse(json['created_at'] as String),
-      slug: json['slug'] as String,
-      downloadUrl: json['download_url'] as String,
-      sizeMb: json['size_mb'] as int,
-      supportsToolCalling: json['supports_tool_calling'] as bool,
-      supportsVision: json['supports_vision'] as bool,
-      name: json['name'] as String,
-    );
-  }
-
-  CactusModel toPublicModel() {
-    return CactusModel(
-      createdAt: createdAt,
-      slug: slug,
-      sizeMb: sizeMb,
-      supportsToolCalling: supportsToolCalling,
-      supportsVision: supportsVision,
-      name: name,
-    );
-  }
-}
 
 class Supabase {
 
   static const String _supabaseUrl = 'https://vlqqczxwyaodtcdmdmlw.supabase.co';
   static const String _supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZscXFjenh3eWFvZHRjZG1kbWx3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE1MTg2MzIsImV4cCI6MjA2NzA5NDYzMn0.nBzqGuK9j6RZ6mOPWU2boAC_5H9XDs-fPpo5P3WZYbI';
 
-  // Private map to store slug to downloadUrl mappings
-  static final Map<String, String> _modelDownloadUrls = <String, String>{};
-
   static Future<void> sendLogRecord(LogRecord record) async {
     try {
-      // First, try to send just the current record
       final success = await _sendLogRecordsBatch([record]);
       
       if (success) {
         print('Successfully sent current log record');
         
-        // Only if current record was successful, try to send buffered records
         final failedRecords = await LogBuffer.loadFailedLogRecords();
         if (failedRecords.isNotEmpty) {
           print('Attempting to send ${failedRecords.length} buffered log records...');
@@ -85,7 +38,6 @@ class Supabase {
           }
         }
       } else {
-        // Current record failed, add it to buffer
         await LogBuffer.handleFailedLogRecord(record);
         print('Current log record failed, added to buffer');
       }
@@ -107,7 +59,6 @@ class Supabase {
       request.headers.set('Prefer', 'return=minimal');
       request.headers.set('Content-Profile', 'cactus');
       
-      // Send records as an array
       final body = jsonEncode(records.map((record) => record.toJson()).toList());
       request.write(body);
       
@@ -173,27 +124,18 @@ class Supabase {
         final responseBody = await response.transform(utf8.decoder).join();
         final List<dynamic> jsonList = jsonDecode(responseBody) as List<dynamic>;
         
-        _modelDownloadUrls.clear();
-        
         final models = jsonList.map((json) {
-          final internalModel = _InternalModel.fromJson(json as Map<String, dynamic>);
-          _modelDownloadUrls[internalModel.slug] = internalModel.downloadUrl;
-          return internalModel.toPublicModel();
+          final model = CactusModel.fromJson(json as Map<String, dynamic>);
+          return model;
         }).toList();
-        
+        await ModelCache.saveModels(models);
         return models;
       } else {
-        return [];
+        return await ModelCache.loadModels();
       }
     } catch (e) {
-      return [];
+      print('Error fetching models: $e');
+      return await ModelCache.loadModels();
     }
-  }
-
-  static Future<String?> getModelDownloadUrl(String slug) async {
-    if (_modelDownloadUrls.isEmpty) {
-      await fetchModels();
-    }
-    return _modelDownloadUrls[slug];
   }
 }

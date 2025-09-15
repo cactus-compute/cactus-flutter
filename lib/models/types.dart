@@ -109,18 +109,22 @@ class CactusEmbeddingResult {
 class CactusModel {
   final DateTime createdAt;
   final String slug;
+  final String downloadUrl;
   final int sizeMb;
   final bool supportsToolCalling;
   final bool supportsVision;
   final String name;
+  bool isDownloaded;
 
   CactusModel({
     required this.createdAt,
     required this.slug,
+    required this.downloadUrl,
     required this.sizeMb,
     required this.supportsToolCalling,
     required this.supportsVision,
     required this.name,
+    this.isDownloaded = false,
   });
 
   factory CactusModel.fromJson(Map<String, dynamic> json) {
@@ -128,9 +132,11 @@ class CactusModel {
       createdAt: DateTime.parse(json['created_at'] as String),
       slug: json['slug'] as String,
       sizeMb: json['size_mb'] as int,
+      downloadUrl: json['download_url'] as String,
       supportsToolCalling: json['supports_tool_calling'] as bool,
       supportsVision: json['supports_vision'] as bool,
       name: json['name'] as String,
+      isDownloaded: false,
     );
   }
 }
