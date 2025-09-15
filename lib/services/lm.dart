@@ -16,6 +16,8 @@ import '../src/services/telemetry.dart';
 class CactusLM {
   int? _handle;
   String? _lastDownloadedModel;
+  CactusInitParams defaultInitParams = CactusInitParams(model: "qwen3-0.6", contextSize: 2048);
+  List<CactusModel> _models = [];
 
   Future<void> downloadModel({
     String model = "qwen3-0.6",
@@ -39,57 +41,64 @@ class CactusLM {
     }
   }
 
-  Future<bool> initializeModel(CactusInitParams params) async {
+  Future<void> initializeModel({CactusInitParams? params}) async {
     if (!Telemetry.isInitialized) {
       final String projectId = await CactusId.getProjectId();
       final String? deviceId = await Telemetry.fetchDeviceId();
       Telemetry(projectId, deviceId, CactusTelemetry.telemetryToken);
     }
-    final modelFolder = params.model ?? _lastDownloadedModel ?? "qwen3-0.6";
-    final appDocDir = await getApplicationDocumentsDirectory();
-    final modelPath = '${appDocDir.path}/$modelFolder';
 
-    _handle = await CactusContext.initContext(modelPath, params.contextSize ?? 2048);
-    _lastDownloadedModel = modelFolder;
+    final model = params?.model?? defaultInitParams.model;
+    final appDocDir = await getApplicationDocumentsDirectory();
+    final modelPath = '${appDocDir.path}/$model';
+
+    _handle = await CactusContext.initContext(modelPath, ((params?.contextSize) ?? defaultInitParams.contextSize)!);
+    _lastDownloadedModel = model;
     if(Telemetry.isInitialized) {
-      params.model = modelFolder;
-      Telemetry.instance?.logInit(_handle != null, params);
+      params?.model = model;
+      Telemetry.instance?.logInit(_handle != null, params?? defaultInitParams);
     }
-    return _handle != null;
+    if(_handle == null) {
+      throw Exception('Failed to initialize model context with model at $modelPath');
+    }
   }
 
   Future<CactusCompletionResult?> generateCompletion({
     required List<ChatMessage> messages,
     required CactusCompletionParams params,
   }) async {
-    final currentHandle = _handle;
-    if (currentHandle == null) {
-      if(Telemetry.isInitialized) {
-        Telemetry.instance?.logCompletion(null, CactusInitParams(), message: "Context not initialized", success: false);
-      }
-      return null;
+    if (_lastDownloadedModel == null || !await _isModelDownloaded(_lastDownloadedModel!)) {
+      throw Exception('Model $_lastDownloadedModel is not downloaded. Please download it before generating completions.');
     }
-
+    final currentHandle = _getValidatedHandle();
+    final initParams = CactusInitParams(model: _lastDownloadedModel!);
     try {
       final result = await CactusContext.completion(currentHandle, messages, params);
-      
-      // Track telemetry for successful completions (if telemetry is initialized)
-      if (Telemetry.isInitialized) {
-        final initParams = CactusInitParams(
-          model: _lastDownloadedModel,
-        );
-        Telemetry.instance?.logCompletion(result, initParams);
-      }
-      
+      _logCompletionTelemetry(result, initParams);      
       return result;
     } catch (e) {
-      // Track telemetry for errors (if telemetry is initialized)
-      if (Telemetry.isInitialized) {
-        final initParams = CactusInitParams(
-          model: _lastDownloadedModel,
-        );
-        Telemetry.instance?.logCompletion(null, initParams, message: e.toString(), success: false);
-      }
+      _logCompletionTelemetry(null, initParams, success: false, message: e.toString());
+      rethrow;
+    }
+  }
+
+  Stream<String> generateCompletionStream({
+    required List<ChatMessage> messages,
+    required CactusCompletionParams params,
+  }) async* {
+    if (_lastDownloadedModel == null || !await _isModelDownloaded(_lastDownloadedModel!)) {
+      throw Exception('Model $_lastDownloadedModel is not downloaded. Please download it before generating completions.');
+    }
+    final currentHandle = _getValidatedHandle();
+    final initParams = CactusInitParams(model: _lastDownloadedModel!);
+    try {
+      final stream = CactusContext.completionStream(currentHandle, messages, params);
+      await for (final token in stream) {
+        yield token;
+      }      
+      _logCompletionTelemetry(null, initParams, success: true);
+    } catch (e) {
+      _logCompletionTelemetry(null, initParams, success: false, message: e.toString());
       rethrow;
     }
   }
@@ -98,43 +107,18 @@ class CactusLM {
     required String text,
     int bufferSize = 2048,
   }) async {
-    final currentHandle = _handle;
-    if (currentHandle == null) {
-      debugPrint('Cannot generate embedding: Context not initialized');
-      return null;
+    if (_lastDownloadedModel == null || !await _isModelDownloaded(_lastDownloadedModel!)) {
+      throw Exception('Model $_lastDownloadedModel is not downloaded. Please download it before generating completions.');
     }
-
+    final currentHandle = _getValidatedHandle();
+    final initParams = CactusInitParams(model: _lastDownloadedModel!);
     try {
-      final result = await CactusContext.generateEmbedding(
-        currentHandle,
-        text,
-        bufferSize: bufferSize,
-      );
-      
-      debugPrint('Embedding generation ${result.success ? 'successful' : 'failed'}: '
-                'dimension=${result.dimension}, '
-                'embeddings_length=${result.embeddings.length}');
-      if (Telemetry.isInitialized) {
-        final initParams = CactusInitParams(
-          model: _lastDownloadedModel,
-        );
-        Telemetry.instance?.logEmbedding(result, initParams, success: result.success);
-      }
+      final result = await CactusContext.generateEmbedding(currentHandle, text, bufferSize: bufferSize);
+      _logEmbeddingTelemetry(result, initParams);
       return result;
     } catch (e) {
-      debugPrint('Exception during embedding generation: $e');
-      if (Telemetry.isInitialized) {
-        final initParams = CactusInitParams(
-          model: _lastDownloadedModel,
-        );
-        Telemetry.instance?.logEmbedding(null, initParams, message: e.toString(), success: false);
-      }
-      return CactusEmbeddingResult(
-        success: false,
-        embeddings: [],
-        dimension: 0,
-        errorMessage: e.toString(),
-      );
+      _logEmbeddingTelemetry(null, initParams, success: false, message: e.toString());
+      rethrow;
     }
   }
 

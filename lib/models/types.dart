@@ -81,11 +81,11 @@ class CactusException implements Exception {
 }
 
 class CactusInitParams {
-  String? model;
+  String model;
   final int? contextSize;
 
   CactusInitParams({
-    this.model,
+    required this.model,
     this.contextSize,
   });
 }
