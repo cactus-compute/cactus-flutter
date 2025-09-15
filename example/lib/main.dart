@@ -48,6 +48,12 @@ class _MyHomePageState extends State<MyHomePage> {
     super.initState();
   }
 
+  @override
+  void dispose() {
+    lm.unload();
+    super.dispose();
+  }
+
   Future<void> downloadModel() async {
     setState(() {
       isDownloading = true;
@@ -55,17 +61,24 @@ class _MyHomePageState extends State<MyHomePage> {
     });
     
     try {
-      final downloadSuccess = await lm.downloadModel();
-      if (downloadSuccess) {
-        setState(() {
-          isModelDownloaded = true;
-          outputText = 'Model downloaded successfully! Click "Initialize Model" to load it.';
-        });
-      } else {
-        setState(() {
-          outputText = 'Failed to download model.';
-        });
-      }
+      await lm.downloadModel(
+        downloadProcessCallback: (progress, status, isError) {
+          setState(() {
+            if (isError) {
+              outputText = 'Error: $status';
+            } else {
+              outputText = status;
+              if (progress != null) {
+                outputText += ' (${(progress * 100).toStringAsFixed(1)}%)';
+              }
+            }
+          });
+        },
+      );
+      setState(() {
+        isModelDownloaded = true;
+        outputText = 'Model downloaded successfully! Click "Initialize Model" to load it.';
+      });
     } catch (e) {
       setState(() {
         outputText = 'Error downloading model: $e';
@@ -84,17 +97,11 @@ class _MyHomePageState extends State<MyHomePage> {
     });
     
     try {
-      final loadSuccess = await lm.initializeModel(CactusInitParams(contextSize: 2048));
-      if (loadSuccess) {
-        setState(() {
-          isModelLoaded = true;
-          outputText = 'Model initialized successfully! Ready to generate completions.';
-        });
-      } else {
-        setState(() {
-          outputText = 'Failed to initialize model.';
-        });
-      }
+      await lm.initializeModel();
+      setState(() {
+        isModelLoaded = true;
+        outputText = 'Model initialized successfully! Ready to generate completions.';
+      });
     } catch (e) {
       setState(() {
         outputText = 'Error initializing model: $e';
@@ -154,7 +161,7 @@ class _MyHomePageState extends State<MyHomePage> {
     }
   }
 
-  Future<void> generateStreamingCompletion() async {
+  Future<void> generateStreamCompletion() async {
     if (!isModelLoaded) {
       setState(() {
         outputText = 'Please download and initialize model first.';
@@ -164,42 +171,28 @@ class _MyHomePageState extends State<MyHomePage> {
     
     setState(() {
       isInitializing = true;
-      outputText = 'Generating streaming response...';
-      lastResponse = ''; // Clear previous response
+      outputText = 'Generating stream response...';
+      lastResponse = '';
     });
     
     try {
-      final resp = await lm.generateCompletion(
-        messages: [ChatMessage(content: 'Hi, tell me a short joke', role: "user")], 
-        params: CactusCompletionParams(
-          bufferSize: 1024, 
-          maxTokens: 50,
-          onToken: (token) {
-            setState(() {
-              lastResponse = (lastResponse ?? '') + token;
-            });
-            return true; // Continue generation
-          },
-        ),
+      final stream = lm.generateCompletionStream(
+        messages: [ChatMessage(content: 'Tell me a story about a brave cat', role: "user")],
+        params: CactusCompletionParams(maxTokens: 200),
       );
-      
-      if (resp != null && resp.success) {
+
+      await for (final chunk in stream) {
         setState(() {
-          lastTPS = resp.tokensPerSecond;
-          lastTTFT = resp.timeToFirstTokenMs;
-          outputText = 'Streaming generation completed successfully!';
-        });
-      } else {
-        setState(() {
-          outputText = 'Failed to generate streaming response.';
-          lastResponse = null;
-          lastTPS = null;
-          lastTTFT = null;
+          lastResponse = (lastResponse ?? '') + chunk;
         });
       }
+      
+      setState(() {
+        outputText = 'Stream generation completed successfully!';
+      });
     } catch (e) {
       setState(() {
-        outputText = 'Error generating streaming response: $e';
+        outputText = 'Error generating stream response: $e';
         lastResponse = null;
         lastTPS = null;
         lastTTFT = null;
@@ -233,16 +226,6 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   @override
-  void dispose() {
-    destroyContext();
-    super.dispose();
-  }
-
-  void destroyContext() {
-    lm.unload();
-  }
-
-  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
@@ -270,7 +253,7 @@ class _MyHomePageState extends State<MyHomePage> {
             ),
             const SizedBox(height: 10),
             ElevatedButton(
-              onPressed: (isDownloading || isInitializing || !isModelLoaded) ? null : generateStreamingCompletion,
+              onPressed: (isDownloading || isInitializing || !isModelLoaded) ? null : generateStreamCompletion,
               child: const Text('Generate Streaming'),
             ),
             const SizedBox(height: 20),
