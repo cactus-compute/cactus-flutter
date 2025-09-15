@@ -236,6 +236,45 @@ class CactusContext {
         .replaceAll('\t', '\\t');
   }
 
+  static Map<String, String> _prepareCompletionJson(
+    List<ChatMessage> messages,
+    CactusCompletionParams params,
+  ) {
+    // Prepare messages JSON
+    final messagesJsonBuffer = StringBuffer('[');
+    for (int i = 0; i < messages.length; i++) {
+      if (i > 0) messagesJsonBuffer.write(',');
+      messagesJsonBuffer.write('{');
+      messagesJsonBuffer.write('"role":"${messages[i].role}",');
+      messagesJsonBuffer.write('"content":"${_escapeJsonString(messages[i].content)}"');
+      messagesJsonBuffer.write('}');
+    }
+    messagesJsonBuffer.write(']');
+    final messagesJson = messagesJsonBuffer.toString();
+
+    // Prepare options JSON
+    final optionsJsonBuffer = StringBuffer('{');
+    optionsJsonBuffer.write('"temperature":${params.temperature},');
+    optionsJsonBuffer.write('"top_k":${params.topK},');
+    optionsJsonBuffer.write('"top_p":${params.topP},');
+    optionsJsonBuffer.write('"max_tokens":${params.maxTokens}');
+    if (params.stopSequences.isNotEmpty) {
+      optionsJsonBuffer.write(',"stop":[');
+      for (int i = 0; i < params.stopSequences.length; i++) {
+        if (i > 0) optionsJsonBuffer.write(',');
+        optionsJsonBuffer.write('"${_escapeJsonString(params.stopSequences[i])}"');
+      }
+      optionsJsonBuffer.write(']');
+    }
+    optionsJsonBuffer.write('}');
+    final optionsJson = optionsJsonBuffer.toString();
+
+    return {
+      'messagesJson': messagesJson,
+      'optionsJson': optionsJson,
+    };
+  }
+
   static Future<int?> initContext(String modelPath, int contextSize) async {
     // Run the heavy initialization in an isolate using compute
     final isolateParams = {
@@ -260,80 +299,58 @@ class CactusContext {
     List<ChatMessage> messages,
     CactusCompletionParams params,
   ) async {
-    // Prepare JSON data on main thread
-    final messagesJsonBuffer = StringBuffer('[');
-    for (int i = 0; i < messages.length; i++) {
-      if (i > 0) messagesJsonBuffer.write(',');
-      messagesJsonBuffer.write('{');
-      messagesJsonBuffer.write('"role":"${messages[i].role}",');
-      messagesJsonBuffer.write('"content":"${_escapeJsonString(messages[i].content)}"');
-      messagesJsonBuffer.write('}');
-    }
-    messagesJsonBuffer.write(']');
-    final messagesJson = messagesJsonBuffer.toString();
+    final jsonData = _prepareCompletionJson(messages, params);
 
-    final optionsJsonBuffer = StringBuffer('{');
-    optionsJsonBuffer.write('"temperature":${params.temperature},');
-    optionsJsonBuffer.write('"top_k":${params.topK},');
-    optionsJsonBuffer.write('"top_p":${params.topP},');
-    optionsJsonBuffer.write('"max_tokens":${params.maxTokens}');
-    if (params.stopSequences.isNotEmpty) {
-      optionsJsonBuffer.write(',"stop":[');
-      for (int i = 0; i < params.stopSequences.length; i++) {
-        if (i > 0) optionsJsonBuffer.write(',');
-        optionsJsonBuffer.write('"${_escapeJsonString(params.stopSequences[i])}"');
-      }
-      optionsJsonBuffer.write(']');
-    }
-    optionsJsonBuffer.write('}');
-    final optionsJson = optionsJsonBuffer.toString();
+    return await compute(_completionInIsolate, {
+      'handle': handle,
+      'messagesJson': jsonData['messagesJson']!,
+      'optionsJson': jsonData['optionsJson']!,
+      'bufferSize': params.bufferSize,
+      'hasCallback': false,
+      'replyPort': null,
+    });
+  }
 
+  static Stream<String> completionStream(
+    int handle,
+    List<ChatMessage> messages,
+    CactusCompletionParams params,
+  ) {
+    final jsonData = _prepareCompletionJson(messages, params);
+
+    final controller = StreamController<String>();
     final replyPort = ReceivePort();
-    final completer = Completer<CactusCompletionResult>();
 
-    // Listen for tokens and final result
     late StreamSubscription subscription;
     subscription = replyPort.listen((message) {
       if (message is Map) {
         final type = message['type'] as String;
         if (type == 'token') {
           final token = message['data'] as String;
-          try {
-            params.onToken?.call(token);
-          } catch (e) {
-            debugPrint('Error in token callback: $e');
-          }
+          controller.add(token);
         } else if (type == 'result') {
-          completer.complete(message['data'] as CactusCompletionResult);
+          controller.close();
           subscription.cancel();
           replyPort.close();
         } else if (type == 'error') {
-          completer.completeError(message['data']);
+          controller.addError(message['data']);
+          controller.close();
           subscription.cancel();
           replyPort.close();
         }
       }
     });
 
-    // Start the completion in an isolate
-    try {
-      final isolate = await Isolate.spawn(_isolateCompletionEntry, {
-        'handle': handle,
-        'messagesJson': messagesJson,
-        'optionsJson': optionsJson,
-        'bufferSize': params.bufferSize,
-        'hasCallback': params.onToken != null,
-        'replyPort': replyPort.sendPort,
-      });
+    Isolate.spawn(_isolateCompletionEntry, {
+      'handle': handle,
+      'messagesJson': jsonData['messagesJson']!,
+      'optionsJson': jsonData['optionsJson']!,
+      'bufferSize': params.bufferSize,
+      'hasCallback': true,
+      'replyPort': replyPort.sendPort,
+    });
 
-      final result = await completer.future;
-      isolate.kill();
-      return result;
-    } catch (e) {
-      subscription.cancel();
-      replyPort.close();
-      rethrow;
-    }
+    return controller.stream;
   }
 
   static Future<CactusEmbeddingResult> generateEmbedding(
