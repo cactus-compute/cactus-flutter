@@ -46,12 +46,22 @@ class _MyHomePageState extends State<MyHomePage> {
   @override
   void initState() {
     super.initState();
+    getAvailableModels();
   }
 
   @override
   void dispose() {
     lm.unload();
     super.dispose();
+  }
+
+  Future<void> getAvailableModels() async {
+    try {
+      final models = await lm.getModels();
+      print("Available models: ${models.map((m) => "${m.slug}: ${m.sizeMb}MB").join(", ")}");
+    } catch (e) {
+      print("Error fetching models: $e");
+    }
   }
 
   Future<void> downloadModel() async {
