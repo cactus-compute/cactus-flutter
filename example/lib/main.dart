@@ -128,8 +128,7 @@ class _MyHomePageState extends State<MyHomePage> {
     
     try {
       final resp = await lm.generateCompletion(
-        messages: [ChatMessage(content: 'Hi, tell me a short joke', role: "user")], 
-        params: CactusCompletionParams(bufferSize: 1024, maxTokens: 50)
+        messages: [ChatMessage(content: 'Hi, tell me a short joke', role: "user")]
       );
       
       if (resp != null && resp.success) {
@@ -177,8 +176,7 @@ class _MyHomePageState extends State<MyHomePage> {
     
     try {
       final stream = lm.generateCompletionStream(
-        messages: [ChatMessage(content: 'Tell me a story about a brave cat', role: "user")],
-        params: CactusCompletionParams(maxTokens: 200),
+        messages: [ChatMessage(content: 'Tell me a story about a brave cat', role: "user")]
       );
 
       await for (final chunk in stream) {

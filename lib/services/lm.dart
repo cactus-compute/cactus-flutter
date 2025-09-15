@@ -17,6 +17,14 @@ class CactusLM {
   int? _handle;
   String? _lastDownloadedModel;
   CactusInitParams defaultInitParams = CactusInitParams(model: "qwen3-0.6", contextSize: 2048);
+  CactusCompletionParams defaultCompletionParams = CactusCompletionParams(
+    temperature: 0.8,
+    topK: 40,
+    topP: 0.95,
+    maxTokens: 1024,
+    stopSequences: const [],
+    bufferSize: 1024,
+  );
   List<CactusModel> _models = [];
 
   Future<void> downloadModel({
@@ -65,7 +73,7 @@ class CactusLM {
 
   Future<CactusCompletionResult?> generateCompletion({
     required List<ChatMessage> messages,
-    required CactusCompletionParams params,
+    CactusCompletionParams? params,
   }) async {
     if (_lastDownloadedModel == null || !await _isModelDownloaded(_lastDownloadedModel!)) {
       throw Exception('Model $_lastDownloadedModel is not downloaded. Please download it before generating completions.');
@@ -73,7 +81,7 @@ class CactusLM {
     final currentHandle = _getValidatedHandle();
     final initParams = CactusInitParams(model: _lastDownloadedModel!);
     try {
-      final result = await CactusContext.completion(currentHandle, messages, params);
+      final result = await CactusContext.completion(currentHandle, messages, params ?? defaultCompletionParams);
       _logCompletionTelemetry(result, initParams);      
       return result;
     } catch (e) {
@@ -84,7 +92,7 @@ class CactusLM {
 
   Stream<String> generateCompletionStream({
     required List<ChatMessage> messages,
-    required CactusCompletionParams params,
+    CactusCompletionParams? params,
   }) async* {
     if (_lastDownloadedModel == null || !await _isModelDownloaded(_lastDownloadedModel!)) {
       throw Exception('Model $_lastDownloadedModel is not downloaded. Please download it before generating completions.');
@@ -92,7 +100,7 @@ class CactusLM {
     final currentHandle = _getValidatedHandle();
     final initParams = CactusInitParams(model: _lastDownloadedModel!);
     try {
-      final stream = CactusContext.completionStream(currentHandle, messages, params);
+      final stream = CactusContext.completionStream(currentHandle, messages, params ?? defaultCompletionParams);
       await for (final token in stream) {
         yield token;
       }      
