@@ -45,36 +45,32 @@ Future<void> basicExample() async {
   final lm = CactusLM();
 
   try {
-    // Download a model (default: qwen3-0.6)
-    final downloadSuccess = await lm.downloadModel("qwen3-0.6");
-    if (!downloadSuccess) {
-      print("Failed to download model");
-      return;
-    }
+    // Download a model with progress callback (default: qwen3-0.6)
+    await lm.downloadModel(
+      downloadProcessCallback: (progress, status, isError) {
+        if (isError) {
+          print("Download error: $status");
+        } else {
+          print("$status ${progress != null ? '(${progress * 100}%)' : ''}");
+        }
+      },
+    );
     
     // Initialize the model
-    final initSuccess = await lm.initializeModel(
-      CactusInitParams(
-        model: "qwen3-0.6",
-        contextSize: 2048,
-      ),
-    );
-    if (!initSuccess) {
-      print("Failed to initialize model");
-      return;
-    }
+    await lm.initializeModel();
 
-    // Generate completion
+    // Generate completion with default parameters
     final result = await lm.generateCompletion(
       messages: [
         ChatMessage(content: "Hello, how are you?", role: "user"),
       ],
-      params: CactusCompletionParams(
-        maxTokens: 100,
-        temperature: 0.7,
-        topK: 40,
-        topP: 0.95,
-      ),
+    );
+
+    // Or with custom parameters
+    final customResult = await lm.generateCompletion(
+      messages: [
+        ChatMessage(content: "Hello, how are you?", role: "user"),
+      ]
     );
 
     if (result != null && result.success) {
@@ -94,44 +90,76 @@ Future<void> basicExample() async {
 Future<void> streamingExample() async {
   final lm = CactusLM();
   
-  await lm.downloadModel("qwen3-0.6");
-  await lm.initializeModel(CactusInitParams(model: "qwen3-0.6"));
+  await lm.downloadModel();
+  await lm.initializeModel();
 
-  final result = await lm.generateCompletion(
+    // Get the streaming response with default parameters
+  final stream = await lm.generateCompletionStream(
     messages: [ChatMessage(content: "Tell me a story", role: "user")],
-    params: CactusCompletionParams(
-      maxTokens: 200,
-      onToken: (token) {
-        print(token); // Print each token as it's generated
-        return true; // Continue generation
-      },
-    ),
   );
+
+  // Or with custom parameters
+  final customStream = await lm.generateCompletionStream(
+    messages: [ChatMessage(content: "Tell me a story", role: "user")]
+  );
+
+  // Process streaming output
+  await for (final chunk in stream) {
+    print(chunk);
+  }
 
   lm.unload();
 }
 ```
 
-### Available Models
-You can download various models by their slug identifier:
-- `"qwen3-0.6"` - Default lightweight model (600MB)
-- Check Cactus documentation for complete model list with sizes and capabilities
+### Fetching Available Models
+```dart
+Future<void> fetchModelsExample() async {
+  final lm = CactusLM();
+  
+  // Get list of available models with caching
+  final models = await lm.getModels();
+  
+  for (final model in models) {
+    print("Model: ${model.name}");
+    print("Slug: ${model.slug}");
+    print("Size: ${model.sizeMb} MB");
+    print("Downloaded: ${model.isDownloaded}");
+    print("Supports Tool Calling: ${model.supportsToolCalling}");
+    print("Supports Vision: ${model.supportsVision}");
+    print("---");
+  }
+}
+```
+
+### Default Parameters
+The `CactusLM` class provides sensible defaults for completion parameters:
+- `temperature: 0.8` - Controls randomness (0.0 = deterministic, 1.0 = very random)
+- `topK: 40` - Number of top tokens to consider
+- `topP: 0.95` - Nucleus sampling parameter
+- `maxTokens: 1024` - Maximum tokens to generate
+- `bufferSize: 1024` - Internal buffer size for processing
 
 ### LLM API Reference
 
 #### CactusLM Class
-- `Future<bool> downloadModel({String model = "qwen3-0.6"})` - Download a model
-- `Future<bool> initializeModel(CactusInitParams params)` - Initialize model for inference
-- `Future<CactusCompletionResult?> generateCompletion({required List<ChatMessage> messages, required CactusCompletionParams params})` - Generate text completion
+- `Future<void> downloadModel({String model = "qwen3-0.6", CactusProgressCallback? downloadProcessCallback})` - Download a model with optional progress callback
+- `Future<void> initializeModel(CactusInitParams params)` - Initialize model for inference
+- `Future<CactusCompletionResult?> generateCompletion({required List<ChatMessage> messages, CactusCompletionParams? params})` - Generate text completion (uses default params if none provided)
+- `Stream<String> generateCompletionStream({required List<ChatMessage> messages, CactusCompletionParams? params})` - Generate streaming text completion (uses default params if none provided)
+- `Future<List<CactusModel>> getModels()` - Fetch available models with caching
+- `Future<CactusEmbeddingResult?> generateEmbedding({required String text, int bufferSize = 2048})` - Generate text embeddings
 - `void unload()` - Free model from memory
 - `bool isLoaded()` - Check if model is loaded
 
 #### Data Classes
 - `CactusInitParams({String? model, int? contextSize})` - Model initialization parameters
-- `CactusCompletionParams({double temperature, int topK, double topP, int maxTokens, List<String> stopSequences, int bufferSize, CactusTokenCallback? onToken})` - Completion parameters
+- `CactusCompletionParams({double temperature, int topK, double topP, int maxTokens, List<String> stopSequences, int bufferSize})` - Completion parameters
 - `ChatMessage({required String content, required String role, int? timestamp})` - Chat message format
 - `CactusCompletionResult` - Contains response, timing metrics, and success status
+- `CactusModel({required String name, required String slug, required int sizeMb, required bool supportsToolCalling, required bool supportsVision, required bool isDownloaded})` - Model information
 - `CactusEmbeddingResult({required bool success, required List<double> embeddings, required int dimension, String? errorMessage})` - Embedding generation result
+- `CactusProgressCallback = void Function(double? progress, String statusMessage, bool isError)` - Progress callback for downloads
 
 ## Embeddings
 
@@ -146,11 +174,8 @@ Future<void> embeddingExample() async {
 
   try {
     // Download and initialize a model (same as for completions)
-    await lm.downloadModel("qwen3-0.6");
-    await lm.initializeModel(CactusInitParams(
-      model: "qwen3-0.6", 
-      contextSize: 2048,
-    ));
+    await lm.downloadModel();
+    await lm.initializeModel();
 
     // Generate embeddings for a text
     final result = await lm.generateEmbedding(
@@ -196,12 +221,14 @@ Add the following permissions to your `android/app/src/main/AndroidManifest.xml`
 3. **Memory Management**: Always call `unload()` when done with models
 4. **Batch Processing**: Reuse initialized models for multiple completions
 5. **Background Processing**: Use `Isolate` for heavy operations to keep UI responsive
+6. **Model Caching**: Use `getModels()` for efficient model discovery - results are cached locally to reduce network requests
 
 ## Example App
 
 Check out the example app in the `example/` directory for a complete Flutter implementation showing:
-- Model downloading with progress indicators
-- Text completion with streaming
+- Model discovery and fetching available models
+- Model downloading with real-time progress indicators
+- Text completion with both regular and streaming modes
 - Embedding generation
 - Error handling and status management
 - Material Design UI integration
