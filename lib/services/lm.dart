@@ -17,20 +17,26 @@ class CactusLM {
   int? _handle;
   String? _lastDownloadedModel;
 
-  Future<bool> downloadModel({
-    String model = "qwen3-0.6"
+  Future<void> downloadModel({
+    String model = "qwen3-0.6",
+    CactusProgressCallback? downloadProcessCallback,
   }) async {
-    final url = await Supabase.getModelDownloadUrl(model);
-    if (url == null) {
-      debugPrint('No download URL found for model: $model');
-      return false;
+    if (await _isModelDownloaded(model)) {
+      _lastDownloadedModel = model;
+      return;
     }
-    final actualFilename = url.split('?').first.split('/').last;
-    final success = await _downloadAndExtractModel(url, actualFilename, model);
+    final currentModel = await _getModel(model);
+    if (currentModel == null) {
+      throw Exception('Failed to get model $model');
+    }
+    final actualFilename = currentModel.downloadUrl.split('?').first.split('/').last;
+    final success = await _downloadAndExtractModel(currentModel.downloadUrl, actualFilename, currentModel.slug, downloadProcessCallback);
     if (success) {
       _lastDownloadedModel = model;
     }
-    return success;
+    if (!success) {
+      throw Exception('Failed to download and extract model $model from ${currentModel.downloadUrl}');
+    }
   }
 
   Future<bool> initializeModel(CactusInitParams params) async {
@@ -142,14 +148,11 @@ class CactusLM {
 
   bool isLoaded() => _handle != null;
 
-  Future<bool> _downloadAndExtractModel(String url, String filename, String folder) async {
+  Future<bool> _downloadAndExtractModel(String url, String filename, String folder, CactusProgressCallback? downloadProcessCallback) async {
     final appDocDir = await getApplicationDocumentsDirectory();
-    
-    // Create a folder for the extracted model weights
     final modelFolderPath = '${appDocDir.path}/$folder';
     final modelFolder = Directory(modelFolderPath);
     
-    // Check if the model folder already exists and contains files
     if (await modelFolder.exists()) {
       final files = await modelFolder.list().toList();
       if (files.isNotEmpty) {
@@ -158,20 +161,22 @@ class CactusLM {
       }
     }
     
-    // Download the ZIP file to temporary location
     final zipFilePath = '${appDocDir.path}/$filename';
     final client = HttpClient();
     
     try {
       debugPrint('Downloading ZIP file from $url');
+      downloadProcessCallback?.call(null, 'Starting download...', false);
       final request = await client.getUrl(Uri.parse(url));
       final response = await request.close();
 
       if (response.statusCode != 200) {
+        downloadProcessCallback?.call(null, 'Failed to download ZIP file: ${response.statusCode}', true);
         throw Exception('Failed to download ZIP file: ${response.statusCode}');
       }
 
-      // Stream the response directly to a file to avoid memory issues
+      final contentLength = response.contentLength;
+      downloadProcessCallback?.call(null, 'Download started...', false);
       final zipFile = File(zipFilePath);
       final sink = zipFile.openWrite();
       
@@ -179,22 +184,17 @@ class CactusLM {
       await for (final chunk in response) {
         sink.add(chunk);
         totalBytes += chunk.length;
-        
-        // Log progress every 10MB
-        if (totalBytes % (10 * 1024 * 1024) == 0) {
-          debugPrint('Downloaded ${totalBytes ~/ (1024 * 1024)} MB...');
+        if (contentLength > 0) {
+          final progress = totalBytes / contentLength;
+          downloadProcessCallback?.call(progress, 'Downloaded ${totalBytes ~/ (1024 * 1024)} MB...', false);
+        } else if (totalBytes % (10 * 1024 * 1024) == 0) {
+          downloadProcessCallback?.call(null, 'Downloaded ${totalBytes ~/ (1024 * 1024)} MB...', false);
         }
       }
-      
       await sink.close();
-      debugPrint('Downloaded ${totalBytes} bytes to $zipFilePath');
-      
-      // Create the model folder if it doesn't exist
+      downloadProcessCallback?.call(1.0, 'Download completed, extracting...', false);
       await modelFolder.create(recursive: true);
-      
-      // Extract the ZIP file using streaming
-      debugPrint('Extracting ZIP file with streaming...');
-      
+      downloadProcessCallback?.call(null, 'Extracting files...', false);
       final inputStream = InputFileStream(zipFilePath);
       
       try {
@@ -230,24 +230,21 @@ class CactusLM {
         inputStream.close();
       }
       
-      // Clean up the temporary ZIP file
       await zipFile.delete();
+      downloadProcessCallback?.call(1.0, 'Extraction completed successfully', false);
       debugPrint('ZIP extraction completed successfully to $modelFolderPath');
       return true;
     } catch (e) {
+      downloadProcessCallback?.call(null, 'Download and extraction failed: $e', true);
       debugPrint('Download and extraction failed: $e');
-      // Clean up partial files on failure
       try {
         final zipFile = File(zipFilePath);
         if (await zipFile.exists()) {
           await zipFile.delete();
         }
-        
-        // Also try to clean up partial extraction if it failed midway
         if (await modelFolder.exists()) {
-          // Only delete if it seems to be incomplete (has few files compared to expected)
           final files = await modelFolder.list().toList();
-          if (files.length < 5) { // Assuming a model should have more than a few files
+          if (files.length < 5) {
             await modelFolder.delete(recursive: true);
           }
         }
@@ -258,5 +255,67 @@ class CactusLM {
     } finally {
       client.close();
     }
+  }
+
+  int _getValidatedHandle() {
+    final currentHandle = _handle;
+    if (currentHandle == null) {
+      _logCompletionTelemetry(null, CactusInitParams(model: _lastDownloadedModel!), success: false, message: "Context not initialized");
+      throw CactusException('Context not initialized');
+    }
+    return currentHandle;
+  }
+
+  void _logCompletionTelemetry(CactusCompletionResult? result, CactusInitParams initParams, {bool success = true, String? message}) {
+    if (Telemetry.isInitialized) {
+      Telemetry.instance?.logCompletion(result, initParams, message: message, success: success);
+    }
+  }
+
+  void _logEmbeddingTelemetry(CactusEmbeddingResult? result, CactusInitParams initParams, {bool success = true, String? message}) {
+    if (Telemetry.isInitialized) {
+      Telemetry.instance?.logEmbedding(result, initParams, message: message, success: success);
+    }
+  }
+
+  Future<List<CactusModel>> getModels() async {
+    if (_models.isEmpty) {
+      _models = await Supabase.fetchModels();
+      for (var model in _models) {
+        model.isDownloaded = await _modelExists(model.slug);
+      }
+    }
+    return _models;
+  }
+
+  Future<bool> _isModelDownloaded([String? modelName]) async {
+    final currentModel = await _getModel(modelName ?? _lastDownloadedModel!);
+    if (currentModel == null) {
+      print("No data found for model: $_lastDownloadedModel");
+      return false;
+    }
+    return await _modelExists(currentModel.slug);
+  }
+
+  Future<CactusModel?> _getModel(String slug) async {
+    if (_models.isEmpty) {
+      _models = await getModels();
+    }
+    try {
+      return _models.firstWhere((model) => model.slug == slug);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  Future<bool> _modelExists(String slug) async {
+    final appDocDir = await getApplicationDocumentsDirectory();
+    final modelFolderPath = '${appDocDir.path}/$slug';
+    final modelFolder = Directory(modelFolderPath);
+    if (await modelFolder.exists()) {
+      final files = await modelFolder.list().toList();
+      return files.isNotEmpty;
+    }
+    return false;
   }
 }
