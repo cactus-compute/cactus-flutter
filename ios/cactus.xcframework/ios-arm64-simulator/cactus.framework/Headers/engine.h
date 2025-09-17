@@ -71,7 +71,7 @@ public:
     std::string decode(const std::vector<uint32_t>& tokens) const;
     
     std::vector<uint32_t> apply_chat_template(const std::vector<ChatMessage>& messages, bool add_generation_prompt = true) const;
-    std::string format_chat_prompt(const std::vector<ChatMessage>& messages, bool add_generation_prompt = true) const;
+    std::string format_chat_prompt(const std::vector<ChatMessage>& messages, bool add_generation_prompt = true, const std::string& tools_json = "") const;
 
     uint32_t get_vocab_size() const { return vocab_size_; }
     uint32_t get_unk_token() const { return unk_token_id_; }
@@ -83,6 +83,7 @@ private:
     std::unordered_map<std::string, uint32_t> token_to_id_;
     std::vector<std::string> id_to_token_;
     std::vector<MergeRule> merge_rules_;
+    std::unordered_map<std::string, uint32_t> merge_map_;  
 
     uint32_t vocab_size_;
     uint32_t unk_token_id_;
@@ -96,7 +97,7 @@ private:
     size_t merges_mmap_size_;
 
     std::vector<std::string> apply_bpe(const std::vector<std::string>& tokens) const;
-    std::pair<int, int> find_best_merge(const std::vector<std::string>& tokens) const;
+    std::pair<int, uint32_t> find_best_merge_fast(const std::vector<std::string>& tokens) const;
     
     std::string bytes_to_unicode(const std::string& text) const;
     std::string unicode_to_bytes(const std::string& text) const;
@@ -116,41 +117,47 @@ private:
     bool has_chat_template_;
     std::string chat_template_;
     void load_chat_template(const std::string& template_file);
-    std::string apply_template_substitutions(const std::string& template_str, const std::vector<ChatMessage>& messages, bool add_generation_prompt) const;
+    std::string apply_template_substitutions(const std::string& template_str, const std::vector<ChatMessage>& messages, bool add_generation_prompt, const std::string& tools_json = "") const;
+    
+    std::unordered_map<std::string, uint32_t> tool_tokens_;
+    bool has_tool_support_;
+    void load_tokenizer_config(const std::string& config_file);
 };
 
 
 
 struct KVCache {
-    static constexpr size_t CACHE_PAGE_SIZE = 16;
+    static constexpr size_t DEFAULT_WINDOW_SIZE = 1024;
+    static constexpr size_t DEFAULT_SINK_SIZE = 4;
     
-    struct Page {
-        std::vector<uint8_t> data;
-        int ref_count = 0;
-        bool in_use = false;
+    struct LayerCache {
+        std::vector<uint8_t> keys;
+        std::vector<uint8_t> values;
+        size_t start_idx = 0;
+        size_t end_idx = 0;
+        size_t total_seen = 0;
     };
     
-    struct LayerPageTable {
-        std::vector<size_t> key_pages;
-        std::vector<size_t> value_pages;
-    };
-    
-    std::vector<Page> page_pool;
-    std::vector<LayerPageTable> layer_tables;
-    std::vector<size_t> free_pages;
-    
+    std::vector<LayerCache> layer_caches;
     std::vector<std::vector<uint8_t>> continuous_keys;
     std::vector<std::vector<uint8_t>> continuous_values;
     
+    size_t window_size = DEFAULT_WINDOW_SIZE;
+    size_t sink_size = DEFAULT_SINK_SIZE;
     size_t current_seq_len = 0;
+    size_t total_seq_len = 0;
     size_t max_seq_len = 2048;
     size_t num_kv_heads = 0;
     size_t head_dim = 0;
     size_t num_layers = 0;
     Precision precision;
     size_t element_size = 4;
-    size_t tokens_per_page = CACHE_PAGE_SIZE;
-    size_t bytes_per_page = 0;
+    size_t buffer_mask = 0;
+    bool use_fast_indexing = false;
+    
+    void set_window_size(size_t window, size_t sink = DEFAULT_SINK_SIZE);
+    size_t get_effective_seq_len() const { return current_seq_len; }
+    size_t get_total_seq_len() const { return total_seq_len; }
     
     void init(size_t num_layers, size_t max_seq, size_t num_kv_heads, size_t head_dim, Precision model_precision);
     void reset();
@@ -161,11 +168,23 @@ struct KVCache {
     void* get_key_ptr(size_t layer);
     void* get_value_ptr(size_t layer);
     
+    struct CircularView {
+        void* ptr1;
+        void* ptr2;
+        size_t len1;
+        size_t len2;
+        size_t total_len;
+    };
+    
+    CircularView get_key_view(size_t layer);
+    CircularView get_value_view(size_t layer);
+    
 private:
-    size_t allocate_page();
-    void free_page(size_t page_idx);
+    void slide_window(size_t layer);
     void materialize_continuous_buffer(size_t layer);
-    size_t get_num_pages_needed(size_t seq_len) const;
+    size_t get_circular_index(size_t logical_idx, size_t start, size_t buffer_size) const;
+    void copy_to_circular_buffer(LayerCache& cache, const void* new_data, size_t new_tokens, bool is_key);
+    CircularView get_circular_view(const LayerCache& cache, bool is_key) const;
 };
 
 class Model {
@@ -184,6 +203,7 @@ public:
     std::vector<float> get_embeddings(const std::vector<uint32_t>& tokens, bool pooled = true);
     
     void reset_cache() { kv_cache_.reset(); }
+    void set_cache_window(size_t window_size, size_t sink_size = 4) { kv_cache_.set_window_size(window_size, sink_size); }
     
 private:
     size_t forward(const std::vector<uint32_t>& tokens, bool use_cache = false);
