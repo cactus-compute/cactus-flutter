@@ -70,7 +70,11 @@ Future<void> basicExample() async {
     final customResult = await lm.generateCompletion(
       messages: [
         ChatMessage(content: "Hello, how are you?", role: "user"),
-      ]
+      ],
+      params: CactusCompletionParams(
+        temperature: 0.7,
+        maxTokens: 100,
+      ),
     );
 
     if (result != null && result.success) {
@@ -114,6 +118,44 @@ Future<void> streamingExample() async {
 }
 ```
 
+### Function Calling (Experimental)
+```dart
+Future<void> functionCallingExample() async {
+  final lm = CactusLM();
+  
+  await lm.downloadModel();
+  await lm.initializeModel();
+
+  final tools = [
+    CactusTool(
+      name: "get_weather",
+      description: "Get current weather for a location",
+      parameters: {
+        "location": CactusToolParameter(
+          type: "string",
+          description: "City name",
+          required: true,
+        ),
+      },
+    ),
+  ];
+
+  final result = await lm.generateCompletion(
+    messages: [ChatMessage(content: "What's the weather in New York?", role: "user")],
+    params: CactusCompletionParams(
+      tools: tools
+    )
+  );
+
+  if (result != null && result.success) {
+    print("Response: ${result.response}");
+    print("Tools: ${result.toolCalls}");
+  }
+
+  lm.unload();
+}
+```
+
 ### Fetching Available Models
 ```dart
 Future<void> fetchModelsExample() async {
@@ -147,8 +189,8 @@ The `CactusLM` class provides sensible defaults for completion parameters:
 #### CactusLM Class
 - `Future<void> downloadModel({String model = "qwen3-0.6", CactusProgressCallback? downloadProcessCallback})` - Download a model with optional progress callback
 - `Future<void> initializeModel(CactusInitParams params)` - Initialize model for inference
-- `Future<CactusCompletionResult?> generateCompletion({required List<ChatMessage> messages, CactusCompletionParams? params})` - Generate text completion (uses default params if none provided)
-- `Future<CactusStreamedCompletionResult> generateCompletionStream({required List<ChatMessage> messages, CactusCompletionParams? params})` - Generate streaming text completion (uses default params if none provided)
+- `Future<CactusCompletionResult?> generateCompletion({required List<ChatMessage> messages, CactusCompletionParams? params, List<CactusTool>? tools})` - Generate text completion (uses default params if none provided)
+- `Future<CactusStreamedCompletionResult> generateCompletionStream({required List<ChatMessage> messages, CactusCompletionParams? params, List<CactusTool>? tools})` - Generate streaming text completion (uses default params if none provided)
 - `Future<List<CactusModel>> getModels()` - Fetch available models with caching
 - `Future<CactusEmbeddingResult?> generateEmbedding({required String text, int bufferSize = 2048})` - Generate text embeddings
 - `void unload()` - Free model from memory
@@ -156,12 +198,14 @@ The `CactusLM` class provides sensible defaults for completion parameters:
 
 #### Data Classes
 - `CactusInitParams({String? model, int? contextSize})` - Model initialization parameters
-- `CactusCompletionParams({double temperature, int topK, double topP, int maxTokens, List<String> stopSequences, int bufferSize})` - Completion parameters
+- `CactusCompletionParams({double temperature, int topK, double topP, int maxTokens, List<String> stopSequences, int bufferSize, List<CactusTool>? tools})` - Completion parameters
 - `ChatMessage({required String content, required String role, int? timestamp})` - Chat message format
 - `CactusCompletionResult` - Contains response, timing metrics, and success status
 - `CactusStreamedCompletionResult` - Contains the stream and the final result of a streamed completion.
 - `CactusModel({required String name, required String slug, required int sizeMb, required bool supportsToolCalling, required bool supportsVision, required bool isDownloaded})` - Model information
 - `CactusEmbeddingResult({required bool success, required List<double> embeddings, required int dimension, String? errorMessage})` - Embedding generation result
+- `CactusTool({required String name, required String description, required Map<String, CactusToolParameter> parameters})` - Function calling tool definition
+- `CactusToolParameter({required String type, required String description, required bool required})` - Tool parameter specification
 - `CactusProgressCallback = void Function(double? progress, String statusMessage, bool isError)` - Progress callback for downloads
 
 ## Embeddings

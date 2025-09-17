@@ -139,17 +139,19 @@ class _MyHomePageState extends State<MyHomePage> {
     try {
       final resp = await lm.generateCompletion(
         messages: [ChatMessage(content: 'How is the weather in New York?', role: "user")],
-        tools: [
-          CactusTool(
-            name: 'get_weather',
-            description: 'Get weather for a location',
-            parameters: ToolParametersSchema(
-              properties: {
-                'location': ToolParameter(type: 'string', description: 'City name', required: true),
-              },
+        params: CactusCompletionParams(
+          tools: [
+            CactusTool(
+              name: 'get_weather',
+              description: 'Get weather for a location',
+              parameters: ToolParametersSchema(
+                properties: {
+                  'location': ToolParameter(type: 'string', description: 'City name', required: true),
+                },
+              ),
             ),
-          ),
-        ],
+          ],
+        )
       );
       
       if (resp.success) {

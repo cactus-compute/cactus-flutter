@@ -67,8 +67,7 @@ class CactusLM {
 
   Future<CactusCompletionResult> generateCompletion({
     required List<ChatMessage> messages,
-    CactusCompletionParams? params,
-    List<CactusTool>? tools,
+    CactusCompletionParams? params
   }) async {
     if (_lastDownloadedModel == null || !await _isModelDownloaded(_lastDownloadedModel!)) {
       throw Exception('Model $_lastDownloadedModel is not downloaded. Please download it before generating completions.');
@@ -85,7 +84,7 @@ class CactusLM {
       maxTokens: completionParams.maxTokens,
       stopSequences: completionParams.stopSequences,
       bufferSize: completionParams.bufferSize,
-      tools: tools ?? completionParams.tools,
+      tools: completionParams.tools,
     );
     
     try {
