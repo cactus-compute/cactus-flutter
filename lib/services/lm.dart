@@ -18,14 +18,7 @@ class CactusLM {
   int? _handle;
   String? _lastDownloadedModel;
   CactusInitParams defaultInitParams = CactusInitParams(model: "qwen3-0.6", contextSize: 2048);
-  CactusCompletionParams defaultCompletionParams = CactusCompletionParams(
-    temperature: 0.8,
-    topK: 40,
-    topP: 0.95,
-    maxTokens: 1024,
-    stopSequences: const [],
-    bufferSize: 1024,
-  );
+  CactusCompletionParams defaultCompletionParams = CactusCompletionParams();
   List<CactusModel> _models = [];
 
   Future<void> downloadModel({
@@ -72,7 +65,7 @@ class CactusLM {
     }
   }
 
-  Future<CactusCompletionResult?> generateCompletion({
+  Future<CactusCompletionResult> generateCompletion({
     required List<ChatMessage> messages,
     CactusCompletionParams? params,
     List<CactusTool>? tools,
