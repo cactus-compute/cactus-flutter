@@ -66,17 +66,6 @@ Future<void> basicExample() async {
       ],
     );
 
-    // Or with custom parameters
-    final customResult = await lm.generateCompletion(
-      messages: [
-        ChatMessage(content: "Hello, how are you?", role: "user"),
-      ],
-      params: CactusCompletionParams(
-        temperature: 0.7,
-        maxTokens: 100,
-      ),
-    );
-
     if (result.success) {
       print("Response: ${result.response}");
       print("Tokens per second: ${result.tokensPerSecond}");
