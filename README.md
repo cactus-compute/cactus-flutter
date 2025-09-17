@@ -16,7 +16,7 @@ dependencies:
   cactus:
     git:
       url: https://github.com/cactus-compute/cactus-flutter.git
-      ref: v1
+      ref: main
 ```
 
 Then run:
@@ -93,19 +93,21 @@ Future<void> streamingExample() async {
   await lm.downloadModel();
   await lm.initializeModel();
 
-    // Get the streaming response with default parameters
-  final stream = await lm.generateCompletionStream(
+  // Get the streaming response with default parameters
+  final streamedResult = await lm.generateCompletionStream(
     messages: [ChatMessage(content: "Tell me a story", role: "user")],
   );
 
-  // Or with custom parameters
-  final customStream = await lm.generateCompletionStream(
-    messages: [ChatMessage(content: "Tell me a story", role: "user")]
-  );
-
   // Process streaming output
-  await for (final chunk in stream) {
+  await for (final chunk in streamedResult.stream) {
     print(chunk);
+  }
+
+  // You can also get the full completion result after the stream is done
+  final finalResult = await streamedResult.result;
+  if (finalResult.success) {
+    print("Final response: ${finalResult.response}");
+    print("Tokens per second: ${finalResult.tokensPerSecond}");
   }
 
   lm.unload();
@@ -146,7 +148,7 @@ The `CactusLM` class provides sensible defaults for completion parameters:
 - `Future<void> downloadModel({String model = "qwen3-0.6", CactusProgressCallback? downloadProcessCallback})` - Download a model with optional progress callback
 - `Future<void> initializeModel(CactusInitParams params)` - Initialize model for inference
 - `Future<CactusCompletionResult?> generateCompletion({required List<ChatMessage> messages, CactusCompletionParams? params})` - Generate text completion (uses default params if none provided)
-- `Stream<String> generateCompletionStream({required List<ChatMessage> messages, CactusCompletionParams? params})` - Generate streaming text completion (uses default params if none provided)
+- `Future<CactusStreamedCompletionResult> generateCompletionStream({required List<ChatMessage> messages, CactusCompletionParams? params})` - Generate streaming text completion (uses default params if none provided)
 - `Future<List<CactusModel>> getModels()` - Fetch available models with caching
 - `Future<CactusEmbeddingResult?> generateEmbedding({required String text, int bufferSize = 2048})` - Generate text embeddings
 - `void unload()` - Free model from memory
@@ -157,6 +159,7 @@ The `CactusLM` class provides sensible defaults for completion parameters:
 - `CactusCompletionParams({double temperature, int topK, double topP, int maxTokens, List<String> stopSequences, int bufferSize})` - Completion parameters
 - `ChatMessage({required String content, required String role, int? timestamp})` - Chat message format
 - `CactusCompletionResult` - Contains response, timing metrics, and success status
+- `CactusStreamedCompletionResult` - Contains the stream and the final result of a streamed completion.
 - `CactusModel({required String name, required String slug, required int sizeMb, required bool supportsToolCalling, required bool supportsVision, required bool isDownloaded})` - Model information
 - `CactusEmbeddingResult({required bool success, required List<double> embeddings, required int dimension, String? errorMessage})` - Embedding generation result
 - `CactusProgressCallback = void Function(double? progress, String statusMessage, bool isError)` - Progress callback for downloads
