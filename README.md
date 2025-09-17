@@ -77,7 +77,7 @@ Future<void> basicExample() async {
       ),
     );
 
-    if (result != null && result.success) {
+    if (result.success) {
       print("Response: ${result.response}");
       print("Tokens per second: ${result.tokensPerSecond}");
       print("Time to first token: ${result.timeToFirstTokenMs}ms");
@@ -145,7 +145,7 @@ Future<void> functionCallingExample() async {
     )
   );
 
-  if (result != null && result.success) {
+  if (result.success) {
     print("Response: ${result.response}");
     print("Tools: ${result.toolCalls}");
   }
@@ -228,7 +228,7 @@ Future<void> embeddingExample() async {
       bufferSize: 2048,
     );
 
-    if (result != null && result.success) {
+    if (result.success) {
       print("Embedding dimension: ${result.dimension}");
       print("Embedding vector length: ${result.embeddings.length}");
       print("First few values: ${result.embeddings.take(5)}");

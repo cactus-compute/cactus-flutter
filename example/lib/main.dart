@@ -246,7 +246,7 @@ class _MyHomePageState extends State<MyHomePage> {
       bufferSize: 1024,
     );
 
-    if (resp != null && resp.success) {
+    if (resp.success) {
       setState(() {
         lastResponse = "Dimensions: ${resp.dimension.toString()} \nLength: ${resp.embeddings.length} \nEmbeddings: [${resp.embeddings.take(5).join(', ')}...]";
         outputText = 'Embedding generation completed successfully!';

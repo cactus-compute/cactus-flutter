@@ -135,7 +135,7 @@ class CactusLM {
     }
   }
 
-  Future<CactusEmbeddingResult?> generateEmbedding({
+  Future<CactusEmbeddingResult> generateEmbedding({
     required String text,
     int bufferSize = 2048,
   }) async {
