@@ -2,10 +2,10 @@ import 'package:cactus/src/services/telemetry.dart';
 
 class CactusTelemetry {
 
-  static String telemetryToken = "";
+  static String? telemetryToken;
 
   static setTelemetryToken(String token) {
-    telemetryToken = token;
+    telemetryToken = token.isEmpty ? null : token;
   }
 
   static Future<String?> fetchDeviceId() {
