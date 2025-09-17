@@ -152,7 +152,7 @@ class _MyHomePageState extends State<MyHomePage> {
         ],
       );
       
-      if (resp != null && resp.success) {
+      if (resp.success) {
         setState(() {
           lastResponse = resp.response;
           lastTPS = resp.tokensPerSecond;
@@ -193,22 +193,37 @@ class _MyHomePageState extends State<MyHomePage> {
       isInitializing = true;
       outputText = 'Generating stream response...';
       lastResponse = '';
+      lastTPS = null;
+      lastTTFT = null;
     });
     
     try {
-      final stream = lm.generateCompletionStream(
-        messages: [ChatMessage(content: 'Tell me a story about a brave cat', role: "user")]
+      final streamedResult = await lm.generateCompletionStream(
+        messages: [ChatMessage(content: 'Tell me a joke', role: "user")]
       );
 
-      await for (final chunk in stream) {
+      await for (final chunk in streamedResult.stream) {
         setState(() {
           lastResponse = (lastResponse ?? '') + chunk;
         });
       }
       
-      setState(() {
-        outputText = 'Stream generation completed successfully!';
-      });
+      final resp = await streamedResult.result;
+      if (resp.success) {
+        setState(() {
+          lastResponse = resp.response;
+          lastTPS = resp.tokensPerSecond;
+          lastTTFT = resp.timeToFirstTokenMs;
+          outputText = 'Stream generation completed successfully!';;
+        });
+      } else {
+        setState(() {
+          outputText = 'Failed to generate response.';
+          lastResponse = null;
+          lastTPS = null;
+          lastTTFT = null;
+        });
+      }
     } catch (e) {
       setState(() {
         outputText = 'Error generating stream response: $e';
