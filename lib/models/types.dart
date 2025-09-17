@@ -1,3 +1,5 @@
+import 'tools.dart';
+
 typedef CactusTokenCallback = bool Function(String token);
 typedef CactusProgressCallback = void Function(double? progress, String statusMessage, bool isError);
 
@@ -32,14 +34,16 @@ class CactusCompletionParams {
   final int maxTokens;
   final List<String> stopSequences;
   final int bufferSize;
+  final List<CactusTool>? tools;
 
   CactusCompletionParams({
-    this.temperature = 0.8,
+    this.temperature = 0.1,
     this.topK = 40,
     this.topP = 0.95,
-    this.maxTokens = 1024,
+    this.maxTokens = 200,
     this.stopSequences = const [],
     this.bufferSize = 1024,
+    this.tools,
   });
 }
 
@@ -52,6 +56,7 @@ class CactusCompletionResult {
   final int prefillTokens;
   final int decodeTokens;
   final int totalTokens;
+  final List<ToolCall> toolCalls;
 
   CactusCompletionResult({
     required this.success,
@@ -62,6 +67,7 @@ class CactusCompletionResult {
     required this.prefillTokens,
     required this.decodeTokens,
     required this.totalTokens,
+    this.toolCalls = const [],
   });
 }
 

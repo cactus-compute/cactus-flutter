@@ -16,6 +16,7 @@ typedef CactusCompleteNative = Int32 Function(
     Pointer<Utf8> responseBuffer,
     Size bufferSize,
     Pointer<Utf8> optionsJson,
+    Pointer<Utf8> toolsJson,
     Pointer<NativeFunction<CactusTokenCallbackNative>> callback,
     Pointer<Void> userData);
 typedef CactusCompleteDart = int Function(
@@ -24,6 +25,7 @@ typedef CactusCompleteDart = int Function(
     Pointer<Utf8> responseBuffer,
     int bufferSize,
     Pointer<Utf8> optionsJson,
+    Pointer<Utf8> toolsJson,
     Pointer<NativeFunction<CactusTokenCallbackNative>> callback,
     Pointer<Void> userData);
 

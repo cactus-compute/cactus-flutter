@@ -4,6 +4,7 @@ import 'dart:ffi';
 import 'dart:isolate';
 
 import 'package:cactus/models/types.dart';
+import 'package:cactus/models/tools.dart';
 import 'package:cactus/src/models/binding.dart';
 import 'package:ffi/ffi.dart';
 import 'package:flutter/foundation.dart';
@@ -59,6 +60,7 @@ Future<CactusCompletionResult> _completionInIsolate(Map<String, dynamic> params)
   final handle = params['handle'] as int;
   final messagesJson = params['messagesJson'] as String;
   final optionsJson = params['optionsJson'] as String;
+  final toolsJson = params['toolsJson'] as String?;
   final bufferSize = params['bufferSize'] as int;
   final hasCallback = params['hasCallback'] as bool;
   final SendPort? replyPort = params['replyPort'] as SendPort?;
@@ -66,6 +68,7 @@ Future<CactusCompletionResult> _completionInIsolate(Map<String, dynamic> params)
   final responseBuffer = calloc<Uint8>(bufferSize);
   final messagesJsonC = messagesJson.toNativeUtf8(allocator: calloc);
   final optionsJsonC = optionsJson.toNativeUtf8(allocator: calloc);
+  final toolsJsonC = toolsJson?.toNativeUtf8(allocator: calloc);
 
   Pointer<NativeFunction<CactusTokenCallbackNative>>? callbackPointer;
 
@@ -89,6 +92,7 @@ Future<CactusCompletionResult> _completionInIsolate(Map<String, dynamic> params)
       responseBuffer.cast<Utf8>(),
       bufferSize,
       optionsJsonC,
+      toolsJsonC ?? nullptr,
       callbackPointer ?? nullptr,
       nullptr,
     );
@@ -100,6 +104,7 @@ Future<CactusCompletionResult> _completionInIsolate(Map<String, dynamic> params)
       
       try {
         final jsonResponse = jsonDecode(responseText) as Map<String, dynamic>;
+        print("Parsed JSON response: $jsonResponse");
         final success = jsonResponse['success'] as bool? ?? true;
         final response = jsonResponse['response'] as String? ?? responseText;
         final timeToFirstTokenMs = (jsonResponse['time_to_first_token_ms'] as num?)?.toDouble() ?? 0.0;
@@ -108,6 +113,15 @@ Future<CactusCompletionResult> _completionInIsolate(Map<String, dynamic> params)
         final prefillTokens = jsonResponse['prefill_tokens'] as int? ?? 0;
         final decodeTokens = jsonResponse['decode_tokens'] as int? ?? 0;
         final totalTokens = jsonResponse['total_tokens'] as int? ?? 0;
+        
+        // Parse tool calls
+        List<ToolCall> toolCalls = [];
+        if (jsonResponse['tool_calls'] != null) {
+          final toolCallsJson = jsonResponse['tool_calls'] as List<dynamic>;
+          toolCalls = toolCallsJson
+              .map((toolCallJson) => ToolCall.fromJson(toolCallJson as Map<String, dynamic>))
+              .toList();
+        }
 
         return CactusCompletionResult(
           success: success,
@@ -118,6 +132,7 @@ Future<CactusCompletionResult> _completionInIsolate(Map<String, dynamic> params)
           prefillTokens: prefillTokens,
           decodeTokens: decodeTokens,
           totalTokens: totalTokens,
+          toolCalls: toolCalls,
         );
       } catch (e) {
         debugPrint('Unable to parse the response json: $e');
@@ -130,6 +145,7 @@ Future<CactusCompletionResult> _completionInIsolate(Map<String, dynamic> params)
           prefillTokens: 0,
           decodeTokens: 0,
           totalTokens: 0,
+          toolCalls: [],
         );
       }
     } else {
@@ -142,6 +158,7 @@ Future<CactusCompletionResult> _completionInIsolate(Map<String, dynamic> params)
         prefillTokens: 0,
         decodeTokens: 0,
         totalTokens: 0,
+        toolCalls: [],
       );
     }
   } finally {
@@ -149,6 +166,9 @@ Future<CactusCompletionResult> _completionInIsolate(Map<String, dynamic> params)
     calloc.free(responseBuffer);
     calloc.free(messagesJsonC);
     calloc.free(optionsJsonC);
+    if (toolsJsonC != null) {
+      calloc.free(toolsJsonC);
+    }
   }
 }
 
@@ -236,7 +256,7 @@ class CactusContext {
         .replaceAll('\t', '\\t');
   }
 
-  static Map<String, String> _prepareCompletionJson(
+  static Map<String, String?> _prepareCompletionJson(
     List<ChatMessage> messages,
     CactusCompletionParams params,
   ) {
@@ -269,9 +289,16 @@ class CactusContext {
     optionsJsonBuffer.write('}');
     final optionsJson = optionsJsonBuffer.toString();
 
+    // Prepare tools JSON if tools are provided
+    String? toolsJson;
+    if (params.tools != null && params.tools!.isNotEmpty) {
+      toolsJson = params.tools!.toToolsJson();
+    }
+
     return {
       'messagesJson': messagesJson,
       'optionsJson': optionsJson,
+      'toolsJson': toolsJson,
     };
   }
 
@@ -305,6 +332,7 @@ class CactusContext {
       'handle': handle,
       'messagesJson': jsonData['messagesJson']!,
       'optionsJson': jsonData['optionsJson']!,
+      'toolsJson': jsonData['toolsJson'],
       'bufferSize': params.bufferSize,
       'hasCallback': false,
       'replyPort': null,
@@ -345,6 +373,7 @@ class CactusContext {
       'handle': handle,
       'messagesJson': jsonData['messagesJson']!,
       'optionsJson': jsonData['optionsJson']!,
+      'toolsJson': jsonData['toolsJson'],
       'bufferSize': params.bufferSize,
       'hasCallback': true,
       'replyPort': replyPort.sendPort,

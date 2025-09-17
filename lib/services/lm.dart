@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:archive/archive.dart';
 import 'package:archive/archive_io.dart';
+import 'package:cactus/models/tools.dart';
 import 'package:cactus/services/telemetry.dart';
 import 'package:cactus/src/services/cactus_id.dart';
 import 'package:cactus/src/services/context.dart';
@@ -74,14 +75,28 @@ class CactusLM {
   Future<CactusCompletionResult?> generateCompletion({
     required List<ChatMessage> messages,
     CactusCompletionParams? params,
+    List<CactusTool>? tools,
   }) async {
     if (_lastDownloadedModel == null || !await _isModelDownloaded(_lastDownloadedModel!)) {
       throw Exception('Model $_lastDownloadedModel is not downloaded. Please download it before generating completions.');
     }
     final currentHandle = _getValidatedHandle();
     final initParams = CactusInitParams(model: _lastDownloadedModel!);
+    
+    // Create params with tools if provided
+    final completionParams = params ?? defaultCompletionParams;
+    final paramsWithTools = CactusCompletionParams(
+      temperature: completionParams.temperature,
+      topK: completionParams.topK,
+      topP: completionParams.topP,
+      maxTokens: completionParams.maxTokens,
+      stopSequences: completionParams.stopSequences,
+      bufferSize: completionParams.bufferSize,
+      tools: tools ?? completionParams.tools,
+    );
+    
     try {
-      final result = await CactusContext.completion(currentHandle, messages, params ?? defaultCompletionParams);
+      final result = await CactusContext.completion(currentHandle, messages, paramsWithTools);
       _logCompletionTelemetry(result, initParams);      
       return result;
     } catch (e) {
@@ -93,14 +108,28 @@ class CactusLM {
   Stream<String> generateCompletionStream({
     required List<ChatMessage> messages,
     CactusCompletionParams? params,
+    List<CactusTool>? tools,
   }) async* {
     if (_lastDownloadedModel == null || !await _isModelDownloaded(_lastDownloadedModel!)) {
       throw Exception('Model $_lastDownloadedModel is not downloaded. Please download it before generating completions.');
     }
     final currentHandle = _getValidatedHandle();
     final initParams = CactusInitParams(model: _lastDownloadedModel!);
+    
+    // Create params with tools if provided
+    final completionParams = params ?? defaultCompletionParams;
+    final paramsWithTools = CactusCompletionParams(
+      temperature: completionParams.temperature,
+      topK: completionParams.topK,
+      topP: completionParams.topP,
+      maxTokens: completionParams.maxTokens,
+      stopSequences: completionParams.stopSequences,
+      bufferSize: completionParams.bufferSize,
+      tools: tools ?? completionParams.tools,
+    );
+    
     try {
-      final stream = CactusContext.completionStream(currentHandle, messages, params ?? defaultCompletionParams);
+      final stream = CactusContext.completionStream(currentHandle, messages, paramsWithTools);
       await for (final token in stream) {
         yield token;
       }      
