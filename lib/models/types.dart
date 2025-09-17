@@ -96,6 +96,13 @@ class CactusInitParams {
   });
 }
 
+class CactusStreamedCompletionResult {
+  final Stream<String> stream;
+  final Future<CactusCompletionResult> result;
+
+  CactusStreamedCompletionResult({required this.stream, required this.result});
+}
+
 class CactusEmbeddingResult {
   final bool success;
   final List<double> embeddings;

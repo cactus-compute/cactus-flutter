@@ -341,7 +341,7 @@ class CactusContext {
     });
   }
 
-  static Stream<String> completionStream(
+  static CactusStreamedCompletionResult completionStream(
     int handle,
     List<ChatMessage> messages,
     CactusCompletionParams params,
@@ -349,6 +349,7 @@ class CactusContext {
     final jsonData = _prepareCompletionJson(messages, params);
 
     final controller = StreamController<String>();
+    final resultCompleter = Completer<CactusCompletionResult>();
     final replyPort = ReceivePort();
 
     late StreamSubscription subscription;
@@ -359,11 +360,19 @@ class CactusContext {
           final token = message['data'] as String;
           controller.add(token);
         } else if (type == 'result') {
+          final result = message['data'] as CactusCompletionResult;
+          resultCompleter.complete(result);
           controller.close();
           subscription.cancel();
           replyPort.close();
         } else if (type == 'error') {
-          controller.addError(message['data']);
+          final error = message['data'];
+          if (error is CactusCompletionResult) {
+            resultCompleter.complete(error);
+          } else {
+            resultCompleter.completeError(error.toString());
+          }
+          controller.addError(error);
           controller.close();
           subscription.cancel();
           replyPort.close();
@@ -381,7 +390,10 @@ class CactusContext {
       'replyPort': replyPort.sendPort,
     });
 
-    return controller.stream;
+    return CactusStreamedCompletionResult(
+      stream: controller.stream,
+      result: resultCompleter.future,
+    );
   }
 
   static Future<CactusEmbeddingResult> generateEmbedding(
@@ -400,9 +412,13 @@ class CactusContext {
     final replyPort = params['replyPort'] as SendPort;
     try {
       final result = await _completionInIsolate(params);
-      replyPort.send({'type': 'result', 'data': result});
+      if (result.success) {
+        replyPort.send({'type': 'result', 'data': result});
+      } else {
+        replyPort.send({'type': 'error', 'data': result});
+      }
     } catch (e) {
-      replyPort.send({'type': 'error', 'data': e});
+      replyPort.send({'type': 'error', 'data': e.toString()});
     }
   }
 }

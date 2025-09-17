@@ -105,11 +105,11 @@ class CactusLM {
     }
   }
 
-  Stream<String> generateCompletionStream({
+  Future<CactusStreamedCompletionResult> generateCompletionStream({
     required List<ChatMessage> messages,
     CactusCompletionParams? params,
     List<CactusTool>? tools,
-  }) async* {
+  }) async {
     if (_lastDownloadedModel == null || !await _isModelDownloaded(_lastDownloadedModel!)) {
       throw Exception('Model $_lastDownloadedModel is not downloaded. Please download it before generating completions.');
     }
@@ -129,11 +129,14 @@ class CactusLM {
     );
     
     try {
-      final stream = CactusContext.completionStream(currentHandle, messages, paramsWithTools);
-      await for (final token in stream) {
-        yield token;
-      }      
-      _logCompletionTelemetry(null, initParams, success: true);
+      final streamedResult = CactusContext.completionStream(currentHandle, messages, paramsWithTools);      
+      streamedResult.result.then((result) {
+        _logCompletionTelemetry(result, initParams, success: result.success);
+      }).catchError((error) {
+        _logCompletionTelemetry(null, initParams, success: false, message: error.toString());
+      });
+      
+      return streamedResult;
     } catch (e) {
       _logCompletionTelemetry(null, initParams, success: false, message: e.toString());
       rethrow;
