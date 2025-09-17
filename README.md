@@ -130,13 +130,11 @@ Future<void> functionCallingExample() async {
     CactusTool(
       name: "get_weather",
       description: "Get current weather for a location",
-      parameters: {
-        "location": CactusToolParameter(
-          type: "string",
-          description: "City name",
-          required: true,
-        ),
-      },
+      parameters: ToolParametersSchema(
+        properties: {
+          'location': ToolParameter(type: 'string', description: 'City name', required: true),
+        },
+      ),
     ),
   ];
 
