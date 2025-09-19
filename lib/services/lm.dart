@@ -95,7 +95,7 @@ class CactusLM {
         return result;
       } catch (e) {
         debugPrint('Local completion failed: $e');
-        if (paramsWithTools.completionMode == CompletionMode.hybrid && cactusToken == null) {
+        if (paramsWithTools.completionMode == CompletionMode.local || (paramsWithTools.completionMode == CompletionMode.hybrid && cactusToken == null)) {
           _logCompletionTelemetry(null, initParams, success: false, message: e.toString());
           rethrow;
         }
@@ -157,7 +157,7 @@ class CactusLM {
         return streamedResult;
       } catch (e) {
         debugPrint('Local streaming completion failed: $e');
-        if (paramsWithTools.completionMode == CompletionMode.hybrid && cactusToken == null) {
+        if (paramsWithTools.completionMode == CompletionMode.local || (paramsWithTools.completionMode == CompletionMode.hybrid && cactusToken == null)) {
           _logCompletionTelemetry(null, initParams, success: false, message: e.toString());
           rethrow;
         }
