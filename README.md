@@ -143,6 +143,38 @@ Future<void> functionCallingExample() async {
 }
 ```
 
+### Hybrid Completion (Cloud Fallback)
+
+The `CactusLM` supports a `hybrid` completion mode that falls back to a cloud-based LLM provider (OpenRouter) if local inference fails or is not available. This ensures reliability and provides a seamless experience.
+
+To use hybrid mode:
+1.  Set `completionMode` to `CompletionMode.hybrid` in `CactusCompletionParams`.
+2.  Provide an `cactusToken` to `generateCompletion` or `generateCompletionStream`.
+
+```dart
+import 'package:cactus/cactus.dart';
+
+Future<void> hybridCompletionExample() async {
+  final lm = CactusLM();
+  
+  // No model download or initialization needed if you only want to use cloud
+  
+  final result = await lm.generateCompletion(
+    messages: [ChatMessage(content: "What's the weather in New York?", role: "user")],
+    params: CactusCompletionParams(
+      completionMode: CompletionMode.hybrid
+    ),
+    cactusToken: "YOUR_CACTUS_TOKEN",
+  );
+
+  if (result.success) {
+    print("Response: ${result.response}");
+  }
+
+  lm.unload();
+}
+```
+
 ### Fetching Available Models
 ```dart
 Future<void> fetchModelsExample() async {
@@ -165,19 +197,20 @@ Future<void> fetchModelsExample() async {
 
 ### Default Parameters
 The `CactusLM` class provides sensible defaults for completion parameters:
-- `temperature: 0.8` - Controls randomness (0.0 = deterministic, 1.0 = very random)
+- `temperature: 0.1` - Controls randomness (0.0 = deterministic, 1.0 = very random)
 - `topK: 40` - Number of top tokens to consider
 - `topP: 0.95` - Nucleus sampling parameter
-- `maxTokens: 1024` - Maximum tokens to generate
+- `maxTokens: 200` - Maximum tokens to generate
 - `bufferSize: 1024` - Internal buffer size for processing
+- `completionMode: CompletionMode.local` - Default to local-only inference.
 
 ### LLM API Reference
 
 #### CactusLM Class
 - `Future<void> downloadModel({String model = "qwen3-0.6", CactusProgressCallback? downloadProcessCallback})` - Download a model with optional progress callback
 - `Future<void> initializeModel(CactusInitParams params)` - Initialize model for inference
-- `Future<CactusCompletionResult?> generateCompletion({required List<ChatMessage> messages, CactusCompletionParams? params, List<CactusTool>? tools})` - Generate text completion (uses default params if none provided)
-- `Future<CactusStreamedCompletionResult> generateCompletionStream({required List<ChatMessage> messages, CactusCompletionParams? params, List<CactusTool>? tools})` - Generate streaming text completion (uses default params if none provided)
+- `Future<CactusCompletionResult> generateCompletion({required List<ChatMessage> messages, CactusCompletionParams? params, String? cactusToken})` - Generate text completion (uses default params if none provided)
+- `Future<CactusStreamedCompletionResult> generateCompletionStream({required List<ChatMessage> messages, CactusCompletionParams? params, List<CactusTool>? tools, String? cactusToken})` - Generate streaming text completion (uses default params if none provided)
 - `Future<List<CactusModel>> getModels()` - Fetch available models with caching
 - `Future<CactusEmbeddingResult?> generateEmbedding({required String text, int bufferSize = 2048})` - Generate text embeddings
 - `void unload()` - Free model from memory
@@ -185,7 +218,7 @@ The `CactusLM` class provides sensible defaults for completion parameters:
 
 #### Data Classes
 - `CactusInitParams({String? model, int? contextSize})` - Model initialization parameters
-- `CactusCompletionParams({double temperature, int topK, double topP, int maxTokens, List<String> stopSequences, int bufferSize, List<CactusTool>? tools})` - Completion parameters
+- `CactusCompletionParams({double temperature, int topK, double topP, int maxTokens, List<String> stopSequences, int bufferSize, List<CactusTool>? tools, CompletionMode completionMode})` - Completion parameters
 - `ChatMessage({required String content, required String role, int? timestamp})` - Chat message format
 - `CactusCompletionResult` - Contains response, timing metrics, and success status
 - `CactusStreamedCompletionResult` - Contains the stream and the final result of a streamed completion.
@@ -194,6 +227,7 @@ The `CactusLM` class provides sensible defaults for completion parameters:
 - `CactusTool({required String name, required String description, required Map<String, CactusToolParameter> parameters})` - Function calling tool definition
 - `CactusToolParameter({required String type, required String description, required bool required})` - Tool parameter specification
 - `CactusProgressCallback = void Function(double? progress, String statusMessage, bool isError)` - Progress callback for downloads
+- `CompletionMode` - Enum for completion mode (`local` or `hybrid`).
 
 ## Embeddings
 
