@@ -16,17 +16,15 @@ CactusTokenCallback? _activeTokenCallback;
 
 // Static callback function that can be used with Pointer.fromFunction
 @pragma('vm:entry-point')
-int _staticTokenCallbackDispatcher(Pointer<Utf8> tokenC, Pointer<Void> userData) {
+void _staticTokenCallbackDispatcher(Pointer<Utf8> tokenC, int tokenId, Pointer<Void> userData) {
   try {
     final callback = _activeTokenCallback;
     if (callback != null) {
       final tokenString = tokenC.toDartString();
       callback(tokenString);
     }
-    return 1; // Continue if no callback is set
   } catch (e) {
     debugPrint('Token callback error: $e');
-    return 0; // Stop on error
   }
 }
 
@@ -80,8 +78,7 @@ Future<CactusCompletionResult> _completionInIsolate(Map<String, dynamic> params)
       };
       
       callbackPointer = Pointer.fromFunction<CactusTokenCallbackNative>(
-        _staticTokenCallbackDispatcher,
-        1, // Default return value (continue)
+        _staticTokenCallbackDispatcher
       );
     }
 

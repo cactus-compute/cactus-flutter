@@ -4,8 +4,8 @@ import 'package:ffi/ffi.dart';
 final class CactusModelOpaque extends Opaque {}
 typedef CactusModel = Pointer<CactusModelOpaque>;
 
-typedef CactusTokenCallbackNative = Int32 Function(Pointer<Utf8> token, Pointer<Void> userData);
-typedef CactusTokenCallbackDart = int Function(Pointer<Utf8> token, Pointer<Void> userData);
+typedef CactusTokenCallbackNative = Void Function(Pointer<Utf8> token, Uint32 tokenId, Pointer<Void> userData);
+typedef CactusTokenCallbackDart = void Function(Pointer<Utf8> token, int tokenId, Pointer<Void> userData);
 
 typedef CactusInitNative = CactusModel Function(Pointer<Utf8> modelPath, Size contextSize);
 typedef CactusInitDart = CactusModel Function(Pointer<Utf8> modelPath, int contextSize);
