@@ -126,13 +126,10 @@ class CactusLM {
     required List<ChatMessage> messages,
     CactusCompletionParams? params,
     List<CactusTool>? tools,
+    String? openRouterApiKey,
   }) async {
-    if (_lastDownloadedModel == null || !await _isModelDownloaded(_lastDownloadedModel!)) {
-      throw Exception('Model $_lastDownloadedModel is not downloaded. Please download it before generating completions.');
-    }
-    final currentHandle = _getValidatedHandle();
-    final initParams = CactusInitParams(model: _lastDownloadedModel!);
-    
+    final initParams = CactusInitParams(model: _lastDownloadedModel ?? defaultInitParams.model);
+
     // Create params with tools if provided
     final completionParams = params ?? defaultCompletionParams;
     final paramsWithTools = CactusCompletionParams(
@@ -143,21 +140,52 @@ class CactusLM {
       stopSequences: completionParams.stopSequences,
       bufferSize: completionParams.bufferSize,
       tools: tools ?? completionParams.tools,
+      completionMode: completionParams.completionMode,
     );
-    
-    try {
-      final streamedResult = CactusContext.completionStream(currentHandle, messages, paramsWithTools);      
-      streamedResult.result.then((result) {
-        _logCompletionTelemetry(result, initParams, success: result.success);
-      }).catchError((error) {
-        _logCompletionTelemetry(null, initParams, success: false, message: error.toString());
-      });
-      
-      return streamedResult;
-    } catch (e) {
-      _logCompletionTelemetry(null, initParams, success: false, message: e.toString());
-      rethrow;
+
+    debugPrint('Completion mode: ${paramsWithTools.completionMode}');
+
+    if (_handle != null && _lastDownloadedModel != null && await _isModelDownloaded(_lastDownloadedModel!)) {
+      try {
+        final streamedResult = CactusContext.completionStream(_getValidatedHandle(), messages, paramsWithTools);
+        streamedResult.result.then((result) {
+          _logCompletionTelemetry(result, initParams, success: result.success);
+        }).catchError((error) {
+          _logCompletionTelemetry(null, initParams, success: false, message: error.toString());
+        });
+
+        return streamedResult;
+      } catch (e) {
+        debugPrint('Local streaming completion failed: $e');
+        if (paramsWithTools.completionMode == CompletionMode.hybrid && openRouterApiKey == null) {
+          _logCompletionTelemetry(null, initParams, success: false, message: e.toString());
+          rethrow;
+        }
+        debugPrint('Falling back to cloud streaming completion');
+      }
     }
+
+    if (paramsWithTools.completionMode == CompletionMode.hybrid && openRouterApiKey != null) {
+      try {
+        final openRouterService = OpenRouterService(apiKey: openRouterApiKey);
+        final streamedResult = await openRouterService.generateCompletionStream(
+          messages: messages,
+          params: params,
+        );
+        streamedResult.result.whenComplete(() => openRouterService.dispose());
+        streamedResult.result.then((result) {
+          _logCompletionTelemetry(result, initParams, success: result.success);
+        }).catchError((error) {
+          _logCompletionTelemetry(null, initParams, success: false, message: 'Cloud streaming completion failed: $error');
+        });
+        return streamedResult;
+      } catch (e) {
+        _logCompletionTelemetry(null, initParams, success: false, message: 'Cloud streaming completion failed: $e');
+        throw Exception('Cloud streaming completion failed: $e');
+      }
+    }
+
+    throw Exception('Model $_lastDownloadedModel is not downloaded. Please download it before generating completions.');
   }
 
   Future<CactusEmbeddingResult> generateEmbedding({
