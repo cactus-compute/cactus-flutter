@@ -9,6 +9,7 @@ import 'package:cactus/src/services/cactus_id.dart';
 import 'package:cactus/src/services/context.dart';
 import 'package:cactus/models/types.dart';
 import 'package:cactus/src/services/supabase.dart';
+import 'package:cactus/src/services/openrouter.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -67,13 +68,10 @@ class CactusLM {
 
   Future<CactusCompletionResult> generateCompletion({
     required List<ChatMessage> messages,
-    CactusCompletionParams? params
+    CactusCompletionParams? params,
+    String? openRouterApiKey,
   }) async {
-    if (_lastDownloadedModel == null || !await _isModelDownloaded(_lastDownloadedModel!)) {
-      throw Exception('Model $_lastDownloadedModel is not downloaded. Please download it before generating completions.');
-    }
-    final currentHandle = _getValidatedHandle();
-    final initParams = CactusInitParams(model: _lastDownloadedModel!);
+    final initParams = CactusInitParams(model: _lastDownloadedModel ?? defaultInitParams.model);
     
     // Create params with tools if provided
     final completionParams = params ?? defaultCompletionParams;
@@ -85,16 +83,43 @@ class CactusLM {
       stopSequences: completionParams.stopSequences,
       bufferSize: completionParams.bufferSize,
       tools: completionParams.tools,
+      completionMode: completionParams.completionMode,
     );
+
+    debugPrint('Completion mode: ${paramsWithTools.completionMode}');
     
-    try {
-      final result = await CactusContext.completion(currentHandle, messages, paramsWithTools);
-      _logCompletionTelemetry(result, initParams);      
-      return result;
-    } catch (e) {
-      _logCompletionTelemetry(null, initParams, success: false, message: e.toString());
-      rethrow;
+    if (_handle != null && _lastDownloadedModel != null && await _isModelDownloaded(_lastDownloadedModel!)) {
+      try {
+        final result = await CactusContext.completion(_handle!, messages, paramsWithTools);
+        _logCompletionTelemetry(result, initParams);      
+        return result;
+      } catch (e) {
+        debugPrint('Local completion failed: $e');
+        if (paramsWithTools.completionMode == CompletionMode.hybrid && openRouterApiKey == null) {
+          _logCompletionTelemetry(null, initParams, success: false, message: e.toString());
+          rethrow;
+        }
+        debugPrint('Falling back to cloud completion');
+      }
     }
+    
+    if (paramsWithTools.completionMode == CompletionMode.hybrid && openRouterApiKey != null) {
+      try {
+        final openRouterService = OpenRouterService(apiKey: openRouterApiKey);
+        final result = await openRouterService.generateCompletion(
+          messages: messages,
+          params: params,
+        );
+        openRouterService.dispose();
+        _logCompletionTelemetry(result, initParams, success: result.success);
+        return result;
+      } catch (e) {
+        _logCompletionTelemetry(null, initParams, success: false, message: 'Cloud completion failed: $e');
+        throw Exception('Cloud completion failed: $e');
+      }
+    }
+    
+    throw Exception('Model $_lastDownloadedModel is not downloaded. Please download it before generating completions.');
   }
 
   Future<CactusStreamedCompletionResult> generateCompletionStream({

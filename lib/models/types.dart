@@ -35,6 +35,7 @@ class CactusCompletionParams {
   final List<String> stopSequences;
   final int bufferSize;
   final List<CactusTool>? tools;
+  final CompletionMode completionMode;
 
   CactusCompletionParams({
     this.temperature = 0.1,
@@ -44,6 +45,7 @@ class CactusCompletionParams {
     this.stopSequences = const [],
     this.bufferSize = 1024,
     this.tools,
+    this.completionMode = CompletionMode.local,
   });
 }
 
@@ -150,4 +152,9 @@ class CactusModel {
       isDownloaded: false,
     );
   }
+}
+
+enum CompletionMode {
+  local,
+  hybrid
 }
