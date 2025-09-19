@@ -20,11 +20,8 @@ int _staticTokenCallbackDispatcher(Pointer<Utf8> tokenC, Pointer<Void> userData)
   try {
     final callback = _activeTokenCallback;
     if (callback != null) {
-      final len = tokenC.length;
-      final tokenBytes = tokenC.cast<Uint8>().asTypedList(len);
-      final tokenString = utf8.decode(tokenBytes, allowMalformed: true);
-      final shouldContinue = callback(tokenString);
-      return shouldContinue ? 1 : 0; // Return 1 to continue, 0 to stop
+      final tokenString = tokenC.toDartString();
+      callback(tokenString);
     }
     return 1; // Continue if no callback is set
   } catch (e) {
