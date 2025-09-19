@@ -243,61 +243,6 @@ Future<CactusEmbeddingResult> _generateEmbeddingInIsolate(Map<String, dynamic> p
 }
 
 class CactusContext {
-  static String _escapeJsonString(String input) {
-    return input
-        .replaceAll('\\', '\\\\')
-        .replaceAll('"', '\\"')
-        .replaceAll('\n', '\\n')
-        .replaceAll('\r', '\\r')
-        .replaceAll('\t', '\\t');
-  }
-
-  static Map<String, String?> _prepareCompletionJson(
-    List<ChatMessage> messages,
-    CactusCompletionParams params,
-  ) {
-    // Prepare messages JSON
-    final messagesJsonBuffer = StringBuffer('[');
-    for (int i = 0; i < messages.length; i++) {
-      if (i > 0) messagesJsonBuffer.write(',');
-      messagesJsonBuffer.write('{');
-      messagesJsonBuffer.write('"role":"${messages[i].role}",');
-      messagesJsonBuffer.write('"content":"${_escapeJsonString(messages[i].content)}"');
-      messagesJsonBuffer.write('}');
-    }
-    messagesJsonBuffer.write(']');
-    final messagesJson = messagesJsonBuffer.toString();
-
-    // Prepare options JSON
-    final optionsJsonBuffer = StringBuffer('{');
-    optionsJsonBuffer.write('"temperature":${params.temperature},');
-    optionsJsonBuffer.write('"top_k":${params.topK},');
-    optionsJsonBuffer.write('"top_p":${params.topP},');
-    optionsJsonBuffer.write('"max_tokens":${params.maxTokens}');
-    if (params.stopSequences.isNotEmpty) {
-      optionsJsonBuffer.write(',"stop":[');
-      for (int i = 0; i < params.stopSequences.length; i++) {
-        if (i > 0) optionsJsonBuffer.write(',');
-        optionsJsonBuffer.write('"${_escapeJsonString(params.stopSequences[i])}"');
-      }
-      optionsJsonBuffer.write(']');
-    }
-    optionsJsonBuffer.write('}');
-    final optionsJson = optionsJsonBuffer.toString();
-
-    // Prepare tools JSON if tools are provided
-    String? toolsJson;
-    if (params.tools != null && params.tools!.isNotEmpty) {
-      toolsJson = params.tools!.toToolsJson();
-    }
-
-    return {
-      'messagesJson': messagesJson,
-      'optionsJson': optionsJson,
-      'toolsJson': toolsJson,
-    };
-  }
-
   static Future<int?> initContext(String modelPath, int contextSize) async {
     // Run the heavy initialization in an isolate using compute
     final isolateParams = {
@@ -320,19 +265,28 @@ class CactusContext {
   static Future<CactusCompletionResult> completion(
     int handle,
     List<ChatMessage> messages,
-    CactusCompletionParams params,
-  ) async {
-    final jsonData = _prepareCompletionJson(messages, params);
-
-    return await compute(_completionInIsolate, {
-      'handle': handle,
-      'messagesJson': jsonData['messagesJson']!,
-      'optionsJson': jsonData['optionsJson']!,
-      'toolsJson': jsonData['toolsJson'],
-      'bufferSize': params.bufferSize,
-      'hasCallback': false,
-      'replyPort': null,
-    });
+    CactusCompletionParams params, {
+    CactusPerformanceMode mode = CactusPerformanceMode.balanced,
+  }) async {
+    switch (mode) {
+      case CactusPerformanceMode.performance:
+        // Run on main thread for maximum performance (may cause UI freezing)
+        debugPrint('Running completion in performance mode (main thread)');
+        return await _completionMainThread(handle, messages, params);
+      case CactusPerformanceMode.balanced:
+        // Run in isolate for UI responsiveness (default behavior)
+        debugPrint('Running completion in balanced mode (isolate)');
+        final jsonData = _prepareCompletionJson(messages, params);
+        return await compute(_completionInIsolate, {
+          'handle': handle,
+          'messagesJson': jsonData['messagesJson']!,
+          'optionsJson': jsonData['optionsJson']!,
+          'toolsJson': jsonData['toolsJson'],
+          'bufferSize': params.bufferSize,
+          'hasCallback': false,
+          'replyPort': null,
+        });
+    }
   }
 
   static CactusStreamedCompletionResult completionStream(
@@ -413,6 +367,139 @@ class CactusContext {
       }
     } catch (e) {
       replyPort.send({'type': 'error', 'data': e.toString()});
+    }
+  }
+
+  static Map<String, String?> _prepareCompletionJson(
+    List<ChatMessage> messages,
+    CactusCompletionParams params,
+  ) {
+    final messagesJson = jsonEncode(
+      messages.map((m) => {'role': m.role, 'content': m.content}).toList()
+    );
+
+    final optionsJson = jsonEncode({
+      'temperature': params.temperature,
+      'top_k': params.topK,
+      'top_p': params.topP,
+      'max_tokens': params.maxTokens,
+      if (params.stopSequences.isNotEmpty) 'stop': params.stopSequences,
+    });
+
+    String? toolsJson;
+    if (params.tools != null && params.tools!.isNotEmpty) {
+      toolsJson = params.tools!.toToolsJson();
+    }
+
+    return {
+      'messagesJson': messagesJson,
+      'optionsJson': optionsJson,
+      'toolsJson': toolsJson,
+    };
+  }
+
+  static CactusCompletionResult _processCompletionResult(
+    int result, 
+    Pointer<Uint8> responseBuffer, 
+    int bufferSize
+  ) {
+    debugPrint('Received completion result code: $result');
+
+    if (result > 0) {
+      final responseText = responseBuffer.cast<Utf8>().toDartString().trim();
+      
+      try {
+        final jsonResponse = jsonDecode(responseText) as Map<String, dynamic>;
+        debugPrint("Parsed JSON response: $jsonResponse");
+        final success = jsonResponse['success'] as bool? ?? true;
+        final response = jsonResponse['response'] as String? ?? responseText;
+        final timeToFirstTokenMs = (jsonResponse['time_to_first_token_ms'] as num?)?.toDouble() ?? 0.0;
+        final totalTimeMs = (jsonResponse['total_time_ms'] as num?)?.toDouble() ?? 0.0;
+        final tokensPerSecond = (jsonResponse['tokens_per_second'] as num?)?.toDouble() ?? 0.0;
+        final prefillTokens = jsonResponse['prefill_tokens'] as int? ?? 0;
+        final decodeTokens = jsonResponse['decode_tokens'] as int? ?? 0;
+        final totalTokens = jsonResponse['total_tokens'] as int? ?? 0;
+        
+        List<ToolCall> toolCalls = [];
+        if (jsonResponse['tool_calls'] != null) {
+          final toolCallsJson = jsonResponse['tool_calls'] as List<dynamic>;
+          toolCalls = toolCallsJson
+              .map((toolCallJson) => ToolCall.fromJson(toolCallJson as Map<String, dynamic>))
+              .toList();
+        }
+
+        return CactusCompletionResult(
+          success: success,
+          response: response,
+          timeToFirstTokenMs: timeToFirstTokenMs,
+          totalTimeMs: totalTimeMs,
+          tokensPerSecond: tokensPerSecond,
+          prefillTokens: prefillTokens,
+          decodeTokens: decodeTokens,
+          totalTokens: totalTokens,
+          toolCalls: toolCalls,
+        );
+      } catch (e) {
+        debugPrint('Unable to parse the response json: $e');
+        return CactusCompletionResult(
+          success: false,
+          response: 'Error: Unable to parse the response',
+          timeToFirstTokenMs: 0.0,
+          totalTimeMs: 0.0,
+          tokensPerSecond: 0.0,
+          prefillTokens: 0,
+          decodeTokens: 0,
+          totalTokens: 0,
+          toolCalls: [],
+        );
+      }
+    } else {
+      return CactusCompletionResult(
+        success: false,
+        response: 'Error: completion failed with code $result',
+        timeToFirstTokenMs: 0.0,
+        totalTimeMs: 0.0,
+        tokensPerSecond: 0.0,
+        prefillTokens: 0,
+        decodeTokens: 0,
+        totalTokens: 0,
+        toolCalls: [],
+      );
+    }
+  }
+
+  static Future<CactusCompletionResult> _completionMainThread(
+    int handle,
+    List<ChatMessage> messages,
+    CactusCompletionParams params,
+  ) async {
+    final jsonData = _prepareCompletionJson(messages, params);
+    
+    final responseBuffer = calloc<Uint8>(params.bufferSize);
+    final messagesJsonC = jsonData['messagesJson']!.toNativeUtf8(allocator: calloc);
+    final optionsJsonC = jsonData['optionsJson']!.toNativeUtf8(allocator: calloc);
+    final toolsJsonC = jsonData['toolsJson']?.toNativeUtf8(allocator: calloc);
+
+    try {
+      final result = bindings.cactusComplete(
+        Pointer.fromAddress(handle),
+        messagesJsonC,
+        responseBuffer.cast<Utf8>(),
+        params.bufferSize,
+        optionsJsonC,
+        toolsJsonC ?? nullptr,
+        nullptr,
+        nullptr,
+      );
+      
+      return _processCompletionResult(result, responseBuffer, params.bufferSize);
+    } finally {
+      calloc.free(responseBuffer);
+      calloc.free(messagesJsonC);
+      calloc.free(optionsJsonC);
+      if (toolsJsonC != null) {
+        calloc.free(toolsJsonC);
+      }
     }
   }
 }

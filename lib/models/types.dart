@@ -158,3 +158,8 @@ enum CompletionMode {
   local,
   hybrid
 }
+
+enum CactusPerformanceMode {
+  balanced,
+  performance,
+}

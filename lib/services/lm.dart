@@ -70,6 +70,7 @@ class CactusLM {
     required List<ChatMessage> messages,
     CactusCompletionParams? params,
     String? cactusToken,
+    CactusPerformanceMode performanceMode = CactusPerformanceMode.balanced,
   }) async {
     final initParams = CactusInitParams(model: _lastDownloadedModel ?? defaultInitParams.model);
     
@@ -87,10 +88,11 @@ class CactusLM {
     );
 
     debugPrint('Completion mode: ${paramsWithTools.completionMode}');
+    debugPrint('Performance mode: $performanceMode');
     
     if (_handle != null && _lastDownloadedModel != null && await _isModelDownloaded(_lastDownloadedModel!)) {
       try {
-        final result = await CactusContext.completion(_handle!, messages, paramsWithTools);
+        final result = await CactusContext.completion(_handle!, messages, paramsWithTools, mode: performanceMode);
         _logCompletionTelemetry(result, initParams);      
         return result;
       } catch (e) {

@@ -123,7 +123,7 @@ class _MyHomePageState extends State<MyHomePage> {
     }
   }
 
-  Future<void> generateCompletion() async {
+  Future<void> generateCompletion(CactusPerformanceMode performanceMode) async {
     if (!isModelLoaded) {
       setState(() {
         outputText = 'Please download and initialize model first.';
@@ -140,18 +140,10 @@ class _MyHomePageState extends State<MyHomePage> {
       final resp = await lm.generateCompletion(
         messages: [ChatMessage(content: 'How is the weather in New York?', role: "user")],
         params: CactusCompletionParams(
-          tools: [
-            CactusTool(
-              name: 'get_weather',
-              description: 'Get weather for a location',
-              parameters: ToolParametersSchema(
-                properties: {
-                  'location': ToolParameter(type: 'string', description: 'City name', required: true),
-                },
-              ),
-            ),
-          ],
-        )
+          bufferSize: 2048,
+          maxTokens: 200,
+        ),
+        performanceMode: performanceMode
       );
       
       if (resp.success) {
@@ -284,8 +276,17 @@ class _MyHomePageState extends State<MyHomePage> {
             ),
             const SizedBox(height: 10),
             ElevatedButton(
-              onPressed: (isDownloading || isInitializing || !isModelLoaded) ? null : generateCompletion,
-              child: const Text('Generate'),
+              onPressed: (isDownloading || isInitializing || !isModelLoaded) ? null : () {
+                generateCompletion(CactusPerformanceMode.balanced);
+              },
+              child: const Text('Generate (Balanced)'),
+            ),
+            const SizedBox(height: 10),
+            ElevatedButton(
+              onPressed: (isDownloading || isInitializing || !isModelLoaded) ? null : () {
+                generateCompletion(CactusPerformanceMode.performance);
+              },
+              child: const Text('🚀 Performance Mode'),
             ),
             const SizedBox(height: 10),
             ElevatedButton(
