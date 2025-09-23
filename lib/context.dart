@@ -98,7 +98,7 @@ class CactusContext {
       onProgress?.call(0.5, "Downloading mmproj...", false);
       await _downloadModel(
         mmprojUrl, 
-        mmprojPath!, 
+        mmprojPath, 
         onProgress: (p, s) => onProgress?.call(0.5 + (p * 0.5), "MMProj: $s", false)
       );
       onProgress?.call(1.0, "MMProj download complete.", false);
