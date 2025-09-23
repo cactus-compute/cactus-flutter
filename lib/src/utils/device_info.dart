@@ -24,6 +24,15 @@ Future<Map<String, dynamic>> getDeviceMetadata() async {
         'device_id': iosInfo.identifierForVendor ?? 'unknown',
         'brand': 'apple'
       };
+    } else if (Platform.isMacOS) {
+      final macosInfo = await deviceInfo.macOsInfo;
+      deviceData = {
+        'model': macosInfo.model,
+        'os': 'macOS',
+        'os_version': macosInfo.osRelease,
+        'device_id': macosInfo.systemGUID ?? 'unknown',
+        'brand': 'apple'
+      };
     }
   } catch (e) {
     // Fallback data if device info collection fails
