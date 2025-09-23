@@ -281,6 +281,13 @@ Add the following permissions to your `android/app/src/main/AndroidManifest.xml`
 <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 ```
 
+### macOS
+Add the following to your `macos/Runner/DebugProfile.entitlements` and `macos/Runner/Release.entitlements` to allow network access:
+```xml
+<key>com.apple.security.network.client</key>
+<true/>
+```
+
 
 ## Performance Tips
 
