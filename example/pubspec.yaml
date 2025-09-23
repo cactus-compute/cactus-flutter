@@ -1,5 +1,6 @@
 name: cactus_example
 description: Example app for the `cactus` library.
+version: 1.0.0+1
 publish_to: "none"
 
 environment:

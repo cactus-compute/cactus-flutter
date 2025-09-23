@@ -312,6 +312,12 @@ To run the example:
 ```bash
 cd example
 flutter pub get
+
+# iOS setup (required for iOS devices)
+cd ios
+./setup_signing.sh
+cd ..
+
 flutter run
 ```
 
