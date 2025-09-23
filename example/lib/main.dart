@@ -140,17 +140,7 @@ class _MyHomePageState extends State<MyHomePage> {
       final resp = await lm.generateCompletion(
         messages: [ChatMessage(content: 'How is the weather in New York?', role: "user")],
         params: CactusCompletionParams(
-          tools: [
-            CactusTool(
-              name: 'get_weather',
-              description: 'Get weather for a location',
-              parameters: ToolParametersSchema(
-                properties: {
-                  'location': ToolParameter(type: 'string', description: 'City name', required: true),
-                },
-              ),
-            ),
-          ],
+          bufferSize: 2048,
         )
       );
       
@@ -261,6 +251,68 @@ class _MyHomePageState extends State<MyHomePage> {
     }
   }
 
+  Future<void> toolCall() async {
+    if (!isModelLoaded) {
+      setState(() {
+        outputText = 'Please download and initialize model first.';
+      });
+      return;
+    }
+    
+    setState(() {
+      isInitializing = true;
+      outputText = 'Generating response...';
+    });
+    
+    try {
+      final resp = await lm.generateCompletion(
+        messages: [ChatMessage(content: 'How is the weather in New York?', role: "user")],
+        params: CactusCompletionParams(
+          tools: [
+            CactusTool(
+              name: 'get_weather',
+              description: 'Get weather for a location',
+              parameters: ToolParametersSchema(
+                properties: {
+                  'location': ToolParameter(type: 'string', description: 'City name', required: true),
+                },
+              ),
+            ),
+          ],
+        )
+      );
+      
+      if (resp.success) {
+        setState(() {
+          lastResponse = resp.toolCalls.isNotEmpty
+              ? 'Tool Call: ${resp.toolCalls.last.name}\nArguments: ${resp.toolCalls.last.arguments}'
+              : resp.response;
+          lastTPS = resp.tokensPerSecond;
+          lastTTFT = resp.timeToFirstTokenMs;
+          outputText = 'Generation completed successfully!';
+        });
+      } else {
+        setState(() {
+          outputText = 'Failed to generate response.';
+          lastResponse = null;
+          lastTPS = null;
+          lastTTFT = null;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        outputText = 'Error generating response: $e';
+        lastResponse = null;
+        lastTPS = null;
+        lastTTFT = null;
+      });
+    } finally {
+      setState(() {
+        isInitializing = false;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -282,23 +334,49 @@ class _MyHomePageState extends State<MyHomePage> {
               onPressed: isInitializing ? null : initializeModel,
               child: Text(isModelLoaded ? 'Model Initialized ✓' : 'Initialize Model'),
             ),
-            const SizedBox(height: 10),
-            ElevatedButton(
-              onPressed: (isDownloading || isInitializing || !isModelLoaded) ? null : generateCompletion,
-              child: const Text('Generate'),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: (isDownloading || isInitializing || !isModelLoaded) ? null : generateCompletion,
+                      child: const Text('Generate'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: (isDownloading || isInitializing || !isModelLoaded) ? null : generateStreamCompletion,
+                      child: const Text('Streaming'),
+                    ),
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 10),
-            ElevatedButton(
-              onPressed: (isDownloading || isInitializing || !isModelLoaded) ? null : generateStreamCompletion,
-              child: const Text('Generate Streaming'),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: (isDownloading || isInitializing || !isModelLoaded) ? null : generateEmbeddings,
+                      child: const Text('Embeddings'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: (isDownloading || isInitializing || !isModelLoaded) ? null : toolCall,
+                      child: const Text('Tool Call'),
+                    ),
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: (isDownloading || isInitializing || !isModelLoaded) ? null : generateEmbeddings,
-              child: const Text('Generate Embeddings'),
-            ),
-            const SizedBox(height: 20),
-            
+
             // Status section
             if (isDownloading || isInitializing)
               const Center(
