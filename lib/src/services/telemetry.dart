@@ -31,14 +31,15 @@ class Telemetry {
     return deviceId;
   }
 
-  Future<void> logInit(bool success, CactusInitParams options) async {
+  Future<void> logInit(bool success, CactusInitParams options, String message) async {
     final record = LogRecord(
       eventType: 'init',
       projectId: projectId,
       deviceId: deviceId,
       model: options.model,
       success: success,
-      telemetryToken: cactusTelemetryToken
+      telemetryToken: cactusTelemetryToken,
+      message: message
     );
 
     await Supabase.sendLogRecord(record);

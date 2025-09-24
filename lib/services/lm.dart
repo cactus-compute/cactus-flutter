@@ -55,11 +55,12 @@ class CactusLM {
     final appDocDir = await getApplicationDocumentsDirectory();
     final modelPath = '${appDocDir.path}/$model';
 
-    _handle = await CactusContext.initContext(modelPath, ((params?.contextSize) ?? defaultInitParams.contextSize)!);
+    final result = await CactusContext.initContext(modelPath, ((params?.contextSize) ?? defaultInitParams.contextSize)!);
+    _handle = result.$1; 
     _lastDownloadedModel = model;
     if(Telemetry.isInitialized) {
       params?.model = model;
-      Telemetry.instance?.logInit(_handle != null, params?? defaultInitParams);
+      Telemetry.instance?.logInit(_handle != null, params?? defaultInitParams, result.$2);
     }
     if(_handle == null) {
       throw Exception('Failed to initialize model context with model at $modelPath');

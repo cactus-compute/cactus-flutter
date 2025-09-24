@@ -28,7 +28,7 @@ void _staticTokenCallbackDispatcher(Pointer<Utf8> tokenC, int tokenId, Pointer<V
   }
 }
 
-Future<int?> _initContextInIsolate(Map<String, dynamic> params) async {
+Future<(int?, String)> _initContextInIsolate(Map<String, dynamic> params) async {
   final modelPath = params['modelPath'] as String;
   final contextSize = params['contextSize'] as int;
 
@@ -38,18 +38,15 @@ Future<int?> _initContextInIsolate(Map<String, dynamic> params) async {
     try {
       final handle = bindings.cactusInit(modelPathC, contextSize);
       if (handle != nullptr) {
-        debugPrint('Context initialized successfully');
-        return handle.address;
+        return (handle.address, 'Context initialized successfully');
       } else {
-        debugPrint('Failed to initialize context');
-        return null;
+        return (null, 'Failed to initialize context');
       }
     } finally {
       calloc.free(modelPathC);
     }
   } catch (e) {
-    debugPrint('Exception during context initialization: $e');
-    return null;
+    return (null, 'Exception during context initialization: $e');
   }
 }
 
@@ -298,7 +295,7 @@ class CactusContext {
     };
   }
 
-  static Future<int?> initContext(String modelPath, int contextSize) async {
+  static Future<(int?, String)> initContext(String modelPath, int contextSize) async {
     // Run the heavy initialization in an isolate using compute
     final isolateParams = {
       'modelPath': modelPath,
