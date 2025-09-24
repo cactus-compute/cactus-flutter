@@ -19,13 +19,16 @@ dependencies:
   shared_preferences: ^2.5.3
   package_info_plus: ^8.3.1
   uuid: ^4.5.1
+  objectbox: ^4.3.1
+  objectbox_flutter_libs: any
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^3.0.0
-  build_runner: ^2.7.0
+  build_runner: ^2.7.1
   build_version: ^2.1.2
+  objectbox_generator: any
 
 flutter:
   plugin:
