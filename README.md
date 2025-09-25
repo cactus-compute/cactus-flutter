@@ -272,7 +272,83 @@ Future<void> embeddingExample() async {
 #### Embedding Data Classes
 - `CactusEmbeddingResult({required bool success, required List<double> embeddings, required int dimension, String? errorMessage})` - Contains the generated embedding vector and metadata
 
+## Retrieval-Augmented Generation (RAG)
+
+The `CactusRAG` class provides a local vector database for storing, managing, and searching documents. It uses [ObjectBox](https://objectbox.io/) for efficient on-device storage and retrieval, making it ideal for building RAG applications that run entirely locally.
+
+### Basic Usage
+```dart
+import 'package:cactus/cactus.dart';
+
+Future<void> ragExample() async {
+  final lm = CactusLM();
+  final rag = CactusRAG();
+
+  try {
+    // 1. Initialize LM and RAG
+    await lm.downloadModel();
+    await lm.initializeModel();
+    await rag.initialize();
+
+    // 2. Create a document and generate embeddings
+    final docContent = "The Eiffel Tower is a wrought-iron lattice tower on the Champ de Mars in Paris, France.";
+    final embeddingResult = await lm.generateEmbedding(text: docContent);
+
+    if (embeddingResult?.success ?? false) {
+      // 3. Store the document in the local vector DB
+      await rag.storeDocument(
+        fileName: "eiffel_tower.txt",
+        filePath: "/path/to/eiffel_tower.txt",
+        content: docContent,
+        embeddings: embeddingResult!.embeddings,
+      );
+      print("Document stored successfully.");
+    }
+
+    // 4. Create a query and generate embeddings
+    final queryText = "What is the famous landmark in Paris?";
+    final queryEmbeddingResult = await lm.generateEmbedding(text: queryText);
+
+    if (queryEmbeddingResult?.success ?? false) {
+      // 5. Search for similar documents
+      final searchResults = await rag.searchBySimilarity(
+        queryEmbeddingResult!.embeddings,
+        limit: 5,
+      );
+
+      print("\nFound ${searchResults.length} similar documents:");
+      for (final result in searchResults) {
+        print("- ${result.document.fileName} (Similarity: ${result.similarity.toStringAsFixed(2)})");
+        print("  Content: ${result.document.content.substring(0, 50)}...");
+      }
+    }
+  } finally {
+    // 6. Clean up
+    lm.unload();
+    rag.close();
+  }
+}
+```
+
+### RAG API Reference
+
+#### CactusRAG Class
+- `Future<void> initialize()` - Initialize the local ObjectBox database.
+- `Future<void> close()` - Close the database connection.
+- `Future<Document> storeDocument({required String fileName, required String filePath, required String content, required List<double> embeddings, ...})` - Store a document with its content and embeddings.
+- `Future<Document?> getDocumentByFileName(String fileName)` - Retrieve a document by its file name.
+- `Future<List<Document>> getAllDocuments()` - Get all stored documents.
+- `Future<void> deleteDocument(int id)` - Delete a document by its ID.
+- `Future<List<DocumentSearchResult>> searchBySimilarity(List<double> queryEmbedding, {int limit = 10, double threshold = 0.5})` - Search for documents by vector similarity.
+- `Future<DatabaseStats> getStats()` - Get statistics about the database.
+
+#### RAG Data Classes
+- `Document` - Represents a stored document with its content, metadata, and embeddings.
+- `DocumentSearchResult({required Document document, required double similarity})` - Contains a document and its similarity score from a search result.
+- `DatabaseStats` - Contains statistics about the document store.
+
 ## Platform-Specific Setup
+
 
 ### Android
 Add the following permissions to your `android/app/src/main/AndroidManifest.xml`:
