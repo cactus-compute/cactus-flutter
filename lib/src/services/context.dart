@@ -93,7 +93,7 @@ Future<CactusCompletionResult> _completionInIsolate(Map<String, dynamic> params)
     debugPrint('Received completion result code: $result');
 
     if (result > 0) {
-      final responseText = responseBuffer.cast<Utf8>().toDartString().trim();
+      final responseText = utf8.decode(responseBuffer.asTypedList(result), allowMalformed: true).trim();
       
       try {
         final jsonResponse = jsonDecode(responseText) as Map<String, dynamic>;
