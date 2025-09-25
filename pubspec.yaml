@@ -21,6 +21,7 @@ dependencies:
   uuid: ^4.5.1
   objectbox: ^4.3.1
   objectbox_flutter_libs: any
+  path: ^1.9.1
 
 dev_dependencies:
   flutter_test:
