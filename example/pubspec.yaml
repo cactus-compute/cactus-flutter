@@ -10,6 +10,9 @@ dependencies:
     sdk: flutter
   cactus:
     path: ../
+  read_pdf_text: ^0.3.1
+  file_picker: ^8.1.2
+  solar_icons: ^0.0.5
 
 dev_dependencies:
   flutter_test:

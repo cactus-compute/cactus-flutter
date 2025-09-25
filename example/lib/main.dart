@@ -1,4 +1,5 @@
 import 'package:cactus/cactus.dart';
+import 'package:cactus_example/rag_page.dart';
 import 'package:flutter/material.dart';
 
 void main() async {
@@ -356,14 +357,20 @@ class _MyHomePageState extends State<MyHomePage> {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.symmetric(vertical: 10),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Expanded(
                     child: ElevatedButton(
-                      onPressed: (isDownloading || isInitializing || !isModelLoaded) ? null : generateEmbeddings,
-                      child: const Text('Embeddings'),
+                      onPressed: (isDownloading) ? null : () {
+                        lm.unload();
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => RagPage()),
+                        );
+                      },
+                      child: Text('RAG'),
                     ),
                   ),
                   const SizedBox(width: 10),
