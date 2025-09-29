@@ -46,35 +46,57 @@ class _FetchModelsPageState extends State<FetchModelsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: AppBar(
         title: const Text('Fetch Models'),
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
+        elevation: 1,
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
+            icon: const Icon(Icons.refresh, color: Colors.black),
             onPressed: fetchModels,
           ),
         ],
       ),
       body: isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
+              ),
+            )
           : errorMessage.isNotEmpty
-              ? Center(child: Text(errorMessage))
+              ? Center(
+                  child: Text(
+                    errorMessage,
+                    style: const TextStyle(color: Colors.red),
+                  ),
+                )
               : ListView.builder(
                   itemCount: availableModels.length,
                   itemBuilder: (context, index) {
                     final model = availableModels[index];
                     return Card(
+                      color: Colors.white,
+                      elevation: 1,
                       margin: const EdgeInsets.all(8.0),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        side: const BorderSide(color: Colors.grey, width: 0.5),
+                      ),
                       child: ListTile(
-                        title: Text(model.name),
+                        title: Text(
+                          model.name,
+                          style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+                        ),
                         subtitle: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('Slug: ${model.slug}'),
-                            Text('Size: ${model.sizeMb} MB'),
-                            Text('Downloaded: ${model.isDownloaded ? 'Yes' : 'No'}'),
-                            Text('Supports Tool Calling: ${model.supportsToolCalling ? 'Yes' : 'No'}'),
-                            Text('Supports Vision: ${model.supportsVision ? 'Yes' : 'No'}'),
+                            Text('Slug: ${model.slug}', style: const TextStyle(color: Colors.black)),
+                            Text('Size: ${model.sizeMb} MB', style: const TextStyle(color: Colors.black)),
+                            Text('Downloaded: ${model.isDownloaded ? 'Yes' : 'No'}', style: const TextStyle(color: Colors.black)),
+                            Text('Supports Tool Calling: ${model.supportsToolCalling ? 'Yes' : 'No'}', style: const TextStyle(color: Colors.black)),
+                            Text('Supports Vision: ${model.supportsVision ? 'Yes' : 'No'}', style: const TextStyle(color: Colors.black)),
                           ],
                         ),
                       ),

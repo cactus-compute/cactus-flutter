@@ -76,8 +76,12 @@ class _HybridCompletionPageState extends State<HybridCompletionPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: AppBar(
         title: const Text('Hybrid Completion'),
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
+        elevation: 1,
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -86,14 +90,30 @@ class _HybridCompletionPageState extends State<HybridCompletionPage> {
           children: [
             TextField(
               controller: _tokenController,
+              style: const TextStyle(color: Colors.black),
               decoration: const InputDecoration(
                 labelText: 'Cactus Token',
+                labelStyle: TextStyle(color: Colors.grey),
                 hintText: 'Enter your Cactus token here',
+                hintStyle: TextStyle(color: Colors.grey),
+                border: OutlineInputBorder(
+                  borderSide: BorderSide(color: Colors.black),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderSide: BorderSide(color: Colors.grey),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderSide: BorderSide(color: Colors.black),
+                ),
               ),
             ),
             const SizedBox(height: 10),
             ElevatedButton(
               onPressed: isInitializing ? null : hybridCompletionExample,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.black,
+                foregroundColor: Colors.white,
+              ),
               child: const Text('Run Hybrid Completion Example'),
             ),
 
@@ -102,9 +122,11 @@ class _HybridCompletionPageState extends State<HybridCompletionPage> {
               const Center(
                 child: Column(
                   children: [
-                    CircularProgressIndicator(),
+                    CircularProgressIndicator(
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
+                    ),
                     SizedBox(height: 10),
-                    Text('Processing...'),
+                    Text('Processing...', style: TextStyle(color: Colors.black)),
                   ],
                 ),
               ),
@@ -114,28 +136,29 @@ class _HybridCompletionPageState extends State<HybridCompletionPage> {
               child: Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey),
+                  border: Border.all(color: Colors.black),
                   borderRadius: BorderRadius.circular(8),
+                  color: Colors.white,
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
                       'Output:',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black),
                     ),
                     const SizedBox(height: 8),
-                    Text(outputText),
+                    Text(outputText, style: const TextStyle(color: Colors.black)),
                     if (lastResponse != null) ...[
                       const SizedBox(height: 16),
                       const Text(
                         'Response:',
-                        style: TextStyle(fontWeight: FontWeight.bold),
+                        style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black),
                       ),
                       const SizedBox(height: 4),
                       Expanded(
                         child: SingleChildScrollView(
-                          child: Text(lastResponse!),
+                          child: Text(lastResponse!, style: const TextStyle(color: Colors.black)),
                         ),
                       ),
                     ],

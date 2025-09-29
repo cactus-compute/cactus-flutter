@@ -295,8 +295,12 @@ class _RAGPageState extends State<RAGPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: AppBar(
         title: const Text('RAG Example'),
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
+        elevation: 1,
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -306,16 +310,28 @@ class _RAGPageState extends State<RAGPage> {
             // Setup buttons
             ElevatedButton(
               onPressed: isDownloading ? null : downloadModel,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.black,
+                foregroundColor: Colors.white,
+              ),
               child: Text(isModelDownloaded ? 'Model Downloaded ✓' : 'Download Model'),
             ),
             const SizedBox(height: 10),
             ElevatedButton(
               onPressed: isInitializing ? null : initializeModel,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.black,
+                foregroundColor: Colors.white,
+              ),
               child: Text(isModelLoaded ? 'Model Initialized ✓' : 'Initialize Model'),
             ),
             const SizedBox(height: 10),
             ElevatedButton(
               onPressed: isInitializing ? null : initializeRAG,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.black,
+                foregroundColor: Colors.white,
+              ),
               child: Text(isRAGInitialized ? 'RAG Initialized ✓' : 'Initialize RAG'),
             ),
             const SizedBox(height: 10),
@@ -325,6 +341,10 @@ class _RAGPageState extends State<RAGPage> {
                   flex: 2,
                   child: ElevatedButton(
                     onPressed: (isDownloading || isInitializing || !isModelLoaded || !isRAGInitialized) ? null : addSampleDocuments,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.black,
+                      foregroundColor: Colors.white,
+                    ),
                     child: const Text('Add Sample Docs'),
                   ),
                 ),
@@ -334,8 +354,9 @@ class _RAGPageState extends State<RAGPage> {
                   child: ElevatedButton(
                     onPressed: (isDownloading || isInitializing || !isRAGInitialized) ? null : clearDatabase,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red.shade50,
-                      foregroundColor: Colors.red.shade700,
+                      backgroundColor: Colors.white,
+                      foregroundColor: Colors.red,
+                      side: const BorderSide(color: Colors.red),
                     ),
                     child: const Text('Clear Data'),
                   ),
@@ -349,12 +370,13 @@ class _RAGPageState extends State<RAGPage> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.blue.shade50,
+                  color: Colors.grey.shade100,
                   borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey.shade300),
                 ),
                 child: Text(
                   'Database: ${dbStats!.totalDocuments} documents',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
+                  style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black),
                 ),
               ),
             ],
@@ -364,20 +386,35 @@ class _RAGPageState extends State<RAGPage> {
             // Search section
             const Text(
               'Search Documents:',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black),
             ),
             const SizedBox(height: 8),
             TextField(
               controller: _queryController,
+              style: const TextStyle(color: Colors.black),
               decoration: const InputDecoration(
                 labelText: 'Search Query',
+                labelStyle: TextStyle(color: Colors.grey),
                 hintText: 'Enter your question here...',
-                border: OutlineInputBorder(),
+                hintStyle: TextStyle(color: Colors.grey),
+                border: OutlineInputBorder(
+                  borderSide: BorderSide(color: Colors.black),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderSide: BorderSide(color: Colors.grey),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderSide: BorderSide(color: Colors.black),
+                ),
               ),
             ),
             const SizedBox(height: 10),
             ElevatedButton(
               onPressed: (isDownloading || isInitializing || isSearching || !isModelLoaded || !isRAGInitialized) ? null : searchDocuments,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.black,
+                foregroundColor: Colors.white,
+              ),
               child: const Text('Search'),
             ),
 
@@ -387,9 +424,11 @@ class _RAGPageState extends State<RAGPage> {
                 child: Column(
                   children: [
                     SizedBox(height: 20),
-                    CircularProgressIndicator(),
+                    CircularProgressIndicator(
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
+                    ),
                     SizedBox(height: 10),
-                    Text('Processing...'),
+                    Text('Processing...', style: TextStyle(color: Colors.black)),
                   ],
                 ),
               ),
@@ -400,7 +439,7 @@ class _RAGPageState extends State<RAGPage> {
             Text(
               'Status: $outputText',
               style: TextStyle(
-                color: outputText.contains('Error') ? Colors.red : Colors.green,
+                color: outputText.contains('Error') ? Colors.red : Colors.black,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -411,7 +450,7 @@ class _RAGPageState extends State<RAGPage> {
             if (searchResults.isNotEmpty) ...[
               const Text(
                 'Search Results:',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black),
               ),
               const SizedBox(height: 10),
               Expanded(
@@ -420,7 +459,13 @@ class _RAGPageState extends State<RAGPage> {
                   itemBuilder: (context, index) {
                     final result = searchResults[index];
                     return Card(
+                      color: Colors.white,
+                      elevation: 1,
                       margin: const EdgeInsets.only(bottom: 8),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        side: const BorderSide(color: Colors.grey, width: 0.5),
+                      ),
                       child: Padding(
                         padding: const EdgeInsets.all(12),
                         child: Column(
@@ -431,17 +476,18 @@ class _RAGPageState extends State<RAGPage> {
                               children: [
                                 Text(
                                   result.document.fileName,
-                                  style: const TextStyle(fontWeight: FontWeight.bold),
+                                  style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black),
                                 ),
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                   decoration: BoxDecoration(
-                                    color: Colors.blue.shade100,
+                                    color: Colors.grey.shade200,
                                     borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: Colors.grey.shade400),
                                   ),
                                   child: Text(
                                     'Similarity: ${(result.similarity * 100).toStringAsFixed(1)}%',
-                                    style: const TextStyle(fontSize: 12),
+                                    style: const TextStyle(fontSize: 12, color: Colors.black),
                                   ),
                                 ),
                               ],
@@ -449,7 +495,7 @@ class _RAGPageState extends State<RAGPage> {
                             const SizedBox(height: 8),
                             Text(
                               result.document.content,
-                              style: const TextStyle(fontSize: 14),
+                              style: const TextStyle(fontSize: 14, color: Colors.black),
                             ),
                           ],
                         ),

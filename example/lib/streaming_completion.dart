@@ -150,8 +150,12 @@ class _StreamingCompletionPageState extends State<StreamingCompletionPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: AppBar(
         title: const Text('Streaming Completion'),
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
+        elevation: 1,
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -161,16 +165,28 @@ class _StreamingCompletionPageState extends State<StreamingCompletionPage> {
             // Buttons section
             ElevatedButton(
               onPressed: isDownloading ? null : downloadModel,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.black,
+                foregroundColor: Colors.white,
+              ),
               child: Text(isModelDownloaded ? 'Model Downloaded ✓' : 'Download Model'),
             ),
             const SizedBox(height: 10),
             ElevatedButton(
               onPressed: isInitializing ? null : initializeModel,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.black,
+                foregroundColor: Colors.white,
+              ),
               child: Text(isModelLoaded ? 'Model Initialized ✓' : 'Initialize Model'),
             ),
             const SizedBox(height: 10),
             ElevatedButton(
               onPressed: (isDownloading || isInitializing || !isModelLoaded) ? null : generateStreamCompletion,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.black,
+                foregroundColor: Colors.white,
+              ),
               child: const Text('Run Streaming Example'),
             ),
 
@@ -179,9 +195,11 @@ class _StreamingCompletionPageState extends State<StreamingCompletionPage> {
               const Center(
                 child: Column(
                   children: [
-                    CircularProgressIndicator(),
+                    CircularProgressIndicator(
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
+                    ),
                     SizedBox(height: 10),
-                    Text('Processing...'),
+                    Text('Processing...', style: TextStyle(color: Colors.black)),
                   ],
                 ),
               ),
@@ -191,28 +209,29 @@ class _StreamingCompletionPageState extends State<StreamingCompletionPage> {
               child: Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey),
+                  border: Border.all(color: Colors.black),
                   borderRadius: BorderRadius.circular(8),
+                  color: Colors.white,
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
                       'Output:',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black),
                     ),
                     const SizedBox(height: 8),
-                    Text(outputText),
+                    Text(outputText, style: const TextStyle(color: Colors.black)),
                     if (lastResponse != null) ...[
                       const SizedBox(height: 16),
                       const Text(
                         'Response:',
-                        style: TextStyle(fontWeight: FontWeight.bold),
+                        style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black),
                       ),
                       const SizedBox(height: 4),
                       Expanded(
                         child: SingleChildScrollView(
-                          child: Text(lastResponse!),
+                          child: Text(lastResponse!, style: const TextStyle(color: Colors.black)),
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -221,14 +240,14 @@ class _StreamingCompletionPageState extends State<StreamingCompletionPage> {
                         children: [
                           Column(
                             children: [
-                              const Text('TTFT', style: TextStyle(fontWeight: FontWeight.bold)),
-                              Text('${lastTTFT?.toStringAsFixed(2)} ms'),
+                              const Text('TTFT', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black)),
+                              Text('${lastTTFT?.toStringAsFixed(2)} ms', style: const TextStyle(color: Colors.black)),
                             ],
                           ),
                           Column(
                             children: [
-                              const Text('TPS', style: TextStyle(fontWeight: FontWeight.bold)),
-                              Text('${lastTPS?.toStringAsFixed(2)}'),
+                              const Text('TPS', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black)),
+                              Text('${lastTPS?.toStringAsFixed(2)}', style: const TextStyle(color: Colors.black)),
                             ],
                           ),
                         ],
