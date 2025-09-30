@@ -14,10 +14,12 @@ class _StreamingCompletionPageState extends State<StreamingCompletionPage> {
   bool isModelLoaded = false;
   bool isDownloading = false;
   bool isInitializing = false;
+  bool isGenerating = false;
+  bool isStreaming = false;
   String outputText = 'Ready to start. Click "Download Model" to begin.';
   String? lastResponse;
-  double? lastTPS;
-  double? lastTTFT;
+  double lastTPS = 0;
+  double lastTTFT = 0;
 
   @override
   void initState() {
@@ -99,20 +101,31 @@ class _StreamingCompletionPageState extends State<StreamingCompletionPage> {
     }
     
     setState(() {
-      isInitializing = true;
+      isGenerating = true;
+      isStreaming = false;
       outputText = 'Generating stream response...';
       lastResponse = '';
-      lastTPS = null;
-      lastTTFT = null;
+      lastTPS = 0;
+      lastTTFT = 0;
     });
     
     try {
       final streamedResult = await lm.generateCompletionStream(
+        params: CactusCompletionParams(
+          maxTokens: 200,
+          bufferSize: 2048
+        ),
         messages: [ChatMessage(content: 'Tell me a story', role: "user")]
       );
 
       await for (final chunk in streamedResult.stream) {
         setState(() {
+          // Hide processing indicator once streaming starts
+          if (!isStreaming) {
+            isGenerating = false;
+            isStreaming = true;
+            outputText = 'Streaming response...';
+          }
           lastResponse = (lastResponse ?? '') + chunk;
         });
       }
@@ -123,26 +136,30 @@ class _StreamingCompletionPageState extends State<StreamingCompletionPage> {
           lastResponse = resp.response;
           lastTPS = resp.tokensPerSecond;
           lastTTFT = resp.timeToFirstTokenMs;
-          outputText = 'Stream generation completed successfully!';;
+          outputText = 'Stream generation completed successfully!';
+          isStreaming = false;
         });
       } else {
         setState(() {
           outputText = 'Failed to generate response.';
           lastResponse = null;
-          lastTPS = null;
-          lastTTFT = null;
+          lastTPS = 0;
+          lastTTFT = 0;
+          isStreaming = false;
         });
       }
     } catch (e) {
       setState(() {
         outputText = 'Error generating stream response: $e';
         lastResponse = null;
-        lastTPS = null;
-        lastTTFT = null;
+        lastTPS = 0;
+        lastTTFT = 0;
+        isStreaming = false;
       });
     } finally {
       setState(() {
-        isInitializing = false;
+        isGenerating = false;
+        isStreaming = false;
       });
     }
   }
@@ -169,7 +186,23 @@ class _StreamingCompletionPageState extends State<StreamingCompletionPage> {
                 backgroundColor: Colors.black,
                 foregroundColor: Colors.white,
               ),
-              child: Text(isModelDownloaded ? 'Model Downloaded ✓' : 'Download Model'),
+              child: isDownloading
+                ? const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      ),
+                      SizedBox(width: 8),
+                      Text('Downloading...'),
+                    ],
+                  )
+                : Text(isModelDownloaded ? 'Model Downloaded ✓' : 'Download Model'),
             ),
             const SizedBox(height: 10),
             ElevatedButton(
@@ -178,31 +211,51 @@ class _StreamingCompletionPageState extends State<StreamingCompletionPage> {
                 backgroundColor: Colors.black,
                 foregroundColor: Colors.white,
               ),
-              child: Text(isModelLoaded ? 'Model Initialized ✓' : 'Initialize Model'),
+              child: isInitializing
+                ? const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      ),
+                      SizedBox(width: 8),
+                      Text('Initializing...'),
+                    ],
+                  )
+                : Text(isModelLoaded ? 'Model Initialized ✓' : 'Initialize Model'),
             ),
             const SizedBox(height: 10),
             ElevatedButton(
-              onPressed: (isDownloading || isInitializing || !isModelLoaded) ? null : generateStreamCompletion,
+              onPressed: (isDownloading || isInitializing || isGenerating || !isModelLoaded) ? null : generateStreamCompletion,
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.black,
                 foregroundColor: Colors.white,
               ),
-              child: const Text('Run Streaming Example'),
+              child: isGenerating && !isStreaming 
+                ? const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      ),
+                      SizedBox(width: 8),
+                      Text('Processing...'),
+                    ],
+                  )
+                : const Text('Run Streaming Example'),
             ),
 
-            // Status section
-            if (isDownloading || isInitializing)
-              const Center(
-                child: Column(
-                  children: [
-                    CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
-                    ),
-                    SizedBox(height: 10),
-                    Text('Processing...', style: TextStyle(color: Colors.black)),
-                  ],
-                ),
-              ),
+            const SizedBox(height: 20),
             
             // Output section
             Expanded(
@@ -241,13 +294,13 @@ class _StreamingCompletionPageState extends State<StreamingCompletionPage> {
                           Column(
                             children: [
                               const Text('TTFT', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black)),
-                              Text('${lastTTFT?.toStringAsFixed(2)} ms', style: const TextStyle(color: Colors.black)),
+                              Text('${lastTTFT.toStringAsFixed(2)} ms', style: const TextStyle(color: Colors.black)),
                             ],
                           ),
                           Column(
                             children: [
                               const Text('TPS', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black)),
-                              Text('${lastTPS?.toStringAsFixed(2)}', style: const TextStyle(color: Colors.black)),
+                              Text(lastTPS.toStringAsFixed(2), style: const TextStyle(color: Colors.black)),
                             ],
                           ),
                         ],

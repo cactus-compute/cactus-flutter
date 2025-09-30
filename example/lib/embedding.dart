@@ -14,6 +14,7 @@ class _EmbeddingPageState extends State<EmbeddingPage> {
   bool isModelLoaded = false;
   bool isDownloading = false;
   bool isInitializing = false;
+  bool isGenerating = false;
   String outputText = 'Ready to start. Click "Download Model" to begin.';
   String? lastResponse;
 
@@ -97,7 +98,7 @@ class _EmbeddingPageState extends State<EmbeddingPage> {
     }
 
     setState(() {
-      isInitializing = true;
+      isGenerating = true;
       outputText = 'Generating embeddings...';
     });
 
@@ -125,7 +126,7 @@ class _EmbeddingPageState extends State<EmbeddingPage> {
       });
     } finally {
       setState(() {
-        isInitializing = false;
+        isGenerating = false;
       });
     }
   }
@@ -152,7 +153,23 @@ class _EmbeddingPageState extends State<EmbeddingPage> {
                 backgroundColor: Colors.black,
                 foregroundColor: Colors.white,
               ),
-              child: Text(isModelDownloaded ? 'Model Downloaded ✓' : 'Download Model'),
+              child: isDownloading
+                ? const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      ),
+                      SizedBox(width: 8),
+                      Text('Downloading...'),
+                    ],
+                  )
+                : Text(isModelDownloaded ? 'Model Downloaded ✓' : 'Download Model'),
             ),
             const SizedBox(height: 10),
             ElevatedButton(
@@ -161,31 +178,51 @@ class _EmbeddingPageState extends State<EmbeddingPage> {
                 backgroundColor: Colors.black,
                 foregroundColor: Colors.white,
               ),
-              child: Text(isModelLoaded ? 'Model Initialized ✓' : 'Initialize Model'),
+              child: isInitializing
+                ? const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      ),
+                      SizedBox(width: 8),
+                      Text('Initializing...'),
+                    ],
+                  )
+                : Text(isModelLoaded ? 'Model Initialized ✓' : 'Initialize Model'),
             ),
             const SizedBox(height: 10),
             ElevatedButton(
-              onPressed: (isDownloading || isInitializing || !isModelLoaded) ? null : generateEmbeddings,
+              onPressed: (isDownloading || isInitializing || isGenerating || !isModelLoaded) ? null : generateEmbeddings,
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.black,
                 foregroundColor: Colors.white,
               ),
-              child: const Text('Run Embedding Generation Example'),
+              child: isGenerating
+                ? const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      ),
+                      SizedBox(width: 8),
+                      Text('Generating...'),
+                    ],
+                  )
+                : const Text('Run Embedding Generation Example'),
             ),
 
-            // Status section
-            if (isDownloading || isInitializing)
-              const Center(
-                child: Column(
-                  children: [
-                    CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
-                    ),
-                    SizedBox(height: 10),
-                    Text('Processing...', style: TextStyle(color: Colors.black)),
-                  ],
-                ),
-              ),
+            const SizedBox(height: 20),
             
             // Output section
             Expanded(
@@ -204,6 +241,7 @@ class _EmbeddingPageState extends State<EmbeddingPage> {
                       style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black),
                     ),
                     const SizedBox(height: 8),
+                    
                     Text(outputText, style: const TextStyle(color: Colors.black)),
                     if (lastResponse != null) ...[
                       const SizedBox(height: 16),

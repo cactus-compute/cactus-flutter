@@ -19,7 +19,10 @@ class _RAGPageState extends State<RAGPage> {
   bool isRAGInitialized = false;
   bool isDownloading = false;
   bool isInitializing = false;
+  bool isInitializingRAG = false;
+  bool isAddingDocuments = false;
   bool isSearching = false;
+  bool isClearingDatabase = false;
   
   String outputText = 'Ready to start. Click "Download Model" to begin.';
   List<DocumentSearchResult> searchResults = [];
@@ -102,7 +105,7 @@ class _RAGPageState extends State<RAGPage> {
 
   Future<void> initializeRAG() async {
     setState(() {
-      isInitializing = true;
+      isInitializingRAG = true;
       outputText = 'Initializing RAG database...';
     });
     
@@ -119,7 +122,7 @@ class _RAGPageState extends State<RAGPage> {
       });
     } finally {
       setState(() {
-        isInitializing = false;
+        isInitializingRAG = false;
       });
     }
   }
@@ -133,7 +136,7 @@ class _RAGPageState extends State<RAGPage> {
     }
 
     setState(() {
-      isInitializing = true;
+      isAddingDocuments = true;
       outputText = 'Adding sample documents...';
     });
 
@@ -185,7 +188,7 @@ class _RAGPageState extends State<RAGPage> {
       });
     } finally {
       setState(() {
-        isInitializing = false;
+        isAddingDocuments = false;
       });
     }
   }
@@ -255,7 +258,7 @@ class _RAGPageState extends State<RAGPage> {
     }
 
     setState(() {
-      isInitializing = true;
+      isClearingDatabase = true;
       outputText = 'Clearing database...';
     });
 
@@ -276,7 +279,7 @@ class _RAGPageState extends State<RAGPage> {
       });
     } finally {
       setState(() {
-        isInitializing = false;
+        isClearingDatabase = false;
       });
     }
   }
@@ -314,7 +317,23 @@ class _RAGPageState extends State<RAGPage> {
                 backgroundColor: Colors.black,
                 foregroundColor: Colors.white,
               ),
-              child: Text(isModelDownloaded ? 'Model Downloaded ✓' : 'Download Model'),
+              child: isDownloading
+                ? const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      ),
+                      SizedBox(width: 8),
+                      Text('Downloading...'),
+                    ],
+                  )
+                : Text(isModelDownloaded ? 'Model Downloaded ✓' : 'Download Model'),
             ),
             const SizedBox(height: 10),
             ElevatedButton(
@@ -323,16 +342,48 @@ class _RAGPageState extends State<RAGPage> {
                 backgroundColor: Colors.black,
                 foregroundColor: Colors.white,
               ),
-              child: Text(isModelLoaded ? 'Model Initialized ✓' : 'Initialize Model'),
+              child: isInitializing
+                ? const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      ),
+                      SizedBox(width: 8),
+                      Text('Initializing...'),
+                    ],
+                  )
+                : Text(isModelLoaded ? 'Model Initialized ✓' : 'Initialize Model'),
             ),
             const SizedBox(height: 10),
             ElevatedButton(
-              onPressed: isInitializing ? null : initializeRAG,
+              onPressed: isInitializingRAG ? null : initializeRAG,
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.black,
                 foregroundColor: Colors.white,
               ),
-              child: Text(isRAGInitialized ? 'RAG Initialized ✓' : 'Initialize RAG'),
+              child: isInitializingRAG
+                ? const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      ),
+                      SizedBox(width: 8),
+                      Text('Initializing RAG...'),
+                    ],
+                  )
+                : Text(isRAGInitialized ? 'RAG Initialized ✓' : 'Initialize RAG'),
             ),
             const SizedBox(height: 10),
             Row(
@@ -340,25 +391,57 @@ class _RAGPageState extends State<RAGPage> {
                 Expanded(
                   flex: 2,
                   child: ElevatedButton(
-                    onPressed: (isDownloading || isInitializing || !isModelLoaded || !isRAGInitialized) ? null : addSampleDocuments,
+                    onPressed: (isDownloading || isInitializing || isInitializingRAG || isAddingDocuments || !isModelLoaded || !isRAGInitialized) ? null : addSampleDocuments,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.black,
                       foregroundColor: Colors.white,
                     ),
-                    child: const Text('Add Sample Docs'),
+                    child: isAddingDocuments
+                      ? const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              ),
+                            ),
+                            SizedBox(width: 8),
+                            Text('Adding...'),
+                          ],
+                        )
+                      : const Text('Add Sample Docs'),
                   ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
                   flex: 1,
                   child: ElevatedButton(
-                    onPressed: (isDownloading || isInitializing || !isRAGInitialized) ? null : clearDatabase,
+                    onPressed: (isDownloading || isInitializing || isInitializingRAG || isClearingDatabase || !isRAGInitialized) ? null : clearDatabase,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.white,
                       foregroundColor: Colors.red,
                       side: const BorderSide(color: Colors.red),
                     ),
-                    child: const Text('Clear Data'),
+                    child: isClearingDatabase
+                      ? const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(Colors.red),
+                              ),
+                            ),
+                            SizedBox(width: 8),
+                            Text('Clearing...'),
+                          ],
+                        )
+                      : const Text('Clear Data'),
                   ),
                 ),
               ],
@@ -410,28 +493,29 @@ class _RAGPageState extends State<RAGPage> {
             ),
             const SizedBox(height: 10),
             ElevatedButton(
-              onPressed: (isDownloading || isInitializing || isSearching || !isModelLoaded || !isRAGInitialized) ? null : searchDocuments,
+              onPressed: (isDownloading || isInitializing || isInitializingRAG || isSearching || !isModelLoaded || !isRAGInitialized) ? null : searchDocuments,
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.black,
                 foregroundColor: Colors.white,
               ),
-              child: const Text('Search'),
+              child: isSearching
+                ? const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      ),
+                      SizedBox(width: 8),
+                      Text('Searching...'),
+                    ],
+                  )
+                : const Text('Search'),
             ),
-
-            // Status section
-            if (isDownloading || isInitializing || isSearching)
-              const Center(
-                child: Column(
-                  children: [
-                    SizedBox(height: 20),
-                    CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
-                    ),
-                    SizedBox(height: 10),
-                    Text('Processing...', style: TextStyle(color: Colors.black)),
-                  ],
-                ),
-              ),
 
             const SizedBox(height: 20),
 

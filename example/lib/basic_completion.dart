@@ -14,10 +14,11 @@ class _BasicCompletionPageState extends State<BasicCompletionPage> {
   bool isModelLoaded = false;
   bool isDownloading = false;
   bool isInitializing = false;
+  bool isGenerating = false;
   String outputText = 'Ready to start. Click "Download Model" to begin.';
   String? lastResponse;
-  double? lastTPS;
-  double? lastTTFT;
+  double lastTPS = 0;
+  double lastTTFT = 0;
   List<CactusModel> availableModels = [];
 
   @override
@@ -110,7 +111,7 @@ class _BasicCompletionPageState extends State<BasicCompletionPage> {
     }
     
     setState(() {
-      isInitializing = true;
+      isGenerating = true;
       outputText = 'Generating response...';
     });
     
@@ -118,8 +119,7 @@ class _BasicCompletionPageState extends State<BasicCompletionPage> {
       final resp = await lm.generateCompletion(
         messages: [ChatMessage(content: 'Tell me about the benefits of renewable energy.', role: "user")],
         params: CactusCompletionParams(
-          maxTokens: 150,
-          temperature: 0.7,
+          maxTokens: 150
         )
       );
       
@@ -134,20 +134,20 @@ class _BasicCompletionPageState extends State<BasicCompletionPage> {
         setState(() {
           outputText = 'Failed to generate response.';
           lastResponse = null;
-          lastTPS = null;
-          lastTTFT = null;
+          lastTPS = 0;
+          lastTTFT = 0;
         });
       }
     } catch (e) {
       setState(() {
         outputText = 'Error generating response: $e';
         lastResponse = null;
-        lastTPS = null;
-        lastTTFT = null;
+        lastTPS = 0;
+        lastTTFT = 0;
       });
     } finally {
       setState(() {
-        isInitializing = false;
+        isGenerating = false;
       });
     }
   }
@@ -174,40 +174,76 @@ class _BasicCompletionPageState extends State<BasicCompletionPage> {
                 backgroundColor: Colors.black,
                 foregroundColor: Colors.white,
               ),
-              child: Text(isModelDownloaded ? 'Model Downloaded ✓' : 'Download Model'),
+              child: isDownloading
+                ? const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      ),
+                      SizedBox(width: 8),
+                      Text('Downloading...'),
+                    ],
+                  )
+                : Text(isModelDownloaded ? 'Model Downloaded ✓' : 'Download Model'),
             ),
             const SizedBox(height: 10),
             ElevatedButton(
-              onPressed: isInitializing ? null : initializeModel,
+              onPressed: (isInitializing || isDownloading) ? null : initializeModel,
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.black,
                 foregroundColor: Colors.white,
               ),
-              child: Text(isModelLoaded ? 'Model Initialized ✓' : 'Initialize Model'),
+              child: isInitializing
+                ? const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      ),
+                      SizedBox(width: 8),
+                      Text('Initializing...'),
+                    ],
+                  )
+                : Text(isModelLoaded ? 'Model Initialized ✓' : 'Initialize Model'),
             ),
             const SizedBox(height: 10),
             ElevatedButton(
-              onPressed: (isDownloading || isInitializing || !isModelLoaded) ? null : generateCompletion,
+              onPressed: (isDownloading || isInitializing || isGenerating || !isModelLoaded) ? null : generateCompletion,
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.black,
                 foregroundColor: Colors.white,
               ),
-              child: const Text('Generate Basic Completion'),
+              child: isGenerating
+                ? const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      ),
+                      SizedBox(width: 8),
+                      Text('Generating...'),
+                    ],
+                  )
+                : const Text('Generate Basic Completion'),
             ),
 
-            // Status section
-            if (isDownloading || isInitializing)
-              const Center(
-                child: Column(
-                  children: [
-                    CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
-                    ),
-                    SizedBox(height: 10),
-                    Text('Processing...', style: TextStyle(color: Colors.black)),
-                  ],
-                ),
-              ),
+            const SizedBox(height: 20),
             
             // Output section
             Expanded(
@@ -226,6 +262,7 @@ class _BasicCompletionPageState extends State<BasicCompletionPage> {
                       style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black),
                     ),
                     const SizedBox(height: 8),
+                    
                     Text(outputText, style: const TextStyle(color: Colors.black)),
                     if (lastResponse != null) ...[
                       const SizedBox(height: 16),
@@ -246,13 +283,13 @@ class _BasicCompletionPageState extends State<BasicCompletionPage> {
                           Column(
                             children: [
                               const Text('TTFT', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black)),
-                              Text('${lastTTFT?.toStringAsFixed(2)} ms', style: const TextStyle(color: Colors.black)),
+                              Text('${lastTTFT.toStringAsFixed(2)} ms', style: const TextStyle(color: Colors.black)),
                             ],
                           ),
                           Column(
                             children: [
                               const Text('TPS', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black)),
-                              Text('${lastTPS?.toStringAsFixed(2)}', style: const TextStyle(color: Colors.black)),
+                              Text('${lastTPS.toStringAsFixed(2)}', style: const TextStyle(color: Colors.black)),
                             ],
                           ),
                         ],

@@ -114,22 +114,26 @@ class _HybridCompletionPageState extends State<HybridCompletionPage> {
                 backgroundColor: Colors.black,
                 foregroundColor: Colors.white,
               ),
-              child: const Text('Run Hybrid Completion Example'),
+              child: isInitializing
+                ? const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      ),
+                      SizedBox(width: 8),
+                      Text('Processing...'),
+                    ],
+                  )
+                : const Text('Run Hybrid Completion Example'),
             ),
 
-            // Status section
-            if (isInitializing)
-              const Center(
-                child: Column(
-                  children: [
-                    CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
-                    ),
-                    SizedBox(height: 10),
-                    Text('Processing...', style: TextStyle(color: Colors.black)),
-                  ],
-                ),
-              ),
+            const SizedBox(height: 20),
             
             // Output section
             Expanded(
@@ -148,6 +152,7 @@ class _HybridCompletionPageState extends State<HybridCompletionPage> {
                       style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black),
                     ),
                     const SizedBox(height: 8),
+                    
                     Text(outputText, style: const TextStyle(color: Colors.black)),
                     if (lastResponse != null) ...[
                       const SizedBox(height: 16),
