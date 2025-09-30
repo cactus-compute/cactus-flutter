@@ -117,7 +117,7 @@ class _BasicCompletionPageState extends State<BasicCompletionPage> {
     
     try {
       final resp = await lm.generateCompletion(
-        messages: [ChatMessage(content: 'Tell me about the benefits of renewable energy.', role: "user")],
+        messages: [ChatMessage(content: 'You are Cactus, a very capable AI assistant running offline on a smartphone', role: "system"), ChatMessage(content: 'Hi, how are you?', role: "user")],
         params: CactusCompletionParams(
           maxTokens: 150
         )
