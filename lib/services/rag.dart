@@ -208,14 +208,19 @@ class CactusRAG {
   }
 
   Future<List<ChunkSearchResult>> search({
-    List<double>? queryEmbedding,
+    String? text,
     int limit = 10,
     double threshold = 0.5,
   }) async {
-    if (queryEmbedding == null) {
-      throw ArgumentError('queryEmbedding must be provided.');
+    if (text == null) {
+      throw ArgumentError('text must be provided.');
     }
 
+    if (_embeddingGenerator == null) {
+      throw Exception('Embedding generator not set. Call setEmbeddingGenerator() first.');
+    }
+
+    final queryEmbedding = await _embeddingGenerator!(text);
     final chunkResults = <_ChunkResult>[];
 
     final allChunks = chunkBox.getAll();

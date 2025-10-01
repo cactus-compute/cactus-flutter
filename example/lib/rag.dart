@@ -213,29 +213,16 @@ class _RAGPageState extends State<RAGPage> {
     });
 
     try {
-      // Generate embeddings for the query
-      final queryEmbeddingResult = await lm.generateEmbedding(
+      final results = await rag.search(
         text: _queryController.text,
-        bufferSize: 2048,
+        limit: 2,
+        threshold: 0.6
       );
 
-      if (queryEmbeddingResult.success) {
-        // Search for similar documents
-        final results = await rag.search(
-          queryEmbedding: queryEmbeddingResult.embeddings,
-          limit: 2,
-          threshold: 0.65
-        );
-
-        setState(() {
-          searchResults = results;
-          outputText = 'Found ${results.length} relevant chunks!';
-        });
-      } else {
-        setState(() {
-          outputText = 'Failed to generate query embeddings.';
-        });
-      }
+      setState(() {
+        searchResults = results;
+        outputText = 'Found ${results.length} relevant chunks!';
+      });
     } catch (e) {
       setState(() {
         outputText = 'Error searching documents: $e';

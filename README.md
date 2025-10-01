@@ -318,21 +318,16 @@ Future<void> ragExample() async {
     print("Document stored with ${document.chunks.length} chunks.");
 
     // 5. Search for similar content using query embeddings
-    final queryText = "What is the famous landmark in Paris?";
-    final queryEmbedding = await lm.generateEmbedding(text: queryText);
-    
-    if (queryEmbedding?.success ?? false) {
-      final searchResults = await rag.search(
-        queryEmbedding: queryEmbedding!.embeddings,
-        limit: 5,
-        threshold: 0.5,
-      );
+    final searchResults = await rag.search(
+      text: "What is the famous landmark in Paris?",
+      limit: 5,
+      threshold: 0.5,
+    );
 
-      print("\nFound ${searchResults.length} similar chunks:");
-      for (final result in searchResults) {
-        print("- Chunk from ${result.chunk.document.target?.fileName} (Similarity: ${result.similarity.toStringAsFixed(2)})");
-        print("  Content: ${result.chunk.content.substring(0, 50)}...");
-      }
+    print("\nFound ${searchResults.length} similar chunks:");
+    for (final result in searchResults) {
+      print("- Chunk from ${result.chunk.document.target?.fileName} (Similarity: ${result.similarity.toStringAsFixed(2)})");
+      print("  Content: ${result.chunk.content.substring(0, 50)}...");
     }
   } finally {
     // 6. Clean up
