@@ -31,7 +31,6 @@ class _RAGPageState extends State<RAGPage> {
   @override
   void initState() {
     super.initState();
-    CactusTelemetry.setTelemetryToken('a83c7f7a-43ad-4823-b012-cbeb587ae788');
     _queryController.text = 'What is the famous landmark in Paris?';
   }
 

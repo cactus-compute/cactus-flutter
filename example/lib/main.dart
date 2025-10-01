@@ -1,4 +1,5 @@
 
+import 'package:cactus/services/telemetry.dart';
 import 'package:flutter/material.dart';
 import 'basic_completion.dart';
 import 'streaming_completion.dart';
@@ -60,8 +61,19 @@ class MyApp extends StatelessWidget {
   }
 }
 
-class MyHomePage extends StatelessWidget {
+class MyHomePage extends StatefulWidget {
   const MyHomePage({super.key});
+  
+  @override
+  State<MyHomePage> createState() => _MyHomePageState();
+}
+
+class _MyHomePageState extends State<MyHomePage> {
+  @override
+  void initState() {
+    super.initState();
+    CactusTelemetry.setTelemetryToken('a83c7f7a-43ad-4823-b012-cbeb587ae788');
+  }
 
   @override
   Widget build(BuildContext context) {
