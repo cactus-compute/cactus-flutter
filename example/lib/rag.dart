@@ -1,6 +1,9 @@
 
 import 'package:cactus/cactus.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:read_pdf_text/read_pdf_text.dart';
 
 class RAGPage extends StatefulWidget {
   const RAGPage({super.key});
@@ -25,13 +28,13 @@ class _RAGPageState extends State<RAGPage> {
   bool isClearingDatabase = false;
   
   String outputText = 'Ready to start. Click "Download Model" to begin.';
-  List<DocumentSearchResult> searchResults = [];
+  List<ChunkSearchResult> searchResults = [];
   DatabaseStats? dbStats;
 
   @override
   void initState() {
     super.initState();
-    _queryController.text = 'What is the famous landmark in Paris?';
+    _queryController.text = '';
   }
 
   @override
@@ -110,9 +113,14 @@ class _RAGPageState extends State<RAGPage> {
     
     try {
       await rag.initialize();
+      rag.setEmbeddingGenerator((text) async {
+        final result = await lm.generateEmbedding(text: text, bufferSize: 2048);
+        return result.embeddings;
+      });
+      rag.setChunking(chunkSize: 500, chunkOverlap: 50);
       setState(() {
         isRAGInitialized = true;
-        outputText = 'RAG initialized successfully! Click "Add Sample Documents" to populate the database.';
+        outputText = 'RAG initialized successfully! Click "Add Docs" to populate the database.';
       });
       await getDBStats();
     } catch (e) {
@@ -126,66 +134,57 @@ class _RAGPageState extends State<RAGPage> {
     }
   }
 
-  Future<void> addSampleDocuments() async {
-    if (!isModelLoaded || !isRAGInitialized) {
-      setState(() {
-        outputText = 'Please initialize both model and RAG first.';
-      });
-      return;
-    }
-
-    setState(() {
-      isAddingDocuments = true;
-      outputText = 'Adding sample documents...';
-    });
-
+  Future<String> _getPDFtext(String path) async {
+    String text = "";
     try {
-      // Sample documents about famous landmarks
-      final documents = [
-        {
-          'name': 'eiffel_tower.txt',
-          'content': 'The Eiffel Tower is a wrought-iron lattice tower on the Champ de Mars in Paris, France. It is named after the engineer Gustave Eiffel, whose company designed and built the tower. Constructed from 1887 to 1889, it was initially criticized by some of France\'s leading artists and intellectuals for its design, but it has become a global cultural icon of France and one of the most recognizable structures in the world.'
-        },
-        {
-          'name': 'statue_of_liberty.txt', 
-          'content': 'The Statue of Liberty is a neoclassical sculpture on Liberty Island in New York Harbor in New York City. The copper statue, a gift from the people of France to the people of the United States, was designed by French sculptor Frédéric Auguste Bartholdi and its metal framework was built by Gustave Eiffel. The statue was dedicated on October 28, 1886.'
-        },
-        {
-          'name': 'big_ben.txt',
-          'content': 'Big Ben is the nickname for the Great Bell of the Great Clock of Westminster, at the north end of the Palace of Westminster in London, England. The tower itself is officially known as Elizabeth Tower, renamed to celebrate the Diamond Jubilee of Elizabeth II in 2012. The tower was designed by Augustus Pugin in a neo-Gothic style.'
-        },
-        {
-          'name': 'colosseum.txt',
-          'content': 'The Colosseum is an oval amphitheatre in the centre of the city of Rome, Italy. Built of travertine limestone, tuff (volcanic rock), and brick-faced concrete, it was the largest amphitheatre ever built. The Colosseum is situated just east of the Roman Forum. Construction began under the emperor Vespasian in AD 72 and was completed in AD 80.'
-        }
-      ];
+      text = await ReadPdfText.getPDFtext(path);
+    } on PlatformException {
+      debugPrint('Failed to get PDF text.');
+    }
+    return text;
+  }
 
-      for (final doc in documents) {
-        // Generate embeddings for each document
-        final embeddingResult = await lm.generateEmbedding(
-          text: doc['content']!,
-          bufferSize: 2048,
-        );
+  Future<void> addDocument() async {
+    try {
+      setState(() {
+        isAddingDocuments = true;
+      });
 
-        if (embeddingResult.success) {
-          await rag.storeDocument(
-            fileName: doc['name']!,
-            filePath: '/sample/${doc['name']!}',
-            content: doc['content']!,
-            embeddings: embeddingResult.embeddings,
+      FilePickerResult? result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf'],
+      );
+
+      if (result != null && result.files.single.path != null) {
+        String filePath = result.files.single.path!;
+        String fileName = result.files.single.name;
+
+        String text = await _getPDFtext(filePath);
+
+        debugPrint('PDF text extracted: ${text.length} characters');
+
+        try {
+          final document = await rag.storeDocument(
+            fileName: fileName,
+            filePath: filePath,
+            content: text,
+            fileSize: result.files.single.size,
           );
+          
+          debugPrint('Document stored in database with ID: ${document.id}');
+        } catch (e) {
+          debugPrint('Failed to store document: $e');
         }
       }
-
-      await getDBStats();
-      setState(() {
-        outputText = 'Sample documents added successfully! You can now search for information.';
-      });
     } catch (e) {
-      setState(() {
-        outputText = 'Error adding sample documents: $e';
-      });
+      debugPrint('Error picking and reading PDF: $e');
+      if(context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to read PDF: $e')),
+        );
+      }
     } finally {
+      await getDBStats();
       setState(() {
         isAddingDocuments = false;
       });
@@ -222,15 +221,15 @@ class _RAGPageState extends State<RAGPage> {
 
       if (queryEmbeddingResult.success) {
         // Search for similar documents
-        final results = await rag.searchBySimilarity(
-          queryEmbeddingResult.embeddings,
-          limit: 5,
-          threshold: 0.7
+        final results = await rag.search(
+          queryEmbedding: queryEmbeddingResult.embeddings,
+          limit: 2,
+          threshold: 0.65
         );
 
         setState(() {
           searchResults = results;
-          outputText = 'Found ${results.length} relevant documents!';
+          outputText = 'Found ${results.length} relevant chunks!';
         });
       } else {
         setState(() {
@@ -298,13 +297,14 @@ class _RAGPageState extends State<RAGPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
+      resizeToAvoidBottomInset: true,
       appBar: AppBar(
         title: const Text('RAG Example'),
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         elevation: 1,
       ),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -390,7 +390,7 @@ class _RAGPageState extends State<RAGPage> {
                 Expanded(
                   flex: 2,
                   child: ElevatedButton(
-                    onPressed: (isDownloading || isInitializing || isInitializingRAG || isAddingDocuments || !isModelLoaded || !isRAGInitialized) ? null : addSampleDocuments,
+                    onPressed: (isDownloading || isInitializing || isInitializingRAG || isAddingDocuments || !isModelLoaded || !isRAGInitialized) ? null : addDocument,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.black,
                       foregroundColor: Colors.white,
@@ -411,7 +411,7 @@ class _RAGPageState extends State<RAGPage> {
                             Text('Adding...'),
                           ],
                         )
-                      : const Text('Add Sample Docs'),
+                      : const Text('Add Docs'),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -536,69 +536,70 @@ class _RAGPageState extends State<RAGPage> {
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black),
               ),
               const SizedBox(height: 10),
-              Expanded(
-                child: ListView.builder(
-                  itemCount: searchResults.length,
-                  itemBuilder: (context, index) {
-                    final result = searchResults[index];
-                    return Card(
-                      color: Colors.white,
-                      elevation: 1,
-                      margin: const EdgeInsets.only(bottom: 8),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        side: const BorderSide(color: Colors.grey, width: 0.5),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  result.document.fileName,
+              ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: searchResults.length,
+                itemBuilder: (context, index) {
+                  final result = searchResults[index];
+                  return Card(
+                    color: Colors.white,
+                    elevation: 1,
+                    margin: const EdgeInsets.only(bottom: 8),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      side: const BorderSide(color: Colors.grey, width: 0.5),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  result.chunk.document.target?.fileName ?? 'Unknown Document',
                                   style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black),
+                                  overflow: TextOverflow.ellipsis,
                                 ),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: Colors.grey.shade200,
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(color: Colors.grey.shade400),
-                                  ),
-                                  child: Text(
-                                    'Similarity: ${(result.similarity * 100).toStringAsFixed(1)}%',
-                                    style: const TextStyle(fontSize: 12, color: Colors.black),
-                                  ),
+                              ),
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey.shade200,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: Colors.grey.shade400),
                                 ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              result.document.content,
-                              style: const TextStyle(fontSize: 14, color: Colors.black),
-                            ),
-                          ],
-                        ),
+                                child: Text(
+                                  'Similarity: ${(result.similarity * 100).toStringAsFixed(1)}%',
+                                  style: const TextStyle(fontSize: 12, color: Colors.black),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            result.chunk.content,
+                            style: const TextStyle(fontSize: 14, color: Colors.black),
+                          ),
+                        ],
                       ),
-                    );
-                  },
-                ),
+                    ),
+                  );
+                },
               ),
             ] else if (!isSearching && isRAGInitialized) ...[
-              const Expanded(
-                child: Center(
-                  child: Text(
-                    'No search results yet. Enter a query and click "Search" to find relevant documents.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.grey),
-                  ),
+              const SizedBox(height: 40),
+              const Center(
+                child: Text(
+                  'No search results yet. Enter a query and click "Search" to find relevant documents.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.grey),
                 ),
               ),
-            ] else ...[
-              const Expanded(child: SizedBox()),
             ],
           ],
         ),
