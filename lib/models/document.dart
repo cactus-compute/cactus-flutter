@@ -7,26 +7,25 @@ class Document {
 
   @Unique()
   late String fileName;
-  
+
   late String filePath;
-  late String content;
-  
+
   @Property(type: PropertyType.date)
   late DateTime createdAt;
-  
+
   @Property(type: PropertyType.date)
   late DateTime updatedAt;
-  
-  late List<double> embeddings;
+
   int? fileSize;
   String? fileHash;
+
+  @Backlink('document')
+  final chunks = ToMany<DocumentChunk>();
 
   Document({
     this.id = 0,
     required this.fileName,
     required this.filePath,
-    required this.content,
-    required this.embeddings,
     DateTime? createdAt,
     DateTime? updatedAt,
     this.fileSize,
@@ -39,15 +38,28 @@ class Document {
   Document.empty() {
     fileName = '';
     filePath = '';
-    content = '';
-    embeddings = [];
     createdAt = DateTime.now();
     updatedAt = DateTime.now();
   }
 
-  void updateContent(String newContent, List<double> newEmbeddings) {
-    content = newContent;
-    embeddings = newEmbeddings;
-    updatedAt = DateTime.now();
-  }
+  String get content => chunks.map((c) => c.content).join('\n\n');
+}
+
+@Entity()
+class DocumentChunk {
+  @Id()
+  int id = 0;
+
+  late String content;
+
+  @Property(type: PropertyType.floatVector)
+  late List<double> embeddings;
+
+  final document = ToOne<Document>();
+
+  DocumentChunk({
+    this.id = 0,
+    required this.content,
+    required this.embeddings,
+  });
 }

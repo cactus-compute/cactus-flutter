@@ -1,9 +1,12 @@
 import 'dart:math';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import 'package:cactus/models/document.dart';
 import 'package:cactus/models/rag.dart';
 import 'package:cactus/objectbox.g.dart';
+
+typedef EmbeddingGenerator = Future<List<double>> Function(String text);
 
 class CactusRAG {
   static final CactusRAG _instance = CactusRAG._internal();
@@ -12,6 +15,13 @@ class CactusRAG {
 
   Store? _store;
   Box<Document>? _documentBox;
+  Box<DocumentChunk>? _chunkBox;
+  EmbeddingGenerator? _embeddingGenerator;
+  int _chunkSize = 512;
+  int _chunkOverlap = 64;
+
+  int get chunkSize => _chunkSize;
+  int get chunkOverlap => _chunkOverlap;
 
   Store get store {
     if (_store == null) {
@@ -27,48 +37,147 @@ class CactusRAG {
     return _documentBox!;
   }
 
+  Box<DocumentChunk> get chunkBox {
+    if (_chunkBox == null) {
+      throw Exception('CactusRAG not initialized. Call initialize() first.');
+    }
+    return _chunkBox!;
+  }
+
+  void setEmbeddingGenerator(EmbeddingGenerator generator) {
+    _embeddingGenerator = generator;
+  }
+
+  void setChunking({required int chunkSize, required int chunkOverlap}) {
+    _validateChunkingParams(chunkSize, chunkOverlap);
+    _chunkSize = chunkSize;
+    _chunkOverlap = chunkOverlap;
+  }
+
   Future<void> initialize() async {
     if (_store != null) return;
 
     final docsDir = await getApplicationDocumentsDirectory();
     _store = Store(getObjectBoxModel(), directory: p.join(docsDir.path, 'objectbox'));
     _documentBox = Box<Document>(_store!);
+    _chunkBox = Box<DocumentChunk>(_store!);
   }
 
   Future<void> close() async {
     _store?.close();
     _store = null;
     _documentBox = null;
+    _chunkBox = null;
+  }
+
+  @visibleForTesting
+  List<String> chunkContent(
+    String content, {
+    int? chunkSize,
+    int? chunkOverlap,
+  }) {
+    final resolvedChunkSize = chunkSize ?? _chunkSize;
+    final resolvedChunkOverlap = chunkOverlap ?? _chunkOverlap;
+    return _chunkContent(
+      content,
+      chunkSize: resolvedChunkSize,
+      chunkOverlap: resolvedChunkOverlap,
+    );
+  }
+
+  List<String> _chunkContent(String content, {required int chunkSize, required int chunkOverlap}) {
+    _validateChunkingParams(chunkSize, chunkOverlap);
+
+    if (content.isEmpty) return const [];
+
+    final step = chunkSize - chunkOverlap;
+    final chunks = <String>[];
+
+    for (var i = 0; i < content.length; i += step) {
+      final end = min(i + chunkSize, content.length);
+      chunks.add(content.substring(i, end));
+      if (end >= content.length) {
+        break;
+      }
+    }
+    return chunks;
+  }
+
+  void _validateChunkingParams(int chunkSize, int chunkOverlap) {
+    if (chunkSize <= 0) {
+      throw ArgumentError.value(chunkSize, 'chunkSize', 'chunkSize must be greater than 0.');
+    }
+    if (chunkOverlap < 0) {
+      throw ArgumentError.value(chunkOverlap, 'chunkOverlap', 'chunkOverlap cannot be negative.');
+    }
+    if (chunkOverlap >= chunkSize) {
+      throw ArgumentError(
+        'chunkOverlap ($chunkOverlap) must be smaller than chunkSize ($chunkSize).',
+      );
+    }
   }
 
   Future<Document> storeDocument({
     required String fileName,
     required String filePath,
     required String content,
-    required List<double> embeddings,
     int? fileSize,
     String? fileHash,
   }) async {
+    if (_embeddingGenerator == null) {
+      throw Exception('Embedding generator not set. Call setEmbeddingGenerator() first.');
+    }
+
     final existingDoc = await getDocumentByFileName(fileName);
-    
+
     if (existingDoc != null) {
-      existingDoc.updateContent(content, embeddings);
+      // Delete old chunks
+      for (var chunk in existingDoc.chunks) {
+        chunkBox.remove(chunk.id);
+      }
+      existingDoc.chunks.clear();
+      
+      // Create and store new chunks
+      final chunks = _chunkContent(
+        content,
+        chunkSize: _chunkSize,
+        chunkOverlap: _chunkOverlap,
+      );
+      for (final chunkContent in chunks) {
+        final embedding = await _embeddingGenerator!(chunkContent);
+        final chunk = DocumentChunk(content: chunkContent, embeddings: embedding);
+        chunk.document.target = existingDoc;
+        existingDoc.chunks.add(chunk);
+      }
+      
       existingDoc.filePath = filePath;
       existingDoc.fileSize = fileSize;
       existingDoc.fileHash = fileHash;
+      existingDoc.updatedAt = DateTime.now();
       await updateDocument(existingDoc);
       return existingDoc;
     } else {
       final document = Document(
         fileName: fileName,
         filePath: filePath,
-        content: content,
-        embeddings: embeddings,
         fileSize: fileSize,
         fileHash: fileHash,
       );
       
+      final chunks = _chunkContent(
+        content,
+        chunkSize: _chunkSize,
+        chunkOverlap: _chunkOverlap,
+      );
+      for (final chunkContent in chunks) {
+        final embedding = await _embeddingGenerator!(chunkContent);
+        final chunk = DocumentChunk(content: chunkContent, embeddings: embedding);
+        chunk.document.target = document;
+        document.chunks.add(chunk);
+      }
+      
       document.id = documentBox.put(document);
+      document.chunks.applyToDb();
       return document;
     }
   }
@@ -86,39 +195,53 @@ class CactusRAG {
 
   Future<void> updateDocument(Document document) async {
     documentBox.put(document);
+    document.chunks.applyToDb();
   }
 
   Future<void> deleteDocument(int id) async {
-    documentBox.remove(id);
+    final doc = documentBox.get(id);
+    if (doc != null) {
+      // Remove associated chunks
+      chunkBox.removeMany(doc.chunks.map((c) => c.id).toList());
+      documentBox.remove(id);
+    }
   }
 
-  Future<List<Document>> searchDocuments(String query) async {
-    final allDocs = await getAllDocuments();
-    return allDocs.where((doc) => 
-      doc.content.toLowerCase().contains(query.toLowerCase()) ||
-      doc.fileName.toLowerCase().contains(query.toLowerCase())
-    ).toList();
-  }
-
-  Future<List<DocumentSearchResult>> searchBySimilarity(
-    List<double> queryEmbedding, {
+  Future<List<ChunkSearchResult>> search({
+    List<double>? queryEmbedding,
     int limit = 10,
     double threshold = 0.5,
   }) async {
-    final allDocs = await getAllDocuments();
-    final results = <DocumentSearchResult>[];
+    if (queryEmbedding == null) {
+      throw ArgumentError('queryEmbedding must be provided.');
+    }
 
-    for (final doc in allDocs) {
-      if (doc.embeddings.isNotEmpty) {
-        final similarity = _cosineSimilarity(queryEmbedding, doc.embeddings);
+    final chunkResults = <_ChunkResult>[];
+
+    final allChunks = chunkBox.getAll();
+    for (final chunk in allChunks) {
+      if (chunk.embeddings.isNotEmpty) {
+        final similarity = _cosineSimilarity(queryEmbedding, chunk.embeddings);
         if (similarity >= threshold) {
-          results.add(DocumentSearchResult(document: doc, similarity: similarity));
+          chunkResults.add(_ChunkResult(chunk: chunk, similarity: similarity));
         }
       }
     }
 
-    results.sort((a, b) => b.similarity.compareTo(a.similarity));
-    return results.take(limit).toList();
+    final uniqueChunkIds = <int>{};
+    final uniqueChunkResults = <_ChunkResult>[];
+    for (final result in chunkResults) {
+      if (uniqueChunkIds.add(result.chunk.id)) {
+        uniqueChunkResults.add(result);
+      }
+    }
+
+    uniqueChunkResults.sort((a, b) => b.similarity.compareTo(a.similarity));
+
+    return uniqueChunkResults
+        .take(limit)
+        .map((r) => ChunkSearchResult(chunk: r.chunk, similarity: r.similarity))
+        .toList();
   }
 
   double _cosineSimilarity(List<double> a, List<double> b) {
@@ -140,15 +263,29 @@ class CactusRAG {
   }
 
   Future<DatabaseStats> getStats() async {
-    final docs = await getAllDocuments();
-    final totalDocs = docs.length;
-    final totalContentLength = docs.fold<int>(0, (sum, doc) => sum + doc.content.length);
-    final docsWithEmbeddings = docs.where((doc) => doc.embeddings.isNotEmpty).length;
+    final totalDocs = documentBox.count();
+    final totalChunks = chunkBox.count();
+    // This is an approximation of content length
+    final allDocs = documentBox.getAll();
+    final totalContentLength = allDocs.fold<int>(0, (sum, doc) => sum + doc.content.length);
 
     return DatabaseStats(
       totalDocuments: totalDocs,
-      documentsWithEmbeddings: docsWithEmbeddings,
+      documentsWithEmbeddings: totalChunks, // Represents chunks with embeddings
       totalContentLength: totalContentLength,
     );
   }
+}
+
+class ChunkSearchResult {
+  final DocumentChunk chunk;
+  final double similarity;
+
+  ChunkSearchResult({required this.chunk, required this.similarity});
+}
+
+class _ChunkResult {
+  final DocumentChunk chunk;
+  final double similarity;
+  _ChunkResult({required this.chunk, required this.similarity});
 }

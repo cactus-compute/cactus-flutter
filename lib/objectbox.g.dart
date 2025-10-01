@@ -45,12 +45,6 @@ final _entities = <obx_int.ModelEntity>[
         flags: 0,
       ),
       obx_int.ModelProperty(
-        id: const obx_int.IdUid(4, 2060455086661458674),
-        name: 'content',
-        type: 9,
-        flags: 0,
-      ),
-      obx_int.ModelProperty(
         id: const obx_int.IdUid(5, 2579987763103309886),
         name: 'createdAt',
         type: 10,
@@ -60,12 +54,6 @@ final _entities = <obx_int.ModelEntity>[
         id: const obx_int.IdUid(6, 1011647373439572967),
         name: 'updatedAt',
         type: 10,
-        flags: 0,
-      ),
-      obx_int.ModelProperty(
-        id: const obx_int.IdUid(7, 9025783653115450628),
-        name: 'embeddings',
-        type: 29,
         flags: 0,
       ),
       obx_int.ModelProperty(
@@ -79,6 +67,48 @@ final _entities = <obx_int.ModelEntity>[
         name: 'fileHash',
         type: 9,
         flags: 0,
+      ),
+    ],
+    relations: <obx_int.ModelRelation>[],
+    backlinks: <obx_int.ModelBacklink>[
+      obx_int.ModelBacklink(
+        name: 'chunks',
+        srcEntity: 'DocumentChunk',
+        srcField: 'document',
+      ),
+    ],
+  ),
+  obx_int.ModelEntity(
+    id: const obx_int.IdUid(2, 1869689020035618977),
+    name: 'DocumentChunk',
+    lastPropertyId: const obx_int.IdUid(4, 5492377325267950209),
+    flags: 0,
+    properties: <obx_int.ModelProperty>[
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(1, 3901882556369035002),
+        name: 'id',
+        type: 6,
+        flags: 1,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(2, 1512277182732157353),
+        name: 'content',
+        type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(3, 21625958946132624),
+        name: 'embeddings',
+        type: 28,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(4, 5492377325267950209),
+        name: 'documentId',
+        type: 11,
+        flags: 520,
+        indexId: const obx_int.IdUid(2, 5798898100612670106),
+        relationTarget: 'Document',
       ),
     ],
     relations: <obx_int.ModelRelation>[],
@@ -124,13 +154,13 @@ Future<obx.Store> openStore({
 obx_int.ModelDefinition getObjectBoxModel() {
   final model = obx_int.ModelInfo(
     entities: _entities,
-    lastEntityId: const obx_int.IdUid(1, 5273870627078451261),
-    lastIndexId: const obx_int.IdUid(1, 5336859569332830322),
+    lastEntityId: const obx_int.IdUid(2, 1869689020035618977),
+    lastIndexId: const obx_int.IdUid(2, 5798898100612670106),
     lastRelationId: const obx_int.IdUid(0, 0),
     lastSequenceId: const obx_int.IdUid(0, 0),
     retiredEntityUids: const [],
     retiredIndexUids: const [],
-    retiredPropertyUids: const [],
+    retiredPropertyUids: const [2060455086661458674, 9025783653115450628],
     retiredRelationUids: const [],
     modelVersion: 5,
     modelVersionParserMinimum: 5,
@@ -141,7 +171,13 @@ obx_int.ModelDefinition getObjectBoxModel() {
     Document: obx_int.EntityDefinition<Document>(
       model: _entities[0],
       toOneRelations: (Document object) => [],
-      toManyRelations: (Document object) => {},
+      toManyRelations: (Document object) => {
+        obx_int.RelInfo<DocumentChunk>.toOneBacklink(
+          4,
+          object.id,
+          (DocumentChunk srcObject) => srcObject.document,
+        ): object.chunks,
+      },
       getId: (Document object) => object.id,
       setId: (Document object, int id) {
         object.id = id;
@@ -149,8 +185,6 @@ obx_int.ModelDefinition getObjectBoxModel() {
       objectToFB: (Document object, fb.Builder fbb) {
         final fileNameOffset = fbb.writeString(object.fileName);
         final filePathOffset = fbb.writeString(object.filePath);
-        final contentOffset = fbb.writeString(object.content);
-        final embeddingsOffset = fbb.writeListFloat64(object.embeddings);
         final fileHashOffset = object.fileHash == null
             ? null
             : fbb.writeString(object.fileHash!);
@@ -158,10 +192,8 @@ obx_int.ModelDefinition getObjectBoxModel() {
         fbb.addInt64(0, object.id);
         fbb.addOffset(1, fileNameOffset);
         fbb.addOffset(2, filePathOffset);
-        fbb.addOffset(3, contentOffset);
         fbb.addInt64(4, object.createdAt.millisecondsSinceEpoch);
         fbb.addInt64(5, object.updatedAt.millisecondsSinceEpoch);
-        fbb.addOffset(6, embeddingsOffset);
         fbb.addInt64(7, object.fileSize);
         fbb.addOffset(8, fileHashOffset);
         fbb.finish(fbb.endTable());
@@ -182,13 +214,6 @@ obx_int.ModelDefinition getObjectBoxModel() {
         final filePathParam = const fb.StringReader(
           asciiOptimization: true,
         ).vTableGet(buffer, rootOffset, 8, '');
-        final contentParam = const fb.StringReader(
-          asciiOptimization: true,
-        ).vTableGet(buffer, rootOffset, 10, '');
-        final embeddingsParam = const fb.ListReader<double>(
-          fb.Float64Reader(),
-          lazy: false,
-        ).vTableGet(buffer, rootOffset, 16, []);
         final createdAtParam = DateTime.fromMillisecondsSinceEpoch(
           const fb.Int64Reader().vTableGet(buffer, rootOffset, 12, 0),
         );
@@ -207,14 +232,70 @@ obx_int.ModelDefinition getObjectBoxModel() {
           id: idParam,
           fileName: fileNameParam,
           filePath: filePathParam,
-          content: contentParam,
-          embeddings: embeddingsParam,
           createdAt: createdAtParam,
           updatedAt: updatedAtParam,
           fileSize: fileSizeParam,
           fileHash: fileHashParam,
         );
-
+        obx_int.InternalToManyAccess.setRelInfo<Document>(
+          object.chunks,
+          store,
+          obx_int.RelInfo<DocumentChunk>.toOneBacklink(
+            4,
+            object.id,
+            (DocumentChunk srcObject) => srcObject.document,
+          ),
+        );
+        return object;
+      },
+    ),
+    DocumentChunk: obx_int.EntityDefinition<DocumentChunk>(
+      model: _entities[1],
+      toOneRelations: (DocumentChunk object) => [object.document],
+      toManyRelations: (DocumentChunk object) => {},
+      getId: (DocumentChunk object) => object.id,
+      setId: (DocumentChunk object, int id) {
+        object.id = id;
+      },
+      objectToFB: (DocumentChunk object, fb.Builder fbb) {
+        final contentOffset = fbb.writeString(object.content);
+        final embeddingsOffset = fbb.writeListFloat32(object.embeddings);
+        fbb.startTable(5);
+        fbb.addInt64(0, object.id);
+        fbb.addOffset(1, contentOffset);
+        fbb.addOffset(2, embeddingsOffset);
+        fbb.addInt64(3, object.document.targetId);
+        fbb.finish(fbb.endTable());
+        return object.id;
+      },
+      objectFromFB: (obx.Store store, ByteData fbData) {
+        final buffer = fb.BufferContext(fbData);
+        final rootOffset = buffer.derefObject(0);
+        final idParam = const fb.Int64Reader().vTableGet(
+          buffer,
+          rootOffset,
+          4,
+          0,
+        );
+        final contentParam = const fb.StringReader(
+          asciiOptimization: true,
+        ).vTableGet(buffer, rootOffset, 6, '');
+        final embeddingsParam = const fb.ListReader<double>(
+          fb.Float32Reader(),
+          lazy: false,
+        ).vTableGet(buffer, rootOffset, 8, []);
+        final object = DocumentChunk(
+          id: idParam,
+          content: contentParam,
+          embeddings: embeddingsParam,
+        );
+        object.document.targetId = const fb.Int64Reader().vTableGet(
+          buffer,
+          rootOffset,
+          10,
+          0,
+        );
+        object.document.attach(store);
         return object;
       },
     ),
@@ -240,33 +321,51 @@ class Document_ {
     _entities[0].properties[2],
   );
 
-  /// See [Document.content].
-  static final content = obx.QueryStringProperty<Document>(
-    _entities[0].properties[3],
-  );
-
   /// See [Document.createdAt].
   static final createdAt = obx.QueryDateProperty<Document>(
-    _entities[0].properties[4],
+    _entities[0].properties[3],
   );
 
   /// See [Document.updatedAt].
   static final updatedAt = obx.QueryDateProperty<Document>(
-    _entities[0].properties[5],
-  );
-
-  /// See [Document.embeddings].
-  static final embeddings = obx.QueryDoubleVectorProperty<Document>(
-    _entities[0].properties[6],
+    _entities[0].properties[4],
   );
 
   /// See [Document.fileSize].
   static final fileSize = obx.QueryIntegerProperty<Document>(
-    _entities[0].properties[7],
+    _entities[0].properties[5],
   );
 
   /// See [Document.fileHash].
   static final fileHash = obx.QueryStringProperty<Document>(
-    _entities[0].properties[8],
+    _entities[0].properties[6],
+  );
+
+  /// see [Document.chunks]
+  static final chunks = obx.QueryBacklinkToMany<DocumentChunk, Document>(
+    DocumentChunk_.document,
+  );
+}
+
+/// [DocumentChunk] entity fields to define ObjectBox queries.
+class DocumentChunk_ {
+  /// See [DocumentChunk.id].
+  static final id = obx.QueryIntegerProperty<DocumentChunk>(
+    _entities[1].properties[0],
+  );
+
+  /// See [DocumentChunk.content].
+  static final content = obx.QueryStringProperty<DocumentChunk>(
+    _entities[1].properties[1],
+  );
+
+  /// See [DocumentChunk.embeddings].
+  static final embeddings = obx.QueryDoubleVectorProperty<DocumentChunk>(
+    _entities[1].properties[2],
+  );
+
+  /// See [DocumentChunk.document].
+  static final document = obx.QueryRelationToOne<DocumentChunk, Document>(
+    _entities[1].properties[3],
   );
 }
