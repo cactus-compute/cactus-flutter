@@ -274,7 +274,13 @@ Future<void> embeddingExample() async {
 
 ## Retrieval-Augmented Generation (RAG)
 
-The `CactusRAG` class provides a local vector database for storing, managing, and searching documents. It uses [ObjectBox](https://objectbox.io/) for efficient on-device storage and retrieval, making it ideal for building RAG applications that run entirely locally.
+The `CactusRAG` class provides a local vector database for storing, managing, and searching documents with automatic text chunking. It uses [ObjectBox](https://objectbox.io/) for efficient on-device storage and retrieval, making it ideal for building RAG applications that run entirely locally.
+
+**Key Features:**
+- **Automatic Text Chunking**: Documents are automatically split into configurable chunks with overlap for better context preservation
+- **Embedding Generation**: Integrates with `CactusLM` to automatically generate embeddings for each chunk
+- **Vector Search**: Performs cosine similarity search across document chunks
+- **Document Management**: Supports create, read, update, and delete operations with automatic chunk handling
 
 ### Basic Usage
 ```dart
@@ -290,42 +296,48 @@ Future<void> ragExample() async {
     await lm.initializeModel();
     await rag.initialize();
 
-    // 2. Create a document and generate embeddings
-    final docContent = "The Eiffel Tower is a wrought-iron lattice tower on the Champ de Mars in Paris, France.";
-    final embeddingResult = await lm.generateEmbedding(text: docContent);
+    // 2. Set up the embedding generator (uses the LM to generate embeddings)
+    rag.setEmbeddingGenerator((text) async {
+      final result = await lm.generateEmbedding(text: text);
+      return result?.embeddings ?? [];
+    });
 
-    if (embeddingResult?.success ?? false) {
-      // 3. Store the document in the local vector DB
-      await rag.storeDocument(
-        fileName: "eiffel_tower.txt",
-        filePath: "/path/to/eiffel_tower.txt",
-        content: docContent,
-        embeddings: embeddingResult!.embeddings,
-      );
-      print("Document stored successfully.");
-    }
+    // 3. Configure chunking parameters (optional - defaults: chunkSize=512, chunkOverlap=64)
+    rag.setChunking(chunkSize: 1024, chunkOverlap: 128);
 
-    // 4. Create a query and generate embeddings
+    // 4. Store a document (automatically chunks and generates embeddings)
+    final docContent = "The Eiffel Tower is a wrought-iron lattice tower on the Champ de Mars in Paris, France. It was constructed from 1887 to 1889 as the entrance arch to the 1889 World's Fair. The tower is 330 metres tall, about the same height as an 81-storey building.";
+    
+    final document = await rag.storeDocument(
+      fileName: "eiffel_tower.txt",
+      filePath: "/path/to/eiffel_tower.txt",
+      content: docContent,
+      fileSize: docContent.length,
+      fileHash: "abc123", // Optional file hash for versioning
+    );
+    print("Document stored with ${document.chunks.length} chunks.");
+
+    // 5. Search for similar content using query embeddings
     final queryText = "What is the famous landmark in Paris?";
-    final queryEmbeddingResult = await lm.generateEmbedding(text: queryText);
-
-    if (queryEmbeddingResult?.success ?? false) {
-      // 5. Search for similar documents
-      final searchResults = await rag.searchBySimilarity(
-        queryEmbeddingResult!.embeddings,
+    final queryEmbedding = await lm.generateEmbedding(text: queryText);
+    
+    if (queryEmbedding?.success ?? false) {
+      final searchResults = await rag.search(
+        queryEmbedding: queryEmbedding!.embeddings,
         limit: 5,
+        threshold: 0.5,
       );
 
-      print("\nFound ${searchResults.length} similar documents:");
+      print("\nFound ${searchResults.length} similar chunks:");
       for (final result in searchResults) {
-        print("- ${result.document.fileName} (Similarity: ${result.similarity.toStringAsFixed(2)})");
-        print("  Content: ${result.document.content.substring(0, 50)}...");
+        print("- Chunk from ${result.chunk.document.target?.fileName} (Similarity: ${result.similarity.toStringAsFixed(2)})");
+        print("  Content: ${result.chunk.content.substring(0, 50)}...");
       }
     }
   } finally {
     // 6. Clean up
     lm.unload();
-    rag.close();
+    await rag.close();
   }
 }
 ```
@@ -333,19 +345,27 @@ Future<void> ragExample() async {
 ### RAG API Reference
 
 #### CactusRAG Class
-- `Future<void> initialize()` - Initialize the local ObjectBox database.
-- `Future<void> close()` - Close the database connection.
-- `Future<Document> storeDocument({required String fileName, required String filePath, required String content, required List<double> embeddings, ...})` - Store a document with its content and embeddings.
-- `Future<Document?> getDocumentByFileName(String fileName)` - Retrieve a document by its file name.
-- `Future<List<Document>> getAllDocuments()` - Get all stored documents.
-- `Future<void> deleteDocument(int id)` - Delete a document by its ID.
-- `Future<List<DocumentSearchResult>> searchBySimilarity(List<double> queryEmbedding, {int limit = 10, double threshold = 0.5})` - Search for documents by vector similarity.
-- `Future<DatabaseStats> getStats()` - Get statistics about the database.
+- `Future<void> initialize()` - Initialize the local ObjectBox database
+- `Future<void> close()` - Close the database connection
+- `void setEmbeddingGenerator(EmbeddingGenerator generator)` - Set the function used to generate embeddings for text chunks
+- `void setChunking({required int chunkSize, required int chunkOverlap})` - Configure text chunking parameters (defaults: chunkSize=512, chunkOverlap=64)
+- `int get chunkSize` - Get current chunk size setting
+- `int get chunkOverlap` - Get current chunk overlap setting
+- `List<String> chunkContent(String content, {int? chunkSize, int? chunkOverlap})` - Manually chunk text content (visible for testing)
+- `Future<Document> storeDocument({required String fileName, required String filePath, required String content, int? fileSize, String? fileHash})` - Store a document with automatic chunking and embedding generation
+- `Future<Document?> getDocumentByFileName(String fileName)` - Retrieve a document by its file name
+- `Future<List<Document>> getAllDocuments()` - Get all stored documents
+- `Future<void> updateDocument(Document document)` - Update an existing document and its chunks
+- `Future<void> deleteDocument(int id)` - Delete a document and all its chunks by ID
+- `Future<List<ChunkSearchResult>> search({List<double>? queryEmbedding, int limit = 10, double threshold = 0.5})` - Search for document chunks by vector similarity
+- `Future<DatabaseStats> getStats()` - Get statistics about the database
 
 #### RAG Data Classes
-- `Document` - Represents a stored document with its content, metadata, and embeddings.
-- `DocumentSearchResult({required Document document, required double similarity})` - Contains a document and its similarity score from a search result.
-- `DatabaseStats` - Contains statistics about the document store.
+- `Document` - Represents a stored document with its metadata and associated chunks
+- `DocumentChunk` - Represents a text chunk with its content and embeddings
+- `ChunkSearchResult({required DocumentChunk chunk, required double similarity})` - Contains a document chunk and its similarity score from a search result
+- `DatabaseStats` - Contains statistics about the document store including total documents, chunks, and content length
+- `EmbeddingGenerator = Future<List<double>> Function(String text)` - Function type for generating embeddings from text
 
 ## Platform-Specific Setup
 
