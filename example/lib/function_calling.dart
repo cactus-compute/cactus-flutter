@@ -167,7 +167,30 @@ class _FunctionCallingPageState extends State<FunctionCallingPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-                        // Buttons section
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "Function Calling Demo",
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      "This example demonstrates how the AI model can call structured functions. We'll ask about weather and see if the model generates a proper function call.",
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            
+            // Buttons section
             ElevatedButton(
               onPressed: isDownloading ? null : downloadModel,
               style: ElevatedButton.styleFrom(
