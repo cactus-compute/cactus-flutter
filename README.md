@@ -2,7 +2,7 @@
 
 ![Cactus Logo](https://github.com/cactus-compute/cactus-flutter/blob/main/assets/logo.png)
 
-Official Flutter plugin for Cactus, a framework for deploying LLM models locally in your app. Requires iOS 12.0+, Android API 24+.
+Official Flutter plugin for Cactus, a framework for deploying LLM models, speech-to-text, and RAG capabilities locally in your app. Requires iOS 12.0+, Android API 24+.
 
 ## Resources
 [![cactus](https://img.shields.io/badge/cactus-000000?logo=github&logoColor=white)](https://github.com/cactus-compute/cactus) [![HuggingFace](https://img.shields.io/badge/HuggingFace-FFD21E?logo=huggingface&logoColor=black)](https://huggingface.co/Cactus-Compute/models?sort=downloads) [![Discord](https://img.shields.io/badge/Discord-5865F2?logo=discord&logoColor=white)](https://discord.gg/bNurx3AXTJ) [![Documentation](https://img.shields.io/badge/Documentation-4285F4?logo=googledocs&logoColor=white)](https://cactuscompute.com/docs)
@@ -272,6 +272,166 @@ Future<void> embeddingExample() async {
 #### Embedding Data Classes
 - `CactusEmbeddingResult({required bool success, required List<double> embeddings, required int dimension, String? errorMessage})` - Contains the generated embedding vector and metadata
 
+## Speech-to-Text (STT)
+
+The `CactusSTT` class provides high-quality local speech recognition capabilities using Vosk models. It supports multiple languages and runs entirely on-device for privacy and offline functionality.
+
+### Basic Usage
+```dart
+import 'package:cactus/cactus.dart';
+
+Future<void> sttExample() async {
+  final stt = CactusSTT();
+
+  try {
+    // Download a voice model with progress callback (default: vosk-en-us)
+    await stt.download(
+      model: "vosk-en-us",
+      downloadProcessCallback: (progress, status, isError) {
+        if (isError) {
+          print("Download error: $status");
+        } else {
+          print("$status ${progress != null ? '(${progress * 100}%)' : ''}");
+        }
+      },
+    );
+    
+    // Initialize the speech recognition model
+    await stt.init(model: "vosk-en-us");
+
+    // Transcribe audio (from microphone or file)
+    final result = await stt.transcribe();
+
+    if (result != null && result.success) {
+      print("Transcribed text: ${result.text}");
+      print("Processing time: ${result.processingTime}ms");
+    }
+  } finally {
+    // Clean up
+    stt.dispose();
+  }
+}
+```
+
+### Transcribing Audio Files
+```dart
+Future<void> fileTranscriptionExample() async {
+  final stt = CactusSTT();
+  
+  await stt.download();
+  await stt.init();
+
+  // Transcribe from an audio file
+  final result = await stt.transcribe(
+    filePath: "/path/to/audio/file.wav"
+  );
+
+  if (result != null && result.success) {
+    print("File transcription: ${result.text}");
+  }
+
+  stt.dispose();
+}
+```
+
+### Custom Speech Recognition Parameters
+```dart
+Future<void> customParametersExample() async {
+  final stt = CactusSTT();
+  
+  await stt.download();
+  await stt.init();
+
+  // Configure custom speech recognition parameters
+  final params = SpeechRecognitionParams(
+    sampleRate: 16000,           // Audio sample rate (Hz)
+    maxDuration: 30000,          // Maximum recording duration (ms)
+    maxSilenceDuration: 3000,    // Max silence before stopping (ms)
+    silenceThreshold: 300.0,     // Silence detection threshold
+  );
+
+  final result = await stt.transcribe(params: params);
+
+  if (result != null && result.success) {
+    print("Custom transcription: ${result.text}");
+  }
+
+  stt.dispose();
+}
+```
+
+### Fetching Available Voice Models
+```dart
+Future<void> fetchVoiceModelsExample() async {
+  final stt = CactusSTT();
+  
+  // Get list of available voice models
+  final models = await stt.getVoiceModels();
+  
+  for (final model in models) {
+    print("Model: ${model.slug}");
+    print("Language: ${model.language}");
+    print("Size: ${model.sizeMb} MB");
+    print("Downloaded: ${model.isDownloaded}");
+    print("---");
+  }
+}
+```
+
+### Real-time Speech Recognition Status
+```dart
+Future<void> realTimeStatusExample() async {
+  final stt = CactusSTT();
+  
+  await stt.download();
+  await stt.init();
+
+  // Start transcription
+  final transcriptionFuture = stt.transcribe();
+  
+  // Check recording status
+  while (stt.isRecording) {
+    print("Currently recording...");
+    await Future.delayed(Duration(milliseconds: 100));
+  }
+  
+  // Stop recording manually if needed
+  stt.stop();
+  
+  final result = await transcriptionFuture;
+  print("Final result: ${result?.text}");
+
+  stt.dispose();
+}
+```
+
+### Default Parameters
+The `CactusSTT` class uses sensible defaults for speech recognition:
+- `model: "vosk-en-us"` - Default English (US) voice model
+- `sampleRate: 16000` - Standard sample rate for speech recognition
+- `maxDuration: 30000` - Maximum 30 seconds recording time
+- `maxSilenceDuration: 2000` - Stop after 2 seconds of silence
+- `silenceThreshold: 500.0` - Sensitivity for silence detection
+
+### STT API Reference
+
+#### CactusSTT Class
+- `Future<bool> download({String model = "vosk-en-us", CactusProgressCallback? downloadProcessCallback})` - Download a voice model with optional progress callback
+- `Future<bool> init({String? model})` - Initialize speech recognition model
+- `Future<SpeechRecognitionResult?> transcribe({SpeechRecognitionParams? params, String? filePath})` - Transcribe speech from microphone or file
+- `void stop()` - Stop current recording session
+- `bool get isRecording` - Check if currently recording
+- `bool isReady()` - Check if model is initialized and ready
+- `Future<List<VoiceModel>> getVoiceModels()` - Fetch available voice models
+- `Future<bool> isModelDownloaded([String? modelName])` - Check if a specific model is downloaded
+- `void dispose()` - Clean up resources and free memory
+
+#### STT Data Classes
+- `SpeechRecognitionParams({int sampleRate = 16000, int maxDuration = 30000, int maxSilenceDuration = 2000, double silenceThreshold = 500.0})` - Speech recognition configuration
+- `SpeechRecognitionResult({required bool success, required String text, double? processingTime})` - Transcription result with timing information
+- `VoiceModel({required String slug, required String language, required String url, required int sizeMb, required String fileName, bool isDownloaded = false})` - Voice model information
+- `CactusProgressCallback = void Function(double? progress, String statusMessage, bool isError)` - Progress callback for model downloads
+
 ## Retrieval-Augmented Generation (RAG)
 
 The `CactusRAG` class provides a local vector database for storing, managing, and searching documents with automatic text chunking. It uses [ObjectBox](https://objectbox.io/) for efficient on-device storage and retrieval, making it ideal for building RAG applications that run entirely locally.
@@ -370,12 +530,25 @@ Add the following permissions to your `android/app/src/main/AndroidManifest.xml`
 ```xml
 <uses-permission android:name="android.permission.INTERNET" />
 <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+<!-- Required for speech-to-text functionality -->
+<uses-permission android:name="android.permission.RECORD_AUDIO" />
+```
+
+### iOS
+Add microphone usage description to your `ios/Runner/Info.plist` for speech-to-text functionality:
+```xml
+<key>NSMicrophoneUsageDescription</key>
+<string>This app needs access to the microphone for speech-to-text transcription.</string>
 ```
 
 ### macOS
-Add the following to your `macos/Runner/DebugProfile.entitlements` and `macos/Runner/Release.entitlements` to allow network access:
+Add the following to your `macos/Runner/DebugProfile.entitlements` and `macos/Runner/Release.entitlements`:
 ```xml
+<!-- Network access for model downloads -->
 <key>com.apple.security.network.client</key>
+<true/>
+<!-- Microphone access for speech-to-text -->
+<key>com.apple.security.device.microphone</key>
 <true/>
 ```
 
@@ -395,7 +568,9 @@ Check out the example app in the `example/` directory for a complete Flutter imp
 - Model discovery and fetching available models
 - Model downloading with real-time progress indicators
 - Text completion with both regular and streaming modes
+- Speech-to-text transcription with voice model management
 - Embedding generation
+- RAG document storage and search
 - Error handling and status management
 - Material Design UI integration
 
