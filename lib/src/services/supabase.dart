@@ -138,4 +138,28 @@ class Supabase {
       return await ModelCache.loadModels();
     }
   }
+
+  static Future<List<VoiceModel>> fetchVoiceModels() async {
+    final client = HttpClient();
+
+    try {
+      final request = await client.getUrl(Uri.parse('$_supabaseUrl/rest/v1/voice_models?select=*'));
+      request.headers.set('apikey', _supabaseKey);
+      request.headers.set('Authorization', 'Bearer $_supabaseKey');
+      request.headers.set('Accept-Profile', 'cactus');
+
+      final response = await request.close();
+      final responseBody = await response.transform(utf8.decoder).join();
+
+      if (response.statusCode == 200) {
+        print(  'Fetched voice models: $responseBody');
+        final List<dynamic> data = json.decode(responseBody);
+        return data.map((json) => VoiceModel.fromJson(json)).toList();
+      } else {
+        throw Exception('Failed to fetch voice models: ${response.statusCode}');
+      }
+    } finally {
+      client.close();
+    }
+  }
 }

@@ -158,3 +158,41 @@ enum CompletionMode {
   local,
   hybrid
 }
+
+class VoiceModel {
+  final DateTime createdAt;
+  final String slug;
+  final String language;
+  final String url;
+  final int sizeMb;
+  final String fileName;
+  bool isDownloaded;
+
+  VoiceModel({
+    required this.createdAt,
+    required this.slug,
+    required this.language,
+    required this.url,
+    required this.sizeMb,
+    required this.fileName,
+    this.isDownloaded = false,
+  });
+
+  factory VoiceModel.fromJson(Map<String, dynamic> json) {
+    return VoiceModel(
+      createdAt: DateTime.parse(json['created_at'] as String),
+      slug: json['slug'] as String,
+      language: json['language'] as String,
+      url: json['url'] as String,
+      sizeMb: _parseIntFromDynamic(json['size_mb']),
+      fileName: json['file_name'] as String,
+      isDownloaded: false,
+    );
+  }
+
+  static int _parseIntFromDynamic(dynamic value) {
+    if (value is int) return value;
+    if (value is String) return int.parse(value);
+    throw FormatException('Cannot parse $value as int');
+  }
+}
