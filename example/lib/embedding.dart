@@ -145,6 +145,29 @@ class _EmbeddingPageState extends State<EmbeddingPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "Text Embedding Demo",
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      "Convert text into numerical vectors (embeddings) that capture semantic meaning. These vectors can be used for similarity search, clustering, and other ML tasks.",
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            
             // Buttons section
             ElevatedButton(
               onPressed: isDownloading ? null : downloadModel,

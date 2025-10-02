@@ -296,6 +296,29 @@ class _RAGPageState extends State<RAGPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "RAG (Retrieval-Augmented Generation) Demo",
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      "This example demonstrates how to store PDF documents, convert them to searchable embeddings, and perform semantic search to find relevant content based on your queries.",
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            
             // Setup buttons
             ElevatedButton(
               onPressed: isDownloading ? null : downloadModel,
