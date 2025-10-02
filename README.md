@@ -16,7 +16,7 @@ dependencies:
   cactus:
     git:
       url: https://github.com/cactus-compute/cactus-flutter.git
-      ref: main
+      ref: stt
 ```
 
 Then run:
