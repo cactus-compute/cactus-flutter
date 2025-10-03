@@ -149,7 +149,7 @@ class VoskTranscriptionProvider implements TranscriptionProviderInterface {
   }
 
   @override
-  bool get isRecording => VoskService.isRecording;
+  bool get isRecording => VoskService.isCurrentlyRecording;
 
   @override
   bool isReady() => _isInitialized;
