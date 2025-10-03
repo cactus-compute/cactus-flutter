@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cactus/cactus.dart';
+import 'package:file_picker/file_picker.dart';
 
 class STTPage extends StatefulWidget {
   const STTPage({super.key});
@@ -17,7 +18,6 @@ class _STTPageState extends State<STTPage> with SingleTickerProviderStateMixin {
   String _selectedModel = "vosk-en-us";
   
   // State variables
-  bool _isModelDownloaded = false;
   bool _isModelLoaded = false;
   bool _isDownloading = false;
   bool _isInitializing = false;
@@ -66,7 +66,6 @@ class _STTPageState extends State<STTPage> with SingleTickerProviderStateMixin {
   }
 
   void _resetState() {
-    _isModelDownloaded = false;
     _isModelLoaded = false;
     _isDownloading = false;
     _isInitializing = false;
@@ -126,16 +125,18 @@ class _STTPageState extends State<STTPage> with SingleTickerProviderStateMixin {
     }
   }
 
-  Future<void> _downloadModel() async {
+  Future<void> _downloadAndInitializeModel() async {
     setState(() {
       _isDownloading = true;
-      _outputText = "Downloading model...";
+      _isInitializing = true;
+      _outputText = "Downloading and initializing model...";
       _downloadProgress = "Starting download...";
       _downloadPercentage = null;
     });
 
     try {
-      final success = await _stt.download(
+      // Download the model
+      final downloadSuccess = await _stt.download(
         model: _selectedModel,
         downloadProcessCallback: (progress, message, isError) {
           setState(() {
@@ -149,23 +150,42 @@ class _STTPageState extends State<STTPage> with SingleTickerProviderStateMixin {
         },
       );
 
+      if (!downloadSuccess) {
+        setState(() {
+          _isDownloading = false;
+          _isInitializing = false;
+          _downloadProgress = "";
+          _downloadPercentage = null;
+          _outputText = "Failed to download model.";
+        });
+        return;
+      }
+
       setState(() {
         _isDownloading = false;
         _downloadProgress = "";
         _downloadPercentage = null;
-        if (success) {
-          _isModelDownloaded = true;
-          _outputText = "Model downloaded successfully! Click 'Initialize Model' to load it.";
+        _outputText = "Model downloaded successfully! Initializing...";
+      });
+
+      // Initialize the model
+      final initSuccess = await _stt.init(model: _selectedModel);
+      setState(() {
+        _isInitializing = false;
+        if (initSuccess) {
+          _isModelLoaded = true;
+          _outputText = "Model downloaded and initialized successfully! Ready to transcribe audio.";
         } else {
-          _outputText = "Failed to download model.";
+          _outputText = "Failed to initialize model.";
         }
       });
     } catch (e) {
       setState(() {
         _isDownloading = false;
+        _isInitializing = false;
         _downloadProgress = "";
         _downloadPercentage = null;
-        _outputText = "Error downloading model: ${e.toString()}";
+        _outputText = "Error: ${e.toString()}";
       });
     }
   }
@@ -183,7 +203,6 @@ class _STTPageState extends State<STTPage> with SingleTickerProviderStateMixin {
         setState(() {
           _isInitializing = false;
           if (success) {
-            _isModelDownloaded = true;
             _isModelLoaded = true;
             _outputText = "Whisper model downloaded and initialized successfully! Ready to transcribe audio.";
           } else {
@@ -223,7 +242,7 @@ class _STTPageState extends State<STTPage> with SingleTickerProviderStateMixin {
     }
   }
 
-  Future<void> _transcribeAudio() async {
+  Future<void> _transcribeFromMicrophone() async {
     if (!_isModelLoaded) {
       setState(() {
         _outputText = _currentProvider == TranscriptionProvider.whisper 
@@ -275,42 +294,57 @@ class _STTPageState extends State<STTPage> with SingleTickerProviderStateMixin {
   }
 
   Future<void> _transcribeFromFile() async {
-    if (!_isModelLoaded || _currentProvider != TranscriptionProvider.whisper) {
+    if (!_isModelLoaded) {
       setState(() {
-        _outputText = "File transcription is only available for Whisper. Please initialize the Whisper model first.";
+        _outputText = _currentProvider == TranscriptionProvider.whisper 
+            ? "Please initialize the model first."
+            : "Please download and initialize model first.";
       });
       return;
     }
 
-    // In a real app, you would use file_picker package to select an audio file
-    const String audioFilePath = "/data/user/0/com.cactus.example/app_flutter/sample.wav"; // User should provide this
-    
     try {
-      setState(() {
-        _isTranscribing = true;
-        _outputText = "Transcribing audio file...";
-      });
-
-      final params = SpeechRecognitionParams(
-        sampleRate: 16000,
+      // Use file picker to select .wav files
+      FilePickerResult? result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['wav'],
+        dialogTitle: 'Select a .wav audio file',
       );
 
-      // Start transcription from file
-      final result = await _stt.transcribe(
-        params: params,
-        filePath: audioFilePath,
-      );
-      
-      setState(() {
-        _isTranscribing = false;
-        if (result != null && result.success) {
-          _lastResponse = result;
-          _outputText = "File transcription completed successfully!";
-        } else {
-          _outputText = result?.text ?? "Failed to transcribe audio file.";
-          _lastResponse = null;
-        }
-      });
+      if (result != null && result.files.single.path != null) {
+        final String audioFilePath = result.files.single.path!;
+        
+        setState(() {
+          _isTranscribing = true;
+          _outputText = "Transcribing audio file: ${result.files.single.name}";
+        });
+
+        final params = SpeechRecognitionParams(
+          sampleRate: 16000,
+        );
+
+        // Start transcription from file
+        final transcriptionResult = await _stt.transcribe(
+          params: params,
+          filePath: audioFilePath,
+        );
+        
+        setState(() {
+          _isTranscribing = false;
+          if (transcriptionResult != null && transcriptionResult.success) {
+            _lastResponse = transcriptionResult;
+            _outputText = "File transcription completed successfully!";
+          } else {
+            _outputText = transcriptionResult?.text ?? "Failed to transcribe audio file.";
+            _lastResponse = null;
+          }
+        });
+      } else {
+        // User cancelled the picker
+        setState(() {
+          _outputText = "File selection cancelled.";
+        });
+      }
     } catch (e) {
       setState(() {
         _isTranscribing = false;
@@ -400,11 +434,11 @@ class _STTPageState extends State<STTPage> with SingleTickerProviderStateMixin {
             
             const SizedBox(height: 16),
             
-            // Buttons section - different for each provider
+                        // Buttons section - different for each provider
             if (_currentProvider == TranscriptionProvider.vosk) ...[
               ElevatedButton(
-                onPressed: _isDownloading ? null : _downloadModel,
-                child: _isDownloading
+                onPressed: (_isDownloading || _isInitializing || _isModelLoaded) ? null : _downloadAndInitializeModel,
+                child: (_isDownloading || _isInitializing)
                     ? Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -419,10 +453,10 @@ class _STTPageState extends State<STTPage> with SingleTickerProviderStateMixin {
                             ),
                           ),
                           const SizedBox(width: 8),
-                          Text(_downloadProgress.isNotEmpty ? _downloadProgress : 'Downloading...'),
+                          Text(_downloadProgress.isNotEmpty ? _downloadProgress : (_isDownloading ? 'Downloading...' : 'Initializing...')),
                         ],
                       )
-                    : Text(_isModelDownloaded ? 'Model Downloaded ✓' : 'Download Model'),
+                    : Text(_isModelLoaded ? 'Model Ready ✓' : 'Download & Initialize Model'),
               ),
               
               // Show linear progress indicator during download
@@ -435,30 +469,6 @@ class _STTPageState extends State<STTPage> with SingleTickerProviderStateMixin {
                     backgroundColor: Colors.grey.shade300,
                   ),
                 ),
-              
-              const SizedBox(height: 8),
-              
-              ElevatedButton(
-                onPressed: (_isInitializing || _isDownloading) ? null : _initializeModel,
-                child: _isInitializing
-                    ? Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
-                              backgroundColor: Colors.grey.shade300,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          const Text('Initializing...'),
-                        ],
-                      )
-                    : Text(_isModelLoaded ? 'Model Initialized ✓' : 'Initialize Model'),
-              ),
             ] else ...[
               // Whisper buttons
               ElevatedButton(
@@ -486,40 +496,45 @@ class _STTPageState extends State<STTPage> with SingleTickerProviderStateMixin {
             
             const SizedBox(height: 8),
             
-            ElevatedButton(
-              onPressed: (_isDownloading || _isInitializing || !_isModelLoaded || _isLoadingModels) 
-                  ? null 
-                  : (_isTranscribing ? _stopTranscription : _transcribeAudio),
-              child: _isTranscribing
-                  ? Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
-                            backgroundColor: Colors.grey.shade300,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(_currentProvider == TranscriptionProvider.whisper ? 'Stop Recording' : 'Listening...'),
-                      ],
-                    )
-                  : Text(_currentProvider == TranscriptionProvider.whisper ? 'Transcribe from Microphone' : 'Transcribe Audio'),
+            // Transcription buttons in a row
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: (_isDownloading || _isInitializing || !_isModelLoaded || _isLoadingModels) 
+                        ? null 
+                        : (_isTranscribing ? _stopTranscription : _transcribeFromMicrophone),
+                    child: _isTranscribing
+                        ? Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+                                  backgroundColor: Colors.grey.shade300,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(_currentProvider == TranscriptionProvider.whisper ? 'Stop Recording' : 'Listening...'),
+                            ],
+                          )
+                        : const Text('Microphone'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: (_isInitializing || _isTranscribing || !_isModelLoaded || _isLoadingModels) 
+                        ? null 
+                        : _transcribeFromFile,
+                    child: const Text('File'),
+                  ),
+                ),
+              ],
             ),
-            
-            // Additional button for Whisper file transcription
-            if (_currentProvider == TranscriptionProvider.whisper) ...[
-              const SizedBox(height: 8),
-              ElevatedButton(
-                onPressed: (_isInitializing || _isTranscribing || !_isModelLoaded || _isLoadingModels) 
-                    ? null 
-                    : _transcribeFromFile,
-                child: const Text('Transcribe from File'),
-              ),
-            ],
             
             const SizedBox(height: 16),
             
@@ -546,7 +561,8 @@ class _STTPageState extends State<STTPage> with SingleTickerProviderStateMixin {
                         ),
                         const SizedBox(height: 8),
                         Expanded(
-                          child: Card(
+                          child: Container(
+                            width: double.infinity,
                             color: Colors.grey.shade100,
                             child: Padding(
                               padding: const EdgeInsets.all(12.0),
