@@ -9,7 +9,7 @@ import 'package:cactus/models/types.dart';
 import 'package:record/record.dart';
 import 'package:permission_handler/permission_handler.dart';
 
-class SpeechRecognitionService {
+class VoskService {
   static VoskModel? _model;
   static VoskSpkModel? _spkModel;
   static bool _isInitialized = false;
