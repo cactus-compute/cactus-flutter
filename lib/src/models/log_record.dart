@@ -14,6 +14,7 @@ class LogRecord {
   final bool? success;
   final String? message;
   final String? telemetryToken;
+  final int? audioDuration;
 
   LogRecord({
     required this.eventType,
@@ -26,7 +27,8 @@ class LogRecord {
     this.tokens,
     this.success,
     this.message,
-    this.telemetryToken
+    this.telemetryToken,
+    this.audioDuration
   });
 
   Map<String, dynamic> toJson() {
@@ -43,7 +45,8 @@ class LogRecord {
       'framework_version': frameworkVersion,
       'success': success,
       'message': message,
-      'telemetry_token': telemetryToken
+      'telemetry_token': telemetryToken,
+      'audio_duration': audioDuration
     };
   }
   
@@ -59,6 +62,7 @@ class LogRecord {
       tokens: json['tokens'] as int?,
       success: json['success'] as bool?,
       message: json['message'] as String?,
+      audioDuration: json['audio_duration'] as int?
     );
   }
 }

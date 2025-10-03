@@ -286,7 +286,7 @@ class _RAGPageState extends State<RAGPage> {
       backgroundColor: Colors.white,
       resizeToAvoidBottomInset: true,
       appBar: AppBar(
-        title: const Text('RAG Example'),
+        title: const Text('RAG'),
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         elevation: 1,

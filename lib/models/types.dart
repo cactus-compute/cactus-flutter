@@ -158,3 +158,80 @@ enum CompletionMode {
   local,
   hybrid
 }
+
+enum TranscriptionProvider {
+  vosk,
+  whisper
+}
+
+class VoiceModel {
+  final DateTime createdAt;
+  final String slug;
+  final String language;
+  final String url;
+  final int sizeMb;
+  final String fileName;
+  bool isDownloaded;
+
+  VoiceModel({
+    required this.createdAt,
+    required this.slug,
+    required this.language,
+    required this.url,
+    required this.sizeMb,
+    required this.fileName,
+    this.isDownloaded = false,
+  });
+
+  factory VoiceModel.fromJson(Map<String, dynamic> json) {
+    return VoiceModel(
+      createdAt: DateTime.parse(json['created_at'] as String),
+      slug: json['slug'] as String,
+      language: json['language'] as String,
+      url: json['url'] as String,
+      sizeMb: _parseIntFromDynamic(json['size_mb']),
+      fileName: json['file_name'] as String,
+      isDownloaded: false,
+    );
+  }
+
+  static int _parseIntFromDynamic(dynamic value) {
+    if (value is int) return value;
+    if (value is String) return int.parse(value);
+    throw FormatException('Cannot parse $value as int');
+  }
+}
+
+class SpeechRecognitionParams {
+  final int sampleRate;
+  final int maxDuration;
+  final int maxSilenceDuration;
+  final double silenceThreshold;
+
+  SpeechRecognitionParams({
+    this.sampleRate = 16000,
+    this.maxDuration = 30000,
+    this.maxSilenceDuration = 2000,
+    this.silenceThreshold = 500.0,
+  });
+}
+
+class SpeechRecognitionResult {
+  final bool success;
+  final String text;
+  final double? processingTime;
+
+  SpeechRecognitionResult({
+    required this.success,
+    required this.text,
+    this.processingTime
+  });
+}
+
+class STTInitParams {
+  final String model;
+
+  STTInitParams({
+    required this.model,
+  });
+}
