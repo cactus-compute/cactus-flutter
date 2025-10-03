@@ -274,19 +274,28 @@ Future<void> embeddingExample() async {
 
 ## Speech-to-Text (STT)
 
-The `CactusSTT` class provides high-quality local speech recognition capabilities using Vosk models. It supports multiple languages and runs entirely on-device for privacy and offline functionality.
+The `CactusSTT` class provides high-quality local speech recognition capabilities with support for multiple transcription providers. It supports multiple languages and runs entirely on-device for privacy and offline functionality.
+
+**Available Providers:**
+- **Vosk**: High-quality, lightweight speech recognition (default)
+- **Whisper**: OpenAI's robust speech recognition model
 
 ### Basic Usage
 ```dart
 import 'package:cactus/cactus.dart';
 
 Future<void> sttExample() async {
+  // Create STT instance with default provider (Vosk)
   final stt = CactusSTT();
+  
+  // Or explicitly choose a provider
+  // final stt = CactusSTT(provider: TranscriptionProvider.vosk);
+  // final stt = CactusSTT(provider: TranscriptionProvider.whisper);
 
   try {
-    // Download a voice model with progress callback (default: vosk-en-us)
+    // Download a voice model with progress callback
+    // Default models: "vosk-en-us" for Vosk, "tiny" for Whisper
     await stt.download(
-      model: "vosk-en-us",
       downloadProcessCallback: (progress, status, isError) {
         if (isError) {
           print("Download error: $status");
@@ -297,7 +306,7 @@ Future<void> sttExample() async {
     );
     
     // Initialize the speech recognition model
-    await stt.init(model: "vosk-en-us");
+    await stt.init();
 
     // Transcribe audio (from microphone or file)
     final result = await stt.transcribe();
@@ -305,11 +314,37 @@ Future<void> sttExample() async {
     if (result != null && result.success) {
       print("Transcribed text: ${result.text}");
       print("Processing time: ${result.processingTime}ms");
+      print("Provider: ${stt.provider}");
     }
   } finally {
     // Clean up
     stt.dispose();
   }
+}
+```
+
+### Choosing Transcription Providers
+```dart
+Future<void> providerComparisonExample() async {
+  // Vosk provider - Fast, lightweight, good for real-time
+  final voskSTT = CactusSTT(provider: TranscriptionProvider.vosk);
+  await voskSTT.download(model: "vosk-en-us");
+  await voskSTT.init(model: "vosk-en-us");
+  
+  // Whisper provider - More accurate, better for complex audio
+  final whisperSTT = CactusSTT(provider: TranscriptionProvider.whisper);
+  await whisperSTT.download(model: "base");
+  await whisperSTT.init(model: "base");
+  
+  // Use the appropriate provider for your use case
+  final result1 = await voskSTT.transcribe();
+  final result2 = await whisperSTT.transcribe();
+  
+  print("Vosk result: ${result1?.text}");
+  print("Whisper result: ${result2?.text}");
+  
+  voskSTT.dispose();
+  whisperSTT.dispose();
 }
 ```
 
@@ -407,7 +442,11 @@ Future<void> realTimeStatusExample() async {
 
 ### Default Parameters
 The `CactusSTT` class uses sensible defaults for speech recognition:
-- `model: "vosk-en-us"` - Default English (US) voice model
+- `provider: TranscriptionProvider.vosk` - Default transcription provider
+- **Vosk provider defaults:**
+  - `model: "vosk-en-us"` - Default English (US) voice model
+- **Whisper provider defaults:**  
+  - `model: "tiny"` - Default lightweight Whisper model
 - `sampleRate: 16000` - Standard sample rate for speech recognition
 - `maxDuration: 30000` - Maximum 30 seconds recording time
 - `maxSilenceDuration: 2000` - Stop after 2 seconds of silence
@@ -416,7 +455,9 @@ The `CactusSTT` class uses sensible defaults for speech recognition:
 ### STT API Reference
 
 #### CactusSTT Class
-- `Future<bool> download({String model = "vosk-en-us", CactusProgressCallback? downloadProcessCallback})` - Download a voice model with optional progress callback
+- `CactusSTT({TranscriptionProvider provider = TranscriptionProvider.vosk})` - Constructor with optional provider selection
+- `TranscriptionProvider get provider` - Get the current transcription provider
+- `Future<bool> download({String model = "", CactusProgressCallback? downloadProcessCallback})` - Download a voice model with optional progress callback (defaults: "vosk-en-us" for Vosk, "tiny" for Whisper)
 - `Future<bool> init({String? model})` - Initialize speech recognition model
 - `Future<SpeechRecognitionResult?> transcribe({SpeechRecognitionParams? params, String? filePath})` - Transcribe speech from microphone or file
 - `void stop()` - Stop current recording session
@@ -427,6 +468,7 @@ The `CactusSTT` class uses sensible defaults for speech recognition:
 - `void dispose()` - Clean up resources and free memory
 
 #### STT Data Classes
+- `TranscriptionProvider` - Enum for choosing transcription provider (`vosk`, `whisper`)
 - `SpeechRecognitionParams({int sampleRate = 16000, int maxDuration = 30000, int maxSilenceDuration = 2000, double silenceThreshold = 500.0})` - Speech recognition configuration
 - `SpeechRecognitionResult({required bool success, required String text, double? processingTime})` - Transcription result with timing information
 - `VoiceModel({required String slug, required String language, required String url, required int sizeMb, required String fileName, bool isDownloaded = false})` - Voice model information
@@ -568,7 +610,8 @@ Check out the example app in the `example/` directory for a complete Flutter imp
 - Model discovery and fetching available models
 - Model downloading with real-time progress indicators
 - Text completion with both regular and streaming modes
-- Speech-to-text transcription with voice model management
+- Speech-to-text transcription with multiple provider support (Vosk and Whisper)
+- Voice model management and provider switching
 - Embedding generation
 - RAG document storage and search
 - Error handling and status management
