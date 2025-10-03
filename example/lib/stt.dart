@@ -333,15 +333,29 @@ class _STTPageState extends State<STTPage> {
                       ),
                       const SizedBox(height: 8),
                       Card(
-                        color: Colors.grey.shade200,
-                        child: Padding(
-                          padding: const EdgeInsets.all(12.0),
-                          child: Text(
-                            _lastResponse?.text ?? '',
-                            style: const TextStyle(fontSize: 16, color: Colors.black),
+                          color: Colors.grey.shade100,
+                          child: Padding(
+                            padding: const EdgeInsets.all(12.0),
+                            child: SingleChildScrollView(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    _lastResponse!.text,
+                                    style: const TextStyle(fontSize: 16, color: Colors.black),
+                                  ),
+                                  if (_lastResponse!.processingTime != null) ...[
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      'Processing time: ${_lastResponse!.processingTime!.toStringAsFixed(0)}ms',
+                                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
                           ),
                         ),
-                      ),
                     ],
                   ],
                 ),
