@@ -41,7 +41,7 @@ class DownloadService {
         false,
       );
 
-      final success = await downloadAndExtractModel(
+      final success = await _downloadAndExtractModel(
         task.url,
         task.filename,
         task.folder,
@@ -59,7 +59,7 @@ class DownloadService {
   }
 
   /// Download and extract a single model/file
-  static Future<bool> downloadAndExtractModel(
+  static Future<bool> _downloadAndExtractModel(
     String url,
     String filename,
     String folder,
