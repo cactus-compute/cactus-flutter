@@ -159,6 +159,11 @@ enum CompletionMode {
   hybrid
 }
 
+enum TranscriptionProvider {
+  vosk,
+  whisper
+}
+
 class VoiceModel {
   final DateTime createdAt;
   final String slug;
