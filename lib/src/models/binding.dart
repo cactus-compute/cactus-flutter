@@ -95,3 +95,55 @@ typedef VoskRecognizerPartialResultDart = Pointer<Utf8> Function(VoskRecognizer 
 
 typedef VoskRecognizerFreeNative = Void Function(VoskRecognizer recognizer);
 typedef VoskRecognizerFreeDart = void Function(VoskRecognizer recognizer);
+
+// Whisper model types
+final class WhisperContextOpaque extends Opaque {}
+typedef WhisperContext = Pointer<WhisperContextOpaque>;
+
+final class WhisperStateOpaque extends Opaque {}
+typedef WhisperState = Pointer<WhisperStateOpaque>;
+
+final class WhisperFullParamsOpaque extends Opaque {}
+typedef WhisperFullParams = Pointer<WhisperFullParamsOpaque>;
+
+// Whisper enums
+abstract class WhisperSamplingStrategy {
+  static const int whisperSamplingGreedy = 0;
+  static const int whisperSamplingBeamSearch = 1;
+}
+
+// Whisper function bindings
+typedef WhisperInitFromFileNative = WhisperContext Function(Pointer<Utf8> pathModel);
+typedef WhisperInitFromFileDart = WhisperContext Function(Pointer<Utf8> pathModel);
+
+typedef WhisperFreeNative = Void Function(WhisperContext ctx);
+typedef WhisperFreeDart = void Function(WhisperContext ctx);
+
+typedef WhisperFreeParamsNative = Void Function(WhisperFullParams params);
+typedef WhisperFreeParamsDart = void Function(WhisperFullParams params);
+
+typedef WhisperFullDefaultParamsByRefNative = WhisperFullParams Function(Int32 strategy);
+typedef WhisperFullDefaultParamsByRefDart = WhisperFullParams Function(int strategy);
+
+typedef WhisperFullNative = Int32 Function(
+    WhisperContext ctx,
+    WhisperFullParams params,
+    Pointer<Float> samples,
+    Int32 nSamples);
+typedef WhisperFullDart = int Function(
+    WhisperContext ctx,
+    WhisperFullParams params,
+    Pointer<Float> samples,
+    int nSamples);
+
+typedef WhisperFullNSegmentsNative = Int32 Function(WhisperContext ctx);
+typedef WhisperFullNSegmentsDart = int Function(WhisperContext ctx);
+
+typedef WhisperFullGetSegmentTextNative = Pointer<Utf8> Function(WhisperContext ctx, Int32 iSegment);
+typedef WhisperFullGetSegmentTextDart = Pointer<Utf8> Function(WhisperContext ctx, int iSegment);
+
+typedef WhisperFullGetSegmentT0Native = Int64 Function(WhisperContext ctx, Int32 iSegment);
+typedef WhisperFullGetSegmentT0Dart = int Function(WhisperContext ctx, int iSegment);
+
+typedef WhisperFullGetSegmentT1Native = Int64 Function(WhisperContext ctx, Int32 iSegment);
+typedef WhisperFullGetSegmentT1Dart = int Function(WhisperContext ctx, int iSegment);

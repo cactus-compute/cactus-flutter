@@ -2,34 +2,57 @@ import 'dart:async';
 
 import 'package:cactus/models/types.dart';
 import 'package:cactus/services/telemetry.dart';
-import 'package:cactus/services/whisper.dart';
+import 'package:cactus/src/services/whisper.dart';
 import 'package:cactus/src/services/cactus_id.dart';
+import 'package:cactus/src/services/download.dart';
 import 'package:cactus/src/services/supabase.dart';
 import 'package:cactus/src/services/transcription_provider.dart';
 import 'package:flutter/foundation.dart';
-import 'package:whisper_flutter_new/download_model.dart';
+import 'package:path_provider/path_provider.dart';
 
 import '../services/telemetry.dart';
 
 class WhisperTranscriptionProvider implements TranscriptionProviderInterface {
   bool _isInitialized = false;
-  String _currentModel = "tiny";
+  String _lastDownloadedModelName = "whisper-tiny";
+  List<VoiceModel> _voiceModels = [];
 
   @override
   Future<bool> download({
-    String model = "tiny",
+    String model = "whisper-tiny", 
     CactusProgressCallback? downloadProcessCallback,
   }) async {
-    // Whisper models are downloaded automatically by whisper_flutter_new
-    // We just store the model name for later use
-    _currentModel = model;
-    return true;
+    if (await isModelDownloaded(model)) {
+      return true;
+    }
+
+    final currentModel = await _getModel(model);
+    if (currentModel == null) {
+      debugPrint("No data found for model: $model");
+      return false;
+    }
+
+    final tasks = <DownloadTask>[];
+    
+    if (!await DownloadService.modelExists(currentModel.slug)) {
+      tasks.add(DownloadTask(
+        url: currentModel.url,
+        filename: "$model.bin",
+        folder: model,
+      ));
+    }
+
+    final success = await DownloadService.downloadAndExtractModels(tasks, downloadProcessCallback);
+    if (success) {
+      _lastDownloadedModelName = model;
+    }
+    return success;
   }
 
   @override
   Future<bool> init({String? model}) async {
     _isInitialized = false;
-    final modelToUse = model ?? _currentModel;
+    final modelToUse = model ?? _lastDownloadedModelName;
     
     try {
       if (!Telemetry.isInitialized) {
@@ -38,26 +61,13 @@ class WhisperTranscriptionProvider implements TranscriptionProviderInterface {
         Telemetry(projectId, deviceId, CactusTelemetry.telemetryToken);
       }
 
-      WhisperModel whisperModel;
-      switch (modelToUse.toLowerCase()) {
-        case 'tiny':
-          whisperModel = WhisperModel.tiny;
-          break;
-        case 'base':
-          whisperModel = WhisperModel.base;
-          break;
-        case 'small':
-          whisperModel = WhisperModel.small;
-          break;
-        case 'medium':
-          whisperModel = WhisperModel.medium;
-          break;
-        default:
-          whisperModel = WhisperModel.tiny;
-      }
+      final appDocDir = await getApplicationDocumentsDirectory();
+      final modelPath = '${appDocDir.path}/models/$modelToUse/$modelToUse.bin';
 
-      _isInitialized = await WhisperService.initialize(model: whisperModel);
-
+      _isInitialized = await WhisperService.initialize(
+        modelPath: modelPath,
+      );
+      
       if (Telemetry.isInitialized) {
         final message = _isInitialized ? "" : "Failed to initialize Whisper model: $modelToUse";
         Telemetry.instance?.logInit(
@@ -68,10 +78,10 @@ class WhisperTranscriptionProvider implements TranscriptionProviderInterface {
       }
 
       if (_isInitialized) {
-        _currentModel = modelToUse;
-        debugPrint('Whisper initialized successfully via WhisperService');
+        _lastDownloadedModelName = modelToUse;
+        debugPrint('Whisper initialized successfully with native implementation');
       } else {
-        debugPrint('Failed to initialize Whisper via WhisperService');
+        debugPrint('Failed to initialize Whisper with native implementation');
       }
     } catch (e) {
       debugPrint("Error initializing Whisper: ${e.toString()}");
@@ -97,7 +107,7 @@ class WhisperTranscriptionProvider implements TranscriptionProviderInterface {
     SpeechRecognitionResult? result;
     String? message;
 
-    if (_isInitialized && WhisperService.isReady) {
+    if (_isInitialized && WhisperService.isServiceReady) {
       try {
         result = await WhisperService.recognize(
           params: transcriptionParams,
@@ -128,7 +138,7 @@ class WhisperTranscriptionProvider implements TranscriptionProviderInterface {
           decodeTokens: 0,
           totalTokens: 0,
         ),
-        CactusInitParams(model: _currentModel),
+        CactusInitParams(model: _lastDownloadedModelName),
         message: message,
         responseTime: DateTime.now().difference(startTime).inMilliseconds.toDouble()
       );
@@ -143,21 +153,26 @@ class WhisperTranscriptionProvider implements TranscriptionProviderInterface {
   }
 
   @override
-  bool get isRecording => WhisperService.isRecording;
+  bool get isRecording => WhisperService.isCurrentlyRecording;
 
   @override
-  bool isReady() => _isInitialized && WhisperService.isReady;
+  bool isReady() => _isInitialized && WhisperService.isServiceReady;
 
   @override
   Future<List<VoiceModel>> getVoiceModels() async {
-    // Fetch Whisper models from Supabase
-    return await Supabase.fetchVoiceModels(provider: 'whisper');
+    if (_voiceModels.isEmpty) {
+      _voiceModels = await Supabase.fetchVoiceModels(provider: 'whisper');
+      for (var model in _voiceModels) {
+        model.isDownloaded = await DownloadService.modelExists(model.slug);
+      }
+    }
+    return _voiceModels;
   }
 
   @override
   Future<bool> isModelDownloaded([String? modelName]) async {
-    // Whisper models are downloaded automatically by the package
-    return true;
+    final modelSlug = modelName ?? _lastDownloadedModelName;
+    return await DownloadService.modelExists(modelSlug);
   }
 
   @override
@@ -166,4 +181,14 @@ class WhisperTranscriptionProvider implements TranscriptionProviderInterface {
     _isInitialized = false;
   }
 
+  Future<VoiceModel?> _getModel(String slug) async {
+    if (_voiceModels.isEmpty) {
+      _voiceModels = await getVoiceModels();
+    }
+    try {
+      return _voiceModels.firstWhere((model) => model.slug == slug);
+    } catch (e) {
+      return null;
+    }
+  }
 }
