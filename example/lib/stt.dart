@@ -22,6 +22,7 @@ class _STTPageState extends State<STTPage> {
   bool _isInitializing = false;
   bool _isTranscribing = false;
   bool _isLoadingModels = false;
+  bool _isUsingDefaultModel = false;
   String _outputText = "Ready to start. Select a model and initialize to begin.";
   SpeechRecognitionResult? _lastResponse;
   String _downloadProgress = "";
@@ -47,6 +48,7 @@ class _STTPageState extends State<STTPage> {
     _isInitializing = false;
     _isTranscribing = false;
     _isLoadingModels = false;
+    _isUsingDefaultModel = false;
     _voiceModels = [];
     _lastResponse = null;
     _downloadProgress = "";
@@ -65,6 +67,7 @@ class _STTPageState extends State<STTPage> {
       setState(() {
         _voiceModels = models;
         _isLoadingModels = false;
+        _isUsingDefaultModel = false;
         if (models.isNotEmpty) {
           if (!models.any((model) => model.slug == _selectedModel)) {
             _selectedModel = models.first.slug;
@@ -75,13 +78,21 @@ class _STTPageState extends State<STTPage> {
         }
       });
     } catch (e) {
+      // Use default model slug on network failure
+      final defaultSlug = _currentProvider == TranscriptionProvider.vosk 
+          ? "vosk-en-us"
+          : "whisper-tiny";
+      
       setState(() {
+        _voiceModels = [];
+        _selectedModel = defaultSlug;
         _isLoadingModels = false;
-        _outputText = "Error loading voice models: $e";
+        _isUsingDefaultModel = true;
+        _outputText = "Network error loading models. Using default model: $defaultSlug";
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading voice models: $e')),
+          SnackBar(content: Text('Network error. Using default model: $defaultSlug')),
         );
       }
     }
@@ -326,6 +337,8 @@ class _STTPageState extends State<STTPage> {
                     const SizedBox(height: 8),
                     if (_isLoadingModels)
                       const Text('Loading models...')
+                    else if (_isUsingDefaultModel)
+                      Text('Using default model: $_selectedModel')
                     else if (_voiceModels.isEmpty)
                       const Text('No models available')
                     else
@@ -351,7 +364,7 @@ class _STTPageState extends State<STTPage> {
             
                         // Initialize model button
             ElevatedButton(
-              onPressed: (_isDownloading || _isInitializing || _isModelLoaded || _isLoadingModels || _voiceModels.isEmpty) ? null : _downloadAndInitializeModel,
+              onPressed: (_isDownloading || _isInitializing || _isModelLoaded || _isLoadingModels || (_voiceModels.isEmpty && !_isUsingDefaultModel)) ? null : _downloadAndInitializeModel,
               child: (_isDownloading || _isInitializing)
                   ? Row(
                       mainAxisSize: MainAxisSize.min,
