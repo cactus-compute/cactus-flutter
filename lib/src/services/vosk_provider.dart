@@ -38,10 +38,10 @@ class VoskTranscriptionProvider implements TranscriptionProviderInterface {
 
     final tasks = <DownloadTask>[];
     
-    if (!await DownloadService.modelExists(currentModel.fileName)) {
+    if (!await DownloadService.modelExists(currentModel.slug)) {
       tasks.add(DownloadTask(
         url: currentModel.url,
-        filename: "${currentModel.fileName}.zip",
+        filename: "$model.zip",
         folder: model,
       ));
     }
@@ -159,7 +159,7 @@ class VoskTranscriptionProvider implements TranscriptionProviderInterface {
     if (_voiceModels.isEmpty) {
       _voiceModels = await Supabase.fetchVoiceModels(provider: 'vosk');
       for (var model in _voiceModels) {
-        model.isDownloaded = await DownloadService.modelExists(model.fileName);
+        model.isDownloaded = await DownloadService.modelExists(model.slug);
       }
     }
     return _voiceModels;
@@ -167,12 +167,8 @@ class VoskTranscriptionProvider implements TranscriptionProviderInterface {
 
   @override
   Future<bool> isModelDownloaded([String? modelName]) async {
-    final currentModel = await _getModel(modelName ?? _lastDownloadedModelName);
-    if (currentModel == null) {
-      debugPrint("No data found for model: $modelName");
-      return false;
-    }
-    return await DownloadService.modelExists(currentModel.fileName) && await DownloadService.modelExists(_spkModelFolder);
+    final modelSlug = modelName ?? _lastDownloadedModelName;
+    return await DownloadService.modelExists(modelSlug) && await DownloadService.modelExists(_spkModelFolder);
   }
 
   @override

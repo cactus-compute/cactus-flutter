@@ -34,10 +34,10 @@ class WhisperTranscriptionProvider implements TranscriptionProviderInterface {
 
     final tasks = <DownloadTask>[];
     
-    if (!await DownloadService.modelExists(currentModel.fileName)) {
+    if (!await DownloadService.modelExists(currentModel.slug)) {
       tasks.add(DownloadTask(
         url: currentModel.url,
-        filename: "${currentModel.fileName}.bin",
+        filename: "$model.bin",
         folder: model,
       ));
     }
@@ -62,7 +62,7 @@ class WhisperTranscriptionProvider implements TranscriptionProviderInterface {
       }
 
       final appDocDir = await getApplicationDocumentsDirectory();
-      final modelPath = '${appDocDir.path}/models/$modelToUse/${await _getModelFileName(modelToUse)}.bin';
+      final modelPath = '${appDocDir.path}/models/$modelToUse/$modelToUse.bin';
 
       _isInitialized = await WhisperService.initialize(
         modelPath: modelPath,
@@ -163,7 +163,7 @@ class WhisperTranscriptionProvider implements TranscriptionProviderInterface {
     if (_voiceModels.isEmpty) {
       _voiceModels = await Supabase.fetchVoiceModels(provider: 'whisper');
       for (var model in _voiceModels) {
-        model.isDownloaded = await DownloadService.modelExists(model.fileName);
+        model.isDownloaded = await DownloadService.modelExists(model.slug);
       }
     }
     return _voiceModels;
@@ -171,12 +171,8 @@ class WhisperTranscriptionProvider implements TranscriptionProviderInterface {
 
   @override
   Future<bool> isModelDownloaded([String? modelName]) async {
-    final currentModel = await _getModel(modelName ?? _lastDownloadedModelName);
-    if (currentModel == null) {
-      debugPrint("No data found for model: $modelName");
-      return false;
-    }
-    return await DownloadService.modelExists(currentModel.fileName);
+    final modelSlug = modelName ?? _lastDownloadedModelName;
+    return await DownloadService.modelExists(modelSlug);
   }
 
   @override
@@ -194,10 +190,5 @@ class WhisperTranscriptionProvider implements TranscriptionProviderInterface {
     } catch (e) {
       return null;
     }
-  }
-
-  Future<String> _getModelFileName(String slug) async {
-    final model = await _getModel(slug);
-    return model?.fileName ?? 'ggml-tiny-q8_0';
   }
 }
