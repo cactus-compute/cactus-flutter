@@ -187,6 +187,8 @@ class WhisperService with SpeechServiceStateMixin {
     }
   }
 
+  static Completer<void>? _recordingCompleter;
+
   static Future<SpeechRecognitionResult?> _recognizeFromMicrophone(
     SpeechRecognitionParams params,
   ) async {
@@ -206,14 +208,20 @@ class WhisperService with SpeechServiceStateMixin {
         );
 
         final tempFilePath = SpeechUtils.createTempRecordingPath();
+        _recordingCompleter = Completer<void>();
 
         if (!await _instance.startRecording(config, tempFilePath)) {
+          _recordingCompleter = null;
           return SpeechUtils.createErrorResult("Failed to start recording");
         }
 
-        await Future.delayed(Duration(milliseconds: params.maxDuration));
+        await Future.any([
+          Future.delayed(Duration(milliseconds: params.maxDuration)),
+          _recordingCompleter!.future,
+        ]);
 
         await _instance.stopRecording();
+        _recordingCompleter = null;
 
         if (!await SpeechUtils.fileExists(tempFilePath)) {
           return SpeechUtils.createErrorResult("Recording file not created");
@@ -227,6 +235,7 @@ class WhisperService with SpeechServiceStateMixin {
 
       } catch (e) {
         await _instance.stopRecording();
+        _recordingCompleter = null;
         return SpeechUtils.createErrorResult("Recording error: $e");
       }
 
@@ -236,7 +245,11 @@ class WhisperService with SpeechServiceStateMixin {
   }
 
   static void stop() {
-    _instance.stopRecording();
+    if (_recordingCompleter != null && !_recordingCompleter!.isCompleted) {
+      _recordingCompleter!.complete();
+    } else {
+      _instance.stopRecording();
+    }
   }
 
   static bool get isCurrentlyRecording => _instance.isRecording;
