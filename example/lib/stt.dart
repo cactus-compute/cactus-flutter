@@ -266,8 +266,7 @@ class _STTPageState extends State<STTPage> {
   void _stopTranscription() {
     _stt.stop();
     setState(() {
-      _isTranscribing = false;
-      _outputText = "Transcription stopped.";
+      _outputText = "Processing recorded audio...";
     });
   }
 
