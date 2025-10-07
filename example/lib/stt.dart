@@ -9,13 +9,12 @@ class STTPage extends StatefulWidget {
   State<STTPage> createState() => _STTPageState();
 }
 
-class _STTPageState extends State<STTPage> with SingleTickerProviderStateMixin {
-  late TabController _tabController;
-  TranscriptionProvider _currentProvider = TranscriptionProvider.vosk;
+class _STTPageState extends State<STTPage> {
+  TranscriptionProvider _currentProvider = TranscriptionProvider.whisper;
   late CactusSTT _stt;
   
   List<VoiceModel> _voiceModels = [];
-  String _selectedModel = "vosk-en-us";
+  String _selectedModel = "tiny";
   
   // State variables
   bool _isModelLoaded = false;
@@ -23,7 +22,8 @@ class _STTPageState extends State<STTPage> with SingleTickerProviderStateMixin {
   bool _isInitializing = false;
   bool _isTranscribing = false;
   bool _isLoadingModels = false;
-  String _outputText = "Ready to start. Select a provider tab and model to begin.";
+  bool _isUsingDefaultModel = false;
+  String _outputText = "Ready to start. Select a model and initialize to begin.";
   SpeechRecognitionResult? _lastResponse;
   String _downloadProgress = "";
   double? _downloadPercentage;
@@ -31,9 +31,7 @@ class _STTPageState extends State<STTPage> with SingleTickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
     _stt = CactusSTT(provider: _currentProvider);
-    _tabController.addListener(_onTabChanged);
     _loadVoiceModels();
   }
 
@@ -41,28 +39,7 @@ class _STTPageState extends State<STTPage> with SingleTickerProviderStateMixin {
   void dispose() {
     _stt.stop();
     _stt.dispose();
-    _tabController.dispose();
     super.dispose();
-  }
-
-  void _onTabChanged() {
-    if (_tabController.indexIsChanging) return;
-    
-    final newProvider = _tabController.index == 0 
-        ? TranscriptionProvider.vosk 
-        : TranscriptionProvider.whisper;
-    
-    if (newProvider != _currentProvider) {
-      setState(() {
-        _currentProvider = newProvider;
-        _resetState();
-      });
-      
-      // Dispose old STT instance and create new one
-      _stt.dispose();
-      _stt = CactusSTT(provider: _currentProvider);
-      _loadVoiceModels();
-    }
   }
 
   void _resetState() {
@@ -71,18 +48,13 @@ class _STTPageState extends State<STTPage> with SingleTickerProviderStateMixin {
     _isInitializing = false;
     _isTranscribing = false;
     _isLoadingModels = false;
+    _isUsingDefaultModel = false;
     _voiceModels = [];
     _lastResponse = null;
     _downloadProgress = "";
     _downloadPercentage = null;
-    
-    if (_currentProvider == TranscriptionProvider.vosk) {
-      _selectedModel = "vosk-en-us";
-      _outputText = "Ready to start. Click 'Download Model' to begin.";
-    } else {
-      _selectedModel = "tiny";
-      _outputText = "Ready to start. Loading models...";
-    }
+    _selectedModel = "tiny";
+    _outputText = "Ready to start. Select a model and initialize to begin.";
   }
 
   Future<void> _loadVoiceModels() async {
@@ -95,31 +67,32 @@ class _STTPageState extends State<STTPage> with SingleTickerProviderStateMixin {
       setState(() {
         _voiceModels = models;
         _isLoadingModels = false;
+        _isUsingDefaultModel = false;
         if (models.isNotEmpty) {
-          // Set default model based on provider
-          if (_currentProvider == TranscriptionProvider.whisper) {
-            if (!models.any((model) => model.slug == _selectedModel)) {
-              _selectedModel = models.first.slug;
-            }
-            _outputText = "Models loaded. Select model and click 'Initialize Model' to begin.";
-          } else {
-            if (!models.any((model) => model.slug == _selectedModel)) {
-              _selectedModel = models.first.slug;
-            }
-            _outputText = "Models loaded. Click 'Download Model' to begin.";
+          if (!models.any((model) => model.slug == _selectedModel)) {
+            _selectedModel = models.first.slug;
           }
+          _outputText = "Models loaded. Select model and click 'Download & Initialize Model' to begin.";
         } else {
-          _outputText = "No models available for ${_currentProvider.name}.";
+          _outputText = "No models available.";
         }
       });
     } catch (e) {
+      // Use default model slug on network failure
+      final defaultSlug = _currentProvider == TranscriptionProvider.vosk 
+          ? "vosk-en-us"
+          : "whisper-tiny";
+      
       setState(() {
+        _voiceModels = [];
+        _selectedModel = defaultSlug;
         _isLoadingModels = false;
-        _outputText = "Error loading voice models: $e";
+        _isUsingDefaultModel = true;
+        _outputText = "Network error loading models. Using default model: $defaultSlug";
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading voice models: $e')),
+          SnackBar(content: Text('Network error. Using default model: $defaultSlug')),
         );
       }
     }
@@ -190,64 +163,10 @@ class _STTPageState extends State<STTPage> with SingleTickerProviderStateMixin {
     }
   }
 
-  Future<void> _initializeModel() async {
-    // For Whisper, download happens during init
-    if (_currentProvider == TranscriptionProvider.whisper) {
-      setState(() {
-        _isInitializing = true;
-        _outputText = "Downloading and initializing Whisper model...";
-      });
-
-      try {
-        final success = await _stt.init(model: _selectedModel);
-        setState(() {
-          _isInitializing = false;
-          if (success) {
-            _isModelLoaded = true;
-            _outputText = "Whisper model downloaded and initialized successfully! Ready to transcribe audio.";
-          } else {
-            _outputText = "Failed to initialize Whisper model.";
-          }
-        });
-      } catch (e) {
-        setState(() {
-          _isInitializing = false;
-          _outputText = "Error initializing Whisper model: ${e.toString()}";
-        });
-      }
-      return;
-    }
-
-    setState(() {
-      _isInitializing = true;
-      _outputText = "Initializing model...";
-    });
-
-    try {
-      final success = await _stt.init(model: _selectedModel);
-      setState(() {
-        _isInitializing = false;
-        if (success) {
-          _isModelLoaded = true;
-          _outputText = "Model initialized successfully! Ready to test transcription.";
-        } else {
-          _outputText = "Failed to initialize model.";
-        }
-      });
-    } catch (e) {
-      setState(() {
-        _isInitializing = false;
-        _outputText = "Error initializing model: ${e.toString()}";
-      });
-    }
-  }
-
   Future<void> _transcribeFromMicrophone() async {
     if (!_isModelLoaded) {
       setState(() {
-        _outputText = _currentProvider == TranscriptionProvider.whisper 
-            ? "Please initialize the model first."
-            : "Please download and initialize model first.";
+        _outputText = "Please initialize the model first.";
       });
       return;
     }
@@ -255,24 +174,16 @@ class _STTPageState extends State<STTPage> with SingleTickerProviderStateMixin {
     try {
       setState(() {
         _isTranscribing = true;
-        _outputText = _currentProvider == TranscriptionProvider.whisper 
-            ? "Listening for audio... Speak now!"
-            : "Listening...";
+        _outputText = "Listening for audio... Speak now!";
       });
 
-      SpeechRecognitionResult? result;
-      
-      if (_currentProvider == TranscriptionProvider.whisper) {
-        final params = SpeechRecognitionParams(
-          sampleRate: 16000,
-          maxDuration: 30000, // 30 seconds
-          maxSilenceDuration: 3000, // 3 seconds of silence
-          silenceThreshold: 500.0,
-        );
-        result = await _stt.transcribe(params: params);
-      } else {
-        result = await _stt.transcribe();
-      }
+      final params = SpeechRecognitionParams(
+        sampleRate: 16000,
+        maxDuration: 30000, // 30 seconds
+        maxSilenceDuration: 3000, // 3 seconds of silence
+        silenceThreshold: 500.0,
+      );
+      final result = await _stt.transcribe(params: params);
       
       setState(() {
         _isTranscribing = false;
@@ -296,9 +207,7 @@ class _STTPageState extends State<STTPage> with SingleTickerProviderStateMixin {
   Future<void> _transcribeFromFile() async {
     if (!_isModelLoaded) {
       setState(() {
-        _outputText = _currentProvider == TranscriptionProvider.whisper 
-            ? "Please initialize the model first."
-            : "Please download and initialize model first.";
+        _outputText = "Please initialize the model first.";
       });
       return;
     }
@@ -357,8 +266,7 @@ class _STTPageState extends State<STTPage> with SingleTickerProviderStateMixin {
   void _stopTranscription() {
     _stt.stop();
     setState(() {
-      _isTranscribing = false;
-      _outputText = "Transcription stopped.";
+      _outputText = "Processing recorded audio...";
     });
   }
 
@@ -367,13 +275,6 @@ class _STTPageState extends State<STTPage> with SingleTickerProviderStateMixin {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Speech-to-Text'),
-        bottom: TabBar(
-          controller: _tabController,
-          tabs: const [
-            Tab(text: 'Vosk'),
-            Tab(text: 'Whisper'),
-          ],
-        ),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -394,21 +295,49 @@ class _STTPageState extends State<STTPage> with SingleTickerProviderStateMixin {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      '${_currentProvider == TranscriptionProvider.whisper ? 'Whisper' : 'Vosk'} Transcription Demo',
-                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    const Text(
+                      'Speech-to-Text Transcription Demo',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 8),
-                    Text(
-                      _currentProvider == TranscriptionProvider.whisper
-                          ? 'This example demonstrates Whisper-based speech-to-text transcription using CactusSTT. Select a model size and initialize it, then you can transcribe from microphone input or from audio files. Models are downloaded automatically.'
-                          : 'This example demonstrates transcription capabilities using a local speech-to-text model. You can download the model, initialize it, and then transcribe audio input.',
+                    const Text(
+                      'This example demonstrates speech-to-text transcription using CactusSTT. Select a provider and model, initialize it, then you can transcribe from microphone input or from audio files.',
+                    ),
+                    const SizedBox(height: 16),
+                    const Text('Provider Selection', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 8),
+                    DropdownButton<TranscriptionProvider>(
+                      value: _currentProvider,
+                      isExpanded: true,
+                      items: const [
+                        DropdownMenuItem(
+                          value: TranscriptionProvider.whisper,
+                          child: Text('Whisper'),
+                        ),
+                        DropdownMenuItem(
+                          value: TranscriptionProvider.vosk,
+                          child: Text('Vosk'),
+                        ),
+                      ],
+                      onChanged: _isModelLoaded ? null : (value) {
+                        if (value != null && value != _currentProvider) {
+                          setState(() {
+                            _currentProvider = value;
+                            _resetState();
+                          });
+                          _stt.dispose();
+                          _stt = CactusSTT(provider: _currentProvider);
+                          _loadVoiceModels();
+                        }
+                      },
                     ),
                     const SizedBox(height: 16),
                     const Text('Model Selection', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 8),
                     if (_isLoadingModels)
                       const Text('Loading models...')
+                    else if (_isUsingDefaultModel)
+                      Text('Using default model: $_selectedModel')
                     else if (_voiceModels.isEmpty)
                       const Text('No models available')
                     else
@@ -417,9 +346,7 @@ class _STTPageState extends State<STTPage> with SingleTickerProviderStateMixin {
                         isExpanded: true,
                         items: _voiceModels.map((model) => DropdownMenuItem(
                           value: model.slug,
-                          child: Text(_currentProvider == TranscriptionProvider.whisper 
-                              ? '${model.slug} (${model.sizeMb}MB)'
-                              : '${model.slug} (${model.language}) - ${model.sizeMb}MB'),
+                          child: Text('${model.slug} (${model.sizeMb}MB)'),
                         )).toList(),
                         onChanged: _isModelLoaded ? null : (value) {
                           setState(() {
@@ -434,65 +361,40 @@ class _STTPageState extends State<STTPage> with SingleTickerProviderStateMixin {
             
             const SizedBox(height: 16),
             
-                        // Buttons section - different for each provider
-            if (_currentProvider == TranscriptionProvider.vosk) ...[
-              ElevatedButton(
-                onPressed: (_isDownloading || _isInitializing || _isModelLoaded) ? null : _downloadAndInitializeModel,
-                child: (_isDownloading || _isInitializing)
-                    ? Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              value: _downloadPercentage,
-                              valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
-                              backgroundColor: Colors.grey.shade300,
-                            ),
+                        // Initialize model button
+            ElevatedButton(
+              onPressed: (_isDownloading || _isInitializing || _isModelLoaded || _isLoadingModels || (_voiceModels.isEmpty && !_isUsingDefaultModel)) ? null : _downloadAndInitializeModel,
+              child: (_isDownloading || _isInitializing)
+                  ? Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            value: _downloadPercentage,
+                            valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+                            backgroundColor: Colors.grey.shade300,
                           ),
-                          const SizedBox(width: 8),
-                          Text(_downloadProgress.isNotEmpty ? _downloadProgress : (_isDownloading ? 'Downloading...' : 'Initializing...')),
-                        ],
-                      )
-                    : Text(_isModelLoaded ? 'Model Ready ✓' : 'Download & Initialize Model'),
-              ),
-              
-              // Show linear progress indicator during download
-              if (_isDownloading && _downloadPercentage != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 8.0),
-                  child: LinearProgressIndicator(
-                    value: _downloadPercentage,
-                    valueColor: const AlwaysStoppedAnimation<Color>(Colors.black),
-                    backgroundColor: Colors.grey.shade300,
-                  ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(_downloadProgress.isNotEmpty ? _downloadProgress : (_isDownloading ? 'Downloading...' : 'Initializing...')),
+                      ],
+                    )
+                  : Text(_isModelLoaded ? 'Model Ready ✓' : 'Download & Initialize Model'),
+            ),
+            
+            // Show linear progress indicator during download
+            if (_isDownloading && _downloadPercentage != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 8.0),
+                child: LinearProgressIndicator(
+                  value: _downloadPercentage,
+                  valueColor: const AlwaysStoppedAnimation<Color>(Colors.black),
+                  backgroundColor: Colors.grey.shade300,
                 ),
-            ] else ...[
-              // Whisper buttons
-              ElevatedButton(
-                onPressed: (_isInitializing || _isModelLoaded || _isLoadingModels || _voiceModels.isEmpty) ? null : _initializeModel,
-                child: _isInitializing
-                    ? Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
-                              backgroundColor: Colors.grey.shade300,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          const Text('Downloading & Initializing...'),
-                        ],
-                      )
-                    : Text(_isModelLoaded ? 'Model Initialized ✓' : 'Download & Initialize Model'),
               ),
-            ],
             
             const SizedBox(height: 8),
             
@@ -518,7 +420,7 @@ class _STTPageState extends State<STTPage> with SingleTickerProviderStateMixin {
                                 ),
                               ),
                               const SizedBox(width: 8),
-                              Text(_currentProvider == TranscriptionProvider.whisper ? 'Stop Recording' : 'Listening...'),
+                              const Text('Stop Recording'),
                             ],
                           )
                         : const Text('Microphone'),
