@@ -76,4 +76,25 @@ class Telemetry {
 
     await Supabase.sendLogRecord(record);
   }
+
+  Future<void> logTranscription(
+    CactusCompletionResult? result,
+    CactusInitParams options, {
+    String? message,
+    double? responseTime
+  }) async {
+    final record = LogRecord(
+      eventType: 'transcription',
+      projectId: projectId,
+      deviceId: deviceId,
+      responseTime: responseTime,
+      model: options.model,
+      success: result?.success,
+      telemetryToken: cactusTelemetryToken,
+      message: message,
+      audioDuration: result?.totalTimeMs.toInt()
+    );
+
+    await Supabase.sendLogRecord(record);
+  }
 }

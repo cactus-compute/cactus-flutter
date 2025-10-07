@@ -14,7 +14,7 @@ A Flutter plugin for Cactus Utilities, providing access to native Cactus functio
   s.dependency 'Flutter'
   s.platform = :ios, '11.0'
   s.swift_version = '5.0'
-  s.vendored_frameworks = 'cactus.xcframework', 'cactus_util.xcframework'
+  s.vendored_frameworks = 'cactus.xcframework', 'cactus_util.xcframework', 'whisper.xcframework'
   s.frameworks = 'Accelerate', 'Foundation', 'Metal', 'MetalKit'
 
   s.pod_target_xcconfig = {

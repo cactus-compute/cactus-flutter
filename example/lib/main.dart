@@ -8,6 +8,7 @@ import 'hybrid_completion.dart';
 import 'fetch_models.dart';
 import 'embedding.dart';
 import 'rag.dart';
+import 'stt.dart';
 
 void main() {
   runApp(const MyApp());
@@ -147,6 +148,15 @@ class _MyHomePageState extends State<MyHomePage> {
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => const RAGPage()),
+              );
+            },
+          ),
+          ListTile(
+            title: const Text('Speech-to-Text'),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const STTPage()),
               );
             },
           ),
