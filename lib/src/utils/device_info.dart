@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:android_id/android_id.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 
 Future<Map<String, dynamic>> getDeviceMetadata() async {
@@ -8,11 +9,12 @@ Future<Map<String, dynamic>> getDeviceMetadata() async {
   try {
     if (Platform.isAndroid) {
       final androidInfo = await deviceInfo.androidInfo;
+      final androidID = await const AndroidId().getId();
       deviceData = {
         'model': androidInfo.model,
         'os': 'Android',
         'os_version': androidInfo.version.release,
-        'device_id': androidInfo.id,
+        'device_id': androidID,
         'brand': androidInfo.brand
       };
     } else if (Platform.isIOS) {
