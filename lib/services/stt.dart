@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:cactus/models/types.dart';
+import 'package:cactus/services/telemetry.dart';
+import 'package:cactus/src/services/telemetry.dart';
 import 'package:cactus/src/services/transcription_provider.dart';
 import 'package:cactus/src/services/vosk_provider.dart';
 import 'package:cactus/src/services/whisper_provider.dart';
@@ -52,6 +54,9 @@ class CactusSTT {
   }
 
   Future<bool> init({String? model}) async {
+    if (!Telemetry.isInitialized) {
+      await Telemetry.init(CactusTelemetry.telemetryToken);
+    }
     return await _providerInstance.init(model: model);
   }
 

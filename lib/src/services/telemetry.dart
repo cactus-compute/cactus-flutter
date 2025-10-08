@@ -3,6 +3,7 @@ import 'package:cactus/src/services/supabase.dart';
 import 'package:cactus/src/utils/device_info.dart';
 import 'package:cactus/models/types.dart';
 import 'package:cactus/src/utils/ffi_utils.dart';
+import 'package:cactus/src/services/cactus_id.dart';
 
 class Telemetry {
   static Telemetry? _instance;
@@ -16,6 +17,12 @@ class Telemetry {
 
   static bool get isInitialized => _instance != null;
   static Telemetry? get instance => _instance;
+
+  static Future<void> init(String? telemetryToken) async {
+    final String projectId = await CactusId.getProjectId();
+    final String? deviceId = await fetchDeviceId();
+    Telemetry(projectId, deviceId, telemetryToken);
+  }
 
   static Future<String?> fetchDeviceId() async {
     String? deviceId = await getDeviceId();

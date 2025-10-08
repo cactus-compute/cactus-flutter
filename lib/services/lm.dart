@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:cactus/models/tools.dart';
 import 'package:cactus/services/telemetry.dart';
-import 'package:cactus/src/services/cactus_id.dart';
 import 'package:cactus/src/services/context.dart';
 import 'package:cactus/src/services/download.dart';
 import 'package:cactus/models/types.dart';
@@ -56,9 +55,7 @@ class CactusLM {
 
   Future<void> initializeModel({CactusInitParams? params}) async {
     if (!Telemetry.isInitialized) {
-      final String projectId = await CactusId.getProjectId();
-      final String? deviceId = await Telemetry.fetchDeviceId();
-      Telemetry(projectId, deviceId, CactusTelemetry.telemetryToken);
+      await Telemetry.init(CactusTelemetry.telemetryToken);
     }
 
     final model = params?.model?? defaultInitParams.model;

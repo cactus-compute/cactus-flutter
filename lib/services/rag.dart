@@ -1,4 +1,6 @@
 import 'dart:math';
+import 'package:cactus/services/telemetry.dart';
+import 'package:cactus/src/services/telemetry.dart';
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
@@ -55,6 +57,9 @@ class CactusRAG {
   }
 
   Future<void> initialize() async {
+    if (!Telemetry.isInitialized) {
+      await Telemetry.init(CactusTelemetry.telemetryToken);
+    }
     if (_store != null) return;
 
     final docsDir = await getApplicationDocumentsDirectory();
