@@ -388,7 +388,7 @@ class CactusContext {
     return await compute(_generateEmbeddingInIsolate, {
       'handle': handle,
       'text': text,
-      'bufferSize': max(text.length * 8, 1024),
+      'bufferSize': max(text.length * 4, 1024),
     });
   }
 
