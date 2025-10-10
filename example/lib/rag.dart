@@ -114,7 +114,7 @@ class _RAGPageState extends State<RAGPage> {
     try {
       await rag.initialize();
       rag.setEmbeddingGenerator((text) async {
-        final result = await lm.generateEmbedding(text: text, bufferSize: 2048);
+        final result = await lm.generateEmbedding(text: text);
         return result.embeddings;
       });
       rag.setChunking(chunkSize: 500, chunkOverlap: 50);

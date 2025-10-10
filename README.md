@@ -201,7 +201,6 @@ The `CactusLM` class provides sensible defaults for completion parameters:
 - `topK: 40` - Number of top tokens to consider
 - `topP: 0.95` - Nucleus sampling parameter
 - `maxTokens: 200` - Maximum tokens to generate
-- `bufferSize: 1024` - Internal buffer size for processing
 - `completionMode: CompletionMode.local` - Default to local-only inference.
 
 ### LLM API Reference
@@ -212,13 +211,13 @@ The `CactusLM` class provides sensible defaults for completion parameters:
 - `Future<CactusCompletionResult> generateCompletion({required List<ChatMessage> messages, CactusCompletionParams? params, String? cactusToken})` - Generate text completion (uses default params if none provided)
 - `Future<CactusStreamedCompletionResult> generateCompletionStream({required List<ChatMessage> messages, CactusCompletionParams? params, List<CactusTool>? tools, String? cactusToken})` - Generate streaming text completion (uses default params if none provided)
 - `Future<List<CactusModel>> getModels()` - Fetch available models with caching
-- `Future<CactusEmbeddingResult?> generateEmbedding({required String text, int bufferSize = 2048})` - Generate text embeddings
+- `Future<CactusEmbeddingResult?> generateEmbedding({required String text})` - Generate text embeddings
 - `void unload()` - Free model from memory
 - `bool isLoaded()` - Check if model is loaded
 
 #### Data Classes
 - `CactusInitParams({String? model, int? contextSize})` - Model initialization parameters
-- `CactusCompletionParams({double temperature, int topK, double topP, int maxTokens, List<String> stopSequences, int bufferSize, List<CactusTool>? tools, CompletionMode completionMode})` - Completion parameters
+- `CactusCompletionParams({double temperature, int topK, double topP, int maxTokens, List<String> stopSequences, List<CactusTool>? tools, CompletionMode completionMode})` - Completion parameters
 - `ChatMessage({required String content, required String role, int? timestamp})` - Chat message format
 - `CactusCompletionResult` - Contains response, timing metrics, and success status
 - `CactusStreamedCompletionResult` - Contains the stream and the final result of a streamed completion.
@@ -247,8 +246,7 @@ Future<void> embeddingExample() async {
 
     // Generate embeddings for a text
     final result = await lm.generateEmbedding(
-      text: "This is a sample text for embedding generation",
-      bufferSize: 2048,
+      text: "This is a sample text for embedding generation"
     );
 
     if (result.success) {
@@ -267,7 +265,7 @@ Future<void> embeddingExample() async {
 ### Embedding API Reference
 
 #### CactusLM Class (Embedding Methods)
-- `Future<CactusEmbeddingResult?> generateEmbedding({required String text, int bufferSize = 2048})` - Generate text embeddings
+- `Future<CactusEmbeddingResult?> generateEmbedding({required String text})` - Generate text embeddings
 
 #### Embedding Data Classes
 - `CactusEmbeddingResult({required bool success, required List<double> embeddings, required int dimension, String? errorMessage})` - Contains the generated embedding vector and metadata

@@ -111,8 +111,7 @@ class _StreamingCompletionPageState extends State<StreamingCompletionPage> {
     try {
       final streamedResult = await lm.generateCompletionStream(
         params: CactusCompletionParams(
-          maxTokens: 200,
-          bufferSize: 4096
+          maxTokens: 200
         ),
         messages: [ChatMessage(content: 'You are Cactus, a very capable AI assistant running offline on a smartphone', role: "system"), ChatMessage(content: 'Hi, how are you?', role: "user")],
       );
