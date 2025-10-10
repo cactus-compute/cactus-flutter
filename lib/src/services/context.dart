@@ -178,11 +178,14 @@ Future<CactusEmbeddingResult> _generateEmbeddingInIsolate(Map<String, dynamic> p
   try {
     debugPrint('Generating embedding for text: ${text.length > 50 ? text.substring(0, 50) + "..." : text}');
 
+    // Calculate buffer size in bytes (bufferSize * sizeof(float))
+    final bufferSizeInBytes = bufferSize * 4;
+
     final result = bindings.cactusEmbed(
       Pointer.fromAddress(handle),
       textC,
       embeddingsBuffer,
-      bufferSize,
+      bufferSizeInBytes,
       embeddingDimPtr,
     );
 
@@ -388,7 +391,7 @@ class CactusContext {
     return await compute(_generateEmbeddingInIsolate, {
       'handle': handle,
       'text': text,
-      'bufferSize': max(text.length * 4, 1024),
+      'bufferSize': max(text.length * 8, 1024),
     });
   }
 
