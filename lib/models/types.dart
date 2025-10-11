@@ -33,7 +33,6 @@ class CactusCompletionParams {
   final double topP;
   final int maxTokens;
   final List<String> stopSequences;
-  final int bufferSize;
   final List<CactusTool>? tools;
   final CompletionMode completionMode;
 
@@ -43,7 +42,6 @@ class CactusCompletionParams {
     this.topP = 0.95,
     this.maxTokens = 200,
     this.stopSequences = const [],
-    this.bufferSize = 1024,
     this.tools,
     this.completionMode = CompletionMode.local,
   });

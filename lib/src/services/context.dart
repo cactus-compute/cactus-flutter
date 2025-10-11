@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:ffi';
 import 'dart:isolate';
+import 'dart:math';
 
 import 'package:cactus/models/types.dart';
 import 'package:cactus/models/tools.dart';
@@ -176,7 +177,6 @@ Future<CactusEmbeddingResult> _generateEmbeddingInIsolate(Map<String, dynamic> p
 
   try {
     debugPrint('Generating embedding for text: ${text.length > 50 ? text.substring(0, 50) + "..." : text}');
-    debugPrint('Buffer allocated for $bufferSize float elements');
 
     // Calculate buffer size in bytes (bufferSize * sizeof(float))
     final bufferSizeInBytes = bufferSize * 4;
@@ -326,7 +326,7 @@ class CactusContext {
       'messagesJson': jsonData['messagesJson']!,
       'optionsJson': jsonData['optionsJson']!,
       'toolsJson': jsonData['toolsJson'],
-      'bufferSize': params.bufferSize,
+      'bufferSize': max(params.maxTokens * 8, 1024),
       'hasCallback': false,
       'replyPort': null,
     });
@@ -376,7 +376,7 @@ class CactusContext {
       'messagesJson': jsonData['messagesJson']!,
       'optionsJson': jsonData['optionsJson']!,
       'toolsJson': jsonData['toolsJson'],
-      'bufferSize': params.bufferSize,
+      'bufferSize': max(params.maxTokens * 8, 1024),
       'hasCallback': true,
       'replyPort': replyPort.sendPort,
     });
@@ -387,15 +387,11 @@ class CactusContext {
     );
   }
 
-  static Future<CactusEmbeddingResult> generateEmbedding(
-    int handle,
-    String text, {
-    int bufferSize = 2048,
-  }) async {
+  static Future<CactusEmbeddingResult> generateEmbedding(int handle, String text) async {
     return await compute(_generateEmbeddingInIsolate, {
       'handle': handle,
       'text': text,
-      'bufferSize': bufferSize,
+      'bufferSize': max(text.length * 8, 1024),
     });
   }
 

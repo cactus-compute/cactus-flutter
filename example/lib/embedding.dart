@@ -103,8 +103,7 @@ class _EmbeddingPageState extends State<EmbeddingPage> {
 
     try {
       final resp = await lm.generateEmbedding(
-        text: 'This is a sample text for embedding generation',
-        bufferSize: 1024,
+        text: 'This is a sample text for embedding generation'
       );
 
       if (resp.success) {

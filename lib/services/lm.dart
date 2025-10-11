@@ -89,7 +89,6 @@ class CactusLM {
       topP: completionParams.topP,
       maxTokens: completionParams.maxTokens,
       stopSequences: completionParams.stopSequences,
-      bufferSize: completionParams.bufferSize,
       tools: completionParams.tools,
       completionMode: completionParams.completionMode,
     );
@@ -146,7 +145,6 @@ class CactusLM {
       topP: completionParams.topP,
       maxTokens: completionParams.maxTokens,
       stopSequences: completionParams.stopSequences,
-      bufferSize: completionParams.bufferSize,
       tools: tools ?? completionParams.tools,
       completionMode: completionParams.completionMode,
     );
@@ -196,17 +194,14 @@ class CactusLM {
     throw Exception('Model $_lastDownloadedModel is not downloaded. Please download it before generating completions.');
   }
 
-  Future<CactusEmbeddingResult> generateEmbedding({
-    required String text,
-    int bufferSize = 2048,
-  }) async {
+  Future<CactusEmbeddingResult> generateEmbedding({required String text}) async {
     if (_lastDownloadedModel == null || !await _isModelDownloaded(_lastDownloadedModel!)) {
       throw Exception('Model $_lastDownloadedModel is not downloaded. Please download it before generating completions.');
     }
     final currentHandle = _getValidatedHandle();
     final initParams = CactusInitParams(model: _lastDownloadedModel!);
     try {
-      final result = await CactusContext.generateEmbedding(currentHandle, text, bufferSize: bufferSize);
+      final result = await CactusContext.generateEmbedding(currentHandle, text);
       _logEmbeddingTelemetry(result, initParams);
       return result;
     } catch (e) {
