@@ -36,6 +36,7 @@ class CactusCompletionParams {
   final List<String> stopSequences;
   final List<CactusTool>? tools;
   final CompletionMode completionMode;
+  final int quantization;
 
   CactusCompletionParams({
     this.model,
@@ -46,6 +47,7 @@ class CactusCompletionParams {
     this.stopSequences = const ["<|im_end|>", "<end_of_turn>"],
     this.tools,
     this.completionMode = CompletionMode.local,
+    this.quantization = 8,
   });
 }
 
@@ -128,6 +130,7 @@ class CactusModel {
   final bool supportsVision;
   final String name;
   bool isDownloaded;
+  int quantization;
 
   CactusModel({
     required this.createdAt,
@@ -138,6 +141,7 @@ class CactusModel {
     required this.supportsVision,
     required this.name,
     this.isDownloaded = false,
+    this.quantization = 8
   });
 
   factory CactusModel.fromJson(Map<String, dynamic> json) {
@@ -150,6 +154,7 @@ class CactusModel {
       supportsVision: json['supports_vision'] as bool,
       name: json['name'] as String,
       isDownloaded: false,
+      quantization: json['quantization'] as int? ?? 8,
     );
   }
 }

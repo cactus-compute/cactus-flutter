@@ -326,7 +326,7 @@ class CactusContext {
       'messagesJson': jsonData['messagesJson']!,
       'optionsJson': jsonData['optionsJson']!,
       'toolsJson': jsonData['toolsJson'],
-      'bufferSize': max(params.maxTokens * 8, 1024),
+      'bufferSize': max(params.maxTokens * params.quantization, 1024),
       'hasCallback': false,
       'replyPort': null,
     });
@@ -376,7 +376,7 @@ class CactusContext {
       'messagesJson': jsonData['messagesJson']!,
       'optionsJson': jsonData['optionsJson']!,
       'toolsJson': jsonData['toolsJson'],
-      'bufferSize': max(params.maxTokens * 8, 1024),
+      'bufferSize': max(params.maxTokens * params.quantization, 1024),
       'hasCallback': true,
       'replyPort': replyPort.sendPort,
     });
@@ -387,11 +387,11 @@ class CactusContext {
     );
   }
 
-  static Future<CactusEmbeddingResult> generateEmbedding(int handle, String text) async {
+  static Future<CactusEmbeddingResult> generateEmbedding(int handle, String text, int quantization) async {
     return await compute(_generateEmbeddingInIsolate, {
       'handle': handle,
       'text': text,
-      'bufferSize': max(text.length * 8, 1024),
+      'bufferSize': max(text.length * quantization, 1024),
     });
   }
 

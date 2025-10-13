@@ -87,6 +87,7 @@ class CactusLM {
     final completionParams = params ?? defaultCompletionParams;
     final model = completionParams.model ?? _lastDownloadedModel ?? defaultInitParams.model;
     final initParams = CactusInitParams(model: model);
+    final modelMetadata = await _getModel(model);
     
     // Create params with tools if provided
     final paramsWithTools = CactusCompletionParams(
@@ -98,6 +99,7 @@ class CactusLM {
       stopSequences: completionParams.stopSequences,
       tools: completionParams.tools,
       completionMode: completionParams.completionMode,
+      quantization: modelMetadata?.quantization ?? 8,
     );
 
     debugPrint('Completion mode: ${paramsWithTools.completionMode}');
@@ -147,6 +149,7 @@ class CactusLM {
     final completionParams = params ?? defaultCompletionParams;
     final model = completionParams.model ?? _lastDownloadedModel ?? defaultInitParams.model;
     final initParams = CactusInitParams(model: model);
+    final modelMetadata = await _getModel(model);
 
     // Create params with tools if provided
     final paramsWithTools = CactusCompletionParams(
@@ -158,6 +161,7 @@ class CactusLM {
       stopSequences: completionParams.stopSequences,
       tools: tools ?? completionParams.tools,
       completionMode: completionParams.completionMode,
+      quantization: modelMetadata?.quantization ?? 8,
     );
 
     debugPrint('Completion mode: ${paramsWithTools.completionMode}');
@@ -207,15 +211,18 @@ class CactusLM {
     throw Exception('Model $_lastDownloadedModel is not downloaded. Please download it before generating completions.');
   }
 
-  Future<CactusEmbeddingResult> generateEmbedding({required String text}) async {
+  Future<CactusEmbeddingResult> generateEmbedding({required String text, String? modelName}) async {
     if (_lastDownloadedModel == null || !await _isModelDownloaded(_lastDownloadedModel!)) {
       throw Exception('Model $_lastDownloadedModel is not downloaded. Please download it before generating completions.');
     }
     final currentHandle = await _getValidatedHandle();
-    final initParams = CactusInitParams(model: _lastDownloadedModel!);
+    final model = modelName ?? _lastDownloadedModel ?? defaultInitParams.model;
+    final initParams = CactusInitParams(model: model);
+    final modelMetadata = await _getModel(model);
+
     try {
       if(currentHandle != null) {
-        final result = await CactusContext.generateEmbedding(currentHandle, text);
+        final result = await CactusContext.generateEmbedding(currentHandle, text, modelMetadata?.quantization ?? 8);
         _logEmbeddingTelemetry(result, initParams);
         return result;
       } else {
