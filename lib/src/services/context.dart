@@ -272,7 +272,7 @@ class CactusContext {
     optionsJsonBuffer.write('"top_p":${params.topP},');
     optionsJsonBuffer.write('"max_tokens":${params.maxTokens}');
     if (params.stopSequences.isNotEmpty) {
-      optionsJsonBuffer.write(',"stop":[');
+      optionsJsonBuffer.write(',"stop_sequences":[');
       for (int i = 0; i < params.stopSequences.length; i++) {
         if (i > 0) optionsJsonBuffer.write(',');
         optionsJsonBuffer.write('"${_escapeJsonString(params.stopSequences[i])}"');
