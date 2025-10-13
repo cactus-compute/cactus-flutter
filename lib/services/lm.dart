@@ -65,6 +65,11 @@ class CactusLM {
     final result = await CactusContext.initContext(modelPath, ((params?.contextSize) ?? defaultInitParams.contextSize)!);
     _handle = result.$1; 
     _lastDownloadedModel = model;
+    if(_handle == null && !await _isModelDownloaded(model)) {
+      debugPrint('Failed to initialize model context with model at $modelPath, trying to download the model first.');
+      await downloadModel(model: model);
+      await initializeModel(params: params);
+    }
     if(Telemetry.isInitialized) {
       params?.model = model;
       Telemetry.instance?.logInit(_handle != null, params?? defaultInitParams, result.$2);
@@ -79,11 +84,13 @@ class CactusLM {
     CactusCompletionParams? params,
     String? cactusToken,
   }) async {
-    final initParams = CactusInitParams(model: _lastDownloadedModel ?? defaultInitParams.model);
+    final completionParams = params ?? defaultCompletionParams;
+    final model = completionParams.model ?? _lastDownloadedModel ?? defaultInitParams.model;
+    final initParams = CactusInitParams(model: model);
     
     // Create params with tools if provided
-    final completionParams = params ?? defaultCompletionParams;
     final paramsWithTools = CactusCompletionParams(
+      model: completionParams.model,
       temperature: completionParams.temperature,
       topK: completionParams.topK,
       topP: completionParams.topP,
@@ -94,11 +101,13 @@ class CactusLM {
     );
 
     debugPrint('Completion mode: ${paramsWithTools.completionMode}');
-    
-    if (_handle != null && _lastDownloadedModel != null && await _isModelDownloaded(_lastDownloadedModel!)) {
+
+    int? currentHandle = await _getValidatedHandle(model: model);
+
+    if (currentHandle != null) {
       try {
-        final result = await CactusContext.completion(_handle!, messages, paramsWithTools);
-        _logCompletionTelemetry(result, initParams);      
+        final result = await CactusContext.completion(currentHandle, messages, paramsWithTools);
+        _logCompletionTelemetry(result, initParams);
         return result;
       } catch (e) {
         debugPrint('Local completion failed: $e');
@@ -135,11 +144,13 @@ class CactusLM {
     List<CactusTool>? tools,
     String? cactusToken,
   }) async {
-    final initParams = CactusInitParams(model: _lastDownloadedModel ?? defaultInitParams.model);
+    final completionParams = params ?? defaultCompletionParams;
+    final model = completionParams.model ?? _lastDownloadedModel ?? defaultInitParams.model;
+    final initParams = CactusInitParams(model: model);
 
     // Create params with tools if provided
-    final completionParams = params ?? defaultCompletionParams;
     final paramsWithTools = CactusCompletionParams(
+      model: completionParams.model,
       temperature: completionParams.temperature,
       topK: completionParams.topK,
       topP: completionParams.topP,
@@ -151,9 +162,11 @@ class CactusLM {
 
     debugPrint('Completion mode: ${paramsWithTools.completionMode}');
 
-    if (_handle != null && _lastDownloadedModel != null && await _isModelDownloaded(_lastDownloadedModel!)) {
+    int? currentHandle = await _getValidatedHandle(model: model);
+
+    if (currentHandle != null) {
       try {
-        final streamedResult = CactusContext.completionStream(_getValidatedHandle(), messages, paramsWithTools);
+        final streamedResult = CactusContext.completionStream(currentHandle, messages, paramsWithTools);
         streamedResult.result.then((result) {
           _logCompletionTelemetry(result, initParams, success: result.success);
         }).catchError((error) {
@@ -198,12 +211,16 @@ class CactusLM {
     if (_lastDownloadedModel == null || !await _isModelDownloaded(_lastDownloadedModel!)) {
       throw Exception('Model $_lastDownloadedModel is not downloaded. Please download it before generating completions.');
     }
-    final currentHandle = _getValidatedHandle();
+    final currentHandle = await _getValidatedHandle();
     final initParams = CactusInitParams(model: _lastDownloadedModel!);
     try {
-      final result = await CactusContext.generateEmbedding(currentHandle, text);
-      _logEmbeddingTelemetry(result, initParams);
-      return result;
+      if(currentHandle != null) {
+        final result = await CactusContext.generateEmbedding(currentHandle, text);
+        _logEmbeddingTelemetry(result, initParams);
+        return result;
+      } else {
+        throw Exception('Context not initialized');
+      }
     } catch (e) {
       _logEmbeddingTelemetry(null, initParams, success: false, message: e.toString());
       rethrow;
@@ -220,13 +237,14 @@ class CactusLM {
 
   bool isLoaded() => _handle != null;
 
-  int _getValidatedHandle() {
-    final currentHandle = _handle;
-    if (currentHandle == null) {
-      _logCompletionTelemetry(null, CactusInitParams(model: _lastDownloadedModel!), success: false, message: "Context not initialized");
-      throw CactusException('Context not initialized');
+  Future<int?> _getValidatedHandle({String? model}) async {
+    if (_handle != null && (model == null || model == _lastDownloadedModel)) {
+      return _handle;
     }
-    return currentHandle;
+    
+    final targetModel = model ?? _lastDownloadedModel ?? defaultInitParams.model;
+    await initializeModel(params: CactusInitParams(model: targetModel));
+    return _handle;
   }
 
   void _logCompletionTelemetry(CactusCompletionResult? result, CactusInitParams initParams, {bool success = true, String? message}) {
