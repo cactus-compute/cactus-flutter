@@ -41,7 +41,7 @@ class CactusCompletionParams {
     this.topK = 40,
     this.topP = 0.95,
     this.maxTokens = 200,
-    this.stopSequences = const [],
+    this.stopSequences = const ["<|im_end|>", "<end_of_turn>"],
     this.tools,
     this.completionMode = CompletionMode.local,
   });
