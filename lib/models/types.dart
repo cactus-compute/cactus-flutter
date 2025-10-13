@@ -28,6 +28,7 @@ class ChatMessage {
 }
 
 class CactusCompletionParams {
+  final String? model;
   final double temperature;
   final int topK;
   final double topP;
@@ -37,6 +38,7 @@ class CactusCompletionParams {
   final CompletionMode completionMode;
 
   CactusCompletionParams({
+    this.model,
     this.temperature = 0.1,
     this.topK = 40,
     this.topP = 0.95,
