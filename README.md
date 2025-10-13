@@ -331,8 +331,8 @@ Future<void> providerComparisonExample() async {
   
   // Whisper provider - More accurate, better for complex audio
   final whisperSTT = CactusSTT(provider: TranscriptionProvider.whisper);
-  await whisperSTT.download(model: "base");
-  await whisperSTT.init(model: "base");
+  await whisperSTT.download(model: "whisper-base");
+  await whisperSTT.init(model: "whisper-base");
   
   // Use the appropriate provider for your use case
   final result1 = await voskSTT.transcribe();
