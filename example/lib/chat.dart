@@ -1,20 +1,29 @@
 import 'package:cactus/cactus.dart';
 import 'package:flutter/material.dart';
 
-class Chat extends StatefulWidget {
-  const Chat({super.key});
+class ChatMessageWithMetrics {
+  final ChatMessage message;
+  final CactusCompletionResult? metrics;
 
-  @override
-  State<Chat> createState() => _ChatState();
+  ChatMessageWithMetrics({
+    required this.message,
+    this.metrics,
+  });
 }
 
-class _ChatState extends State<Chat> {
+class ChatPage extends StatefulWidget {
+  const ChatPage({super.key});
+
+  @override
+  State<ChatPage> createState() => _ChatPageState();
+}
+
+class _ChatPageState extends State<ChatPage> {
   final cactusLM = CactusLM();
-  final List<ChatMessage> chatMessages = [];
+  final List<ChatMessageWithMetrics> chatMessages = [];
   bool _isLoading = true;
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _messageController = TextEditingController();
-  CactusCompletionResult? result;
 
   @override
   void initState() {
@@ -33,8 +42,12 @@ class _ChatState extends State<Chat> {
     if (message.isEmpty) return Future.value();
 
     setState(() {
-      chatMessages.add(ChatMessage(content: message, role: 'user'));
-      chatMessages.add(ChatMessage(content: '', role: 'typing'));
+      chatMessages.add(ChatMessageWithMetrics(
+        message: ChatMessage(content: message, role: 'user'),
+      ));
+      chatMessages.add(ChatMessageWithMetrics(
+        message: ChatMessage(content: '', role: 'typing'),
+      ));
       _messageController.clear();
       _isLoading = true;
     });
@@ -46,7 +59,10 @@ class _ChatState extends State<Chat> {
   }
 
   Future<void> _llmCall() async {
-    final messagesToPass = chatMessages.where((m) => m.role != 'typing').toList();
+    final messagesToPass = chatMessages
+        .where((m) => m.message.role != 'typing')
+        .map((m) => m.message)
+        .toList();
     print("Messages to pass: ${messagesToPass.map((m) => "[${m.role}] ${m.content}").join(", ")}");
     
     final CactusStreamedCompletionResult res = await cactusLM.generateCompletionStream(
@@ -56,18 +72,22 @@ class _ChatState extends State<Chat> {
     await for (final chunk in res.stream) {
       setState(() {
         // Remove typing indicator if it exists
-        if (chatMessages.isNotEmpty && chatMessages.last.role == 'typing') {
+        if (chatMessages.isNotEmpty && chatMessages.last.message.role == 'typing') {
           chatMessages.removeLast();
         }
         
         if (chatMessages.isNotEmpty &&
-            chatMessages.last.role == 'assistant') {
-          chatMessages[chatMessages.length - 1] = ChatMessage(
-            content: chatMessages.last.content + chunk,
-            role: 'assistant',
+            chatMessages.last.message.role == 'assistant') {
+          chatMessages[chatMessages.length - 1] = ChatMessageWithMetrics(
+            message: ChatMessage(
+              content: chatMessages.last.message.content + chunk,
+              role: 'assistant',
+            ),
           );
         } else {
-          chatMessages.add(ChatMessage(content: chunk, role: 'assistant'));
+          chatMessages.add(ChatMessageWithMetrics(
+            message: ChatMessage(content: chunk, role: 'assistant'),
+          ));
         }
       });
       _scrollController.animateTo(
@@ -77,7 +97,17 @@ class _ChatState extends State<Chat> {
       );
     }
 
-    result = await res.result;
+    final result = await res.result;
+    
+    // Update the last assistant message with metrics
+    setState(() {
+      if (chatMessages.isNotEmpty && chatMessages.last.message.role == 'assistant') {
+        chatMessages[chatMessages.length - 1] = ChatMessageWithMetrics(
+          message: chatMessages.last.message,
+          metrics: result,
+        );
+      }
+    });
   }
 
   Future<void> _setupCactusLM() async {
@@ -137,8 +167,11 @@ class _ChatState extends State<Chat> {
                     padding: const EdgeInsets.all(16),
                     itemCount: chatMessages.length,
                     itemBuilder: (context, index) {
-                      final message = chatMessages[index];
-                      return _MessageBubble(message: message, result: result);
+                      final messageWithMetrics = chatMessages[index];
+                      return _MessageBubble(
+                        message: messageWithMetrics.message,
+                        result: messageWithMetrics.metrics,
+                      );
                     },
                   ),
           ),
