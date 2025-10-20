@@ -45,8 +45,10 @@ Future<void> basicExample() async {
   final lm = CactusLM();
 
   try {
-    // Download a model with progress callback (default: qwen3-0.6)
+    // Download a model by slug (e.g., "qwen3-0.6", "gemma3-270m")
+    // If no model is specified, it defaults to "qwen3-0.6"
     await lm.downloadModel(
+      model: "qwen3-0.6", // Optional: specify model slug
       downloadProcessCallback: (progress, status, isError) {
         if (isError) {
           print("Download error: $status");
@@ -83,6 +85,7 @@ Future<void> basicExample() async {
 Future<void> streamingExample() async {
   final lm = CactusLM();
   
+  // Download model (defaults to "qwen3-0.6" if model parameter is omitted)
   await lm.downloadModel();
   await lm.initializeModel();
 
@@ -185,7 +188,7 @@ Future<void> fetchModelsExample() async {
   
   for (final model in models) {
     print("Model: ${model.name}");
-    print("Slug: ${model.slug}");
+    print("Slug: ${model.slug}"); // Use this slug with downloadModel()
     print("Size: ${model.sizeMb} MB");
     print("Downloaded: ${model.isDownloaded}");
     print("Supports Tool Calling: ${model.supportsToolCalling}");
@@ -206,7 +209,7 @@ The `CactusLM` class provides sensible defaults for completion parameters:
 ### LLM API Reference
 
 #### CactusLM Class
-- `Future<void> downloadModel({String model = "qwen3-0.6", CactusProgressCallback? downloadProcessCallback})` - Download a model with optional progress callback
+- `Future<void> downloadModel({String model = "qwen3-0.6", CactusProgressCallback? downloadProcessCallback})` - Download a model by slug (e.g., "qwen3-0.6", "gemma3-270m", etc.). Use `getModels()` to see available model slugs. Defaults to "qwen3-0.6" if not specified.
 - `Future<void> initializeModel(CactusInitParams params)` - Initialize model for inference
 - `Future<CactusCompletionResult> generateCompletion({required List<ChatMessage> messages, CactusCompletionParams? params, String? cactusToken})` - Generate text completion (uses default params if none provided)
 - `Future<CactusStreamedCompletionResult> generateCompletionStream({required List<ChatMessage> messages, CactusCompletionParams? params, List<CactusTool>? tools, String? cactusToken})` - Generate streaming text completion (uses default params if none provided)
