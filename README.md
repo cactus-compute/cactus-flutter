@@ -543,51 +543,6 @@ Future<void> ragExample() async {
 }
 ```
 
-### Advanced: Filtering by Distance
-```dart
-Future<void> ragFilteringExample() async {
-  final lm = CactusLM();
-  final rag = CactusRAG();
-
-  await lm.downloadModel();
-  await lm.initializeModel();
-  await rag.initialize();
-
-  rag.setEmbeddingGenerator((text) async {
-    final result = await lm.generateEmbedding(text: text);
-    return result?.embeddings ?? [];
-  });
-
-  // Store some documents...
-  await rag.storeDocument(
-    fileName: "doc1.txt",
-    filePath: "/path/to/doc1.txt",
-    content: "Flutter is a UI framework...",
-  );
-
-  // Search for similar chunks
-  final allResults = await rag.search(
-    text: "What is Flutter?",
-    limit: 10,
-  );
-
-  // Filter results by distance threshold if needed
-  // Lower distances are better matches
-  final maxDistance = 1500.0; // Adjust based on your use case
-  final filteredResults = allResults.where((r) => r.distance <= maxDistance).toList();
-
-  print("All results: ${allResults.length}");
-  print("Filtered results (distance <= $maxDistance): ${filteredResults.length}");
-
-  for (final result in filteredResults) {
-    print("Distance: ${result.distance.toStringAsFixed(2)} - ${result.chunk.content.substring(0, 50)}...");
-  }
-
-  lm.unload();
-  await rag.close();
-}
-```
-
 ### RAG API Reference
 
 #### CactusRAG Class
