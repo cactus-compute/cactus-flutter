@@ -11,6 +11,7 @@
 .svn/
 .swiftpm/
 migrate_working_dir/
+assets/.cactus_dev_config.json
 
 # IntelliJ related
 *.iml
