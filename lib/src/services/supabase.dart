@@ -135,7 +135,7 @@ class Supabase {
   static Future<List<CactusModel>> fetchModels() async {
     try {
       final client = HttpClient();
-      final uri = Uri.parse('$_supabaseUrl/rest/v1/models?select=*');
+      final uri = Uri.parse('$_supabaseUrl/rest/v1/models?select=*&isLive=eq.true');
       final request = await client.getUrl(uri);
       
       request.headers.set('apikey', _supabaseKey);
