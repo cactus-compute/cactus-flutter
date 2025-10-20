@@ -215,7 +215,6 @@ class CactusRAG {
   Future<List<ChunkSearchResult>> search({
     String? text,
     int limit = 10,
-    double threshold = 0.5,
   }) async {
     if (text == null) {
       throw ArgumentError('text must be provided.');
@@ -226,50 +225,18 @@ class CactusRAG {
     }
 
     final queryEmbedding = await _embeddingGenerator!(text);
-    final chunkResults = <_ChunkResult>[];
 
-    final allChunks = chunkBox.getAll();
-    for (final chunk in allChunks) {
-      if (chunk.embeddings.isNotEmpty) {
-        final similarity = _cosineSimilarity(queryEmbedding, chunk.embeddings);
-        if (similarity >= threshold) {
-          chunkResults.add(_ChunkResult(chunk: chunk, similarity: similarity));
-        }
-      }
-    }
+    // Use ObjectBox's native vector search with HNSW index
+    final query = chunkBox
+        .query(DocumentChunk_.embeddings.nearestNeighborsF32(queryEmbedding, limit))
+        .build();
 
-    final uniqueChunkIds = <int>{};
-    final uniqueChunkResults = <_ChunkResult>[];
-    for (final result in chunkResults) {
-      if (uniqueChunkIds.add(result.chunk.id)) {
-        uniqueChunkResults.add(result);
-      }
-    }
-
-    uniqueChunkResults.sort((a, b) => b.similarity.compareTo(a.similarity));
-
-    return uniqueChunkResults
-        .take(limit)
-        .map((r) => ChunkSearchResult(chunk: r.chunk, similarity: r.similarity))
-        .toList();
-  }
-
-  double _cosineSimilarity(List<double> a, List<double> b) {
-    if (a.length != b.length) return 0.0;
-
-    double dotProduct = 0.0;
-    double normA = 0.0;
-    double normB = 0.0;
-
-    for (int i = 0; i < a.length; i++) {
-      dotProduct += a[i] * b[i];
-      normA += a[i] * a[i];
-      normB += b[i] * b[i];
-    }
-
-    if (normA == 0.0 || normB == 0.0) return 0.0;
-
-    return dotProduct / (sqrt(normA) * sqrt(normB));
+    final results = query.findWithScores();
+    query.close();
+    return results.map((result) => ChunkSearchResult(
+      chunk: result.object,
+      distance: result.score,
+    )).toList();
   }
 
   Future<DatabaseStats> getStats() async {
@@ -289,13 +256,7 @@ class CactusRAG {
 
 class ChunkSearchResult {
   final DocumentChunk chunk;
-  final double similarity;
+  final double distance;
 
-  ChunkSearchResult({required this.chunk, required this.similarity});
-}
-
-class _ChunkResult {
-  final DocumentChunk chunk;
-  final double similarity;
-  _ChunkResult({required this.chunk, required this.similarity});
+  ChunkSearchResult({required this.chunk, required this.distance});
 }

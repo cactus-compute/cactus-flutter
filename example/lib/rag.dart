@@ -215,8 +215,7 @@ class _RAGPageState extends State<RAGPage> {
     try {
       final results = await rag.search(
         text: _queryController.text,
-        limit: 2,
-        threshold: 0.6
+        limit: 2
       );
 
       setState(() {
@@ -573,19 +572,6 @@ class _RAGPageState extends State<RAGPage> {
                                   result.chunk.document.target?.fileName ?? 'Unknown Document',
                                   style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black),
                                   overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: Colors.grey.shade200,
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: Colors.grey.shade400),
-                                ),
-                                child: Text(
-                                  'Similarity: ${(result.similarity * 100).toStringAsFixed(1)}%',
-                                  style: const TextStyle(fontSize: 12, color: Colors.black),
                                 ),
                               ),
                             ],
