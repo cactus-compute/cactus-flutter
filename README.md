@@ -482,10 +482,14 @@ The `CactusRAG` class provides a local vector database for storing, managing, an
 **Key Features:**
 - **Automatic Text Chunking**: Documents are automatically split into configurable chunks with overlap for better context preservation
 - **Embedding Generation**: Integrates with `CactusLM` to automatically generate embeddings for each chunk
-- **Vector Search**: Performs cosine similarity search across document chunks
+- **Vector Search**: Performs efficient nearest neighbor search using HNSW (Hierarchical Navigable Small World) index with squared Euclidean distance
 - **Document Management**: Supports create, read, update, and delete operations with automatic chunk handling
+- **Local-First**: All data and embeddings are stored on-device using ObjectBox for privacy and offline functionality
 
 ### Basic Usage
+
+**Note on Distance Scores**: The search method returns squared Euclidean distance values where **lower distance = more similar** vectors. Results are automatically sorted with the most similar chunks first. You don't need to convert to similarity scores - just use the distance values directly for filtering or ranking.
+
 ```dart
 import 'package:cactus/cactus.dart';
 
@@ -520,16 +524,15 @@ Future<void> ragExample() async {
     );
     print("Document stored with ${document.chunks.length} chunks.");
 
-    // 5. Search for similar content using query embeddings
+    // 5. Search for similar content using vector search
     final searchResults = await rag.search(
       text: "What is the famous landmark in Paris?",
-      limit: 5,
-      threshold: 0.5,
+      limit: 5, // Get top 5 most similar chunks
     );
 
     print("\nFound ${searchResults.length} similar chunks:");
     for (final result in searchResults) {
-      print("- Chunk from ${result.chunk.document.target?.fileName} (Similarity: ${result.similarity.toStringAsFixed(2)})");
+      print("- Chunk from ${result.chunk.document.target?.fileName} (Distance: ${result.distance.toStringAsFixed(2)})");
       print("  Content: ${result.chunk.content.substring(0, 50)}...");
     }
   } finally {
@@ -555,13 +558,13 @@ Future<void> ragExample() async {
 - `Future<List<Document>> getAllDocuments()` - Get all stored documents
 - `Future<void> updateDocument(Document document)` - Update an existing document and its chunks
 - `Future<void> deleteDocument(int id)` - Delete a document and all its chunks by ID
-- `Future<List<ChunkSearchResult>> search({List<double>? queryEmbedding, int limit = 10, double threshold = 0.5})` - Search for document chunks by vector similarity
+- `Future<List<ChunkSearchResult>> search({String? text, int limit = 10})` - Search for the nearest document chunks by generating embeddings for the query text and performing vector similarity search. Results are sorted by distance (lower = more similar)
 - `Future<DatabaseStats> getStats()` - Get statistics about the database
 
 #### RAG Data Classes
 - `Document` - Represents a stored document with its metadata and associated chunks
-- `DocumentChunk` - Represents a text chunk with its content and embeddings
-- `ChunkSearchResult({required DocumentChunk chunk, required double similarity})` - Contains a document chunk and its similarity score from a search result
+- `DocumentChunk` - Represents a text chunk with its content and embeddings (1024-dimensional vectors by default)
+- `ChunkSearchResult({required DocumentChunk chunk, required double distance})` - Contains a document chunk and its distance score from the query vector (lower distance = more similar). Distance is squared Euclidean distance from ObjectBox HNSW index
 - `DatabaseStats` - Contains statistics about the document store including total documents, chunks, and content length
 - `EmbeddingGenerator = Future<List<double>> Function(String text)` - Function type for generating embeddings from text
 

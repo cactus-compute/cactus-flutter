@@ -100,7 +100,9 @@ final _entities = <obx_int.ModelEntity>[
         id: const obx_int.IdUid(3, 21625958946132624),
         name: 'embeddings',
         type: 28,
-        flags: 0,
+        flags: 8,
+        indexId: const obx_int.IdUid(3, 4581199378552730062),
+        hnswParams: obx_int.ModelHnswParams(dimensions: 1024),
       ),
       obx_int.ModelProperty(
         id: const obx_int.IdUid(4, 5492377325267950209),
@@ -155,7 +157,7 @@ obx_int.ModelDefinition getObjectBoxModel() {
   final model = obx_int.ModelInfo(
     entities: _entities,
     lastEntityId: const obx_int.IdUid(2, 1869689020035618977),
-    lastIndexId: const obx_int.IdUid(2, 5798898100612670106),
+    lastIndexId: const obx_int.IdUid(3, 4581199378552730062),
     lastRelationId: const obx_int.IdUid(0, 0),
     lastSequenceId: const obx_int.IdUid(0, 0),
     retiredEntityUids: const [],
@@ -360,7 +362,7 @@ class DocumentChunk_ {
   );
 
   /// See [DocumentChunk.embeddings].
-  static final embeddings = obx.QueryDoubleVectorProperty<DocumentChunk>(
+  static final embeddings = obx.QueryHnswProperty<DocumentChunk>(
     _entities[1].properties[2],
   );
 

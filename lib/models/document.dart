@@ -53,6 +53,7 @@ class DocumentChunk {
   late String content;
 
   @Property(type: PropertyType.floatVector)
+  @HnswIndex(dimensions: 1024)
   late List<double> embeddings;
 
   final document = ToOne<Document>();

@@ -68,7 +68,9 @@
         {
           "id": "3:21625958946132624",
           "name": "embeddings",
-          "type": 28
+          "indexId": "3:4581199378552730062",
+          "type": 28,
+          "flags": 8
         },
         {
           "id": "4:5492377325267950209",
@@ -83,7 +85,7 @@
     }
   ],
   "lastEntityId": "2:1869689020035618977",
-  "lastIndexId": "2:5798898100612670106",
+  "lastIndexId": "3:4581199378552730062",
   "lastRelationId": "0:0",
   "lastSequenceId": "0:0",
   "modelVersion": 5,
