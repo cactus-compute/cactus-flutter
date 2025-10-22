@@ -1,6 +1,7 @@
 
 import 'package:cactus/services/telemetry.dart';
 import 'package:cactus_example/chat.dart';
+import 'package:cactus_example/memory.dart';
 import 'package:flutter/material.dart';
 import 'basic_completion.dart';
 import 'streaming_completion.dart';
@@ -167,6 +168,15 @@ class _MyHomePageState extends State<MyHomePage> {
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => const ChatPage()),
+              );
+            },
+          ),
+          ListTile(
+            title: const Text('Memory'),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const MemoryPage()),
               );
             },
           ),
