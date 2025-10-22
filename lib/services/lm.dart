@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:cactus/models/tools.dart';
 import 'package:cactus/services/telemetry.dart';
+import 'package:cactus/services/tool_filter.dart';
 import 'package:cactus/src/services/context.dart';
 import 'package:cactus/src/services/download.dart';
 import 'package:cactus/models/types.dart';
@@ -18,6 +19,15 @@ class CactusLM {
   CactusInitParams defaultInitParams = CactusInitParams(model: "qwen3-0.6", contextSize: 2048);
   CactusCompletionParams defaultCompletionParams = CactusCompletionParams();
   List<CactusModel> _models = [];
+
+  bool enableToolFiltering;
+  ToolFilterConfig? toolFilterConfig;  
+  ToolFilterService? _toolFilterService;
+  
+  CactusLM({
+    this.enableToolFiltering = true,
+    this.toolFilterConfig,
+  });
 
   Future<void> downloadModel({
     String model = "qwen3-0.6",
@@ -89,7 +99,12 @@ class CactusLM {
     final initParams = CactusInitParams(model: model);
     final modelMetadata = await _getModel(model);
     
-    // Create params with tools if provided
+    List<CactusTool>? toolsToUse = completionParams.tools;
+    if (enableToolFiltering && completionParams.tools != null && completionParams.tools!.isNotEmpty) {
+      toolsToUse = await _filterTools(messages, completionParams.tools!);
+    }
+    
+    // Create params with filtered tools
     final paramsWithTools = CactusCompletionParams(
       model: completionParams.model,
       temperature: completionParams.temperature,
@@ -97,7 +112,7 @@ class CactusLM {
       topP: completionParams.topP,
       maxTokens: completionParams.maxTokens,
       stopSequences: completionParams.stopSequences,
-      tools: completionParams.tools,
+      tools: toolsToUse,
       completionMode: completionParams.completionMode,
       quantization: modelMetadata?.quantization ?? 8,
     );
@@ -151,7 +166,12 @@ class CactusLM {
     final initParams = CactusInitParams(model: model);
     final modelMetadata = await _getModel(model);
 
-    // Create params with tools if provided
+    List<CactusTool>? toolsToUse = tools ?? completionParams.tools;
+    if (enableToolFiltering && toolsToUse != null && toolsToUse.isNotEmpty) {
+      toolsToUse = await _filterTools(messages, toolsToUse);
+    }
+
+    // Create params with filtered tools
     final paramsWithTools = CactusCompletionParams(
       model: completionParams.model,
       temperature: completionParams.temperature,
@@ -159,7 +179,7 @@ class CactusLM {
       topP: completionParams.topP,
       maxTokens: completionParams.maxTokens,
       stopSequences: completionParams.stopSequences,
-      tools: tools ?? completionParams.tools,
+      tools: toolsToUse,
       completionMode: completionParams.completionMode,
       quantization: modelMetadata?.quantization ?? 8,
     );
@@ -264,6 +284,27 @@ class CactusLM {
     if (Telemetry.isInitialized) {
       Telemetry.instance?.logEmbedding(result, initParams, message: message, success: success);
     }
+  }
+
+  Future<List<CactusTool>> _filterTools(List<ChatMessage> messages, List<CactusTool> tools) async {
+    _toolFilterService ??= ToolFilterService(
+      config: toolFilterConfig ?? ToolFilterConfig.simple(),
+      lm: this
+    );
+    
+    final userQuery = messages.lastWhere(
+      (msg) => msg.role == 'user',
+      orElse: () => messages.last,
+    ).content;
+    
+    final filteredTools = await _toolFilterService!.filterTools(userQuery, tools);
+    
+    if (filteredTools.length != tools.length) {
+      debugPrint('Tool filtering: ${tools.length} -> ${filteredTools.length} tools');
+      debugPrint('Filtered tools: ${filteredTools.map((t) => t.name).join(', ')}');
+    }
+    
+    return filteredTools;
   }
 
   Future<List<CactusModel>> getModels() async {

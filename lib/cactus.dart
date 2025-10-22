@@ -9,3 +9,4 @@ export 'services/rag.dart';
 export 'services/stt.dart';
 export 'services/telemetry.dart';
 export 'services/utility.dart';
+export 'services/tool_filter.dart';
