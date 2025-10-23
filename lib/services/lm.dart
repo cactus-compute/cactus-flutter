@@ -23,6 +23,7 @@ class CactusLM {
   bool enableToolFiltering;
   ToolFilterConfig? toolFilterConfig;  
   ToolFilterService? _toolFilterService;
+  final _handleLock = _AsyncLock();
   
   CactusLM({
     this.enableToolFiltering = true,
@@ -94,65 +95,67 @@ class CactusLM {
     CactusCompletionParams? params,
     String? cactusToken,
   }) async {
-    final completionParams = params ?? defaultCompletionParams;
-    final model = completionParams.model ?? _lastDownloadedModel ?? defaultInitParams.model;
-    final initParams = CactusInitParams(model: model);
-    final modelMetadata = await _getModel(model);
-    
-    List<CactusTool>? toolsToUse = completionParams.tools;
-    if (enableToolFiltering && completionParams.tools != null && completionParams.tools!.isNotEmpty) {
-      toolsToUse = await _filterTools(messages, completionParams.tools!);
-    }
-    
-    // Create params with filtered tools
-    final paramsWithTools = CactusCompletionParams(
-      model: completionParams.model,
-      temperature: completionParams.temperature,
-      topK: completionParams.topK,
-      topP: completionParams.topP,
-      maxTokens: completionParams.maxTokens,
-      stopSequences: completionParams.stopSequences,
-      tools: toolsToUse,
-      completionMode: completionParams.completionMode,
-      quantization: modelMetadata?.quantization ?? 8,
-    );
+    return await _handleLock.synchronized(() async {
+      final completionParams = params ?? defaultCompletionParams;
+      final model = completionParams.model ?? _lastDownloadedModel ?? defaultInitParams.model;
+      final initParams = CactusInitParams(model: model);
+      final modelMetadata = await _getModel(model);
+      
+      List<CactusTool>? toolsToUse = completionParams.tools;
+      if (enableToolFiltering && completionParams.tools != null && completionParams.tools!.isNotEmpty) {
+        toolsToUse = await _filterTools(messages, completionParams.tools!);
+      }
+      
+      // Create params with filtered tools
+      final paramsWithTools = CactusCompletionParams(
+        model: completionParams.model,
+        temperature: completionParams.temperature,
+        topK: completionParams.topK,
+        topP: completionParams.topP,
+        maxTokens: completionParams.maxTokens,
+        stopSequences: completionParams.stopSequences,
+        tools: toolsToUse,
+        completionMode: completionParams.completionMode,
+        quantization: modelMetadata?.quantization ?? 8,
+      );
 
-    debugPrint('Completion mode: ${paramsWithTools.completionMode}');
+      debugPrint('Completion mode: ${paramsWithTools.completionMode}');
 
-    int? currentHandle = await _getValidatedHandle(model: model);
+      int? currentHandle = await _getValidatedHandle(model: model);
 
-    if (currentHandle != null) {
-      try {
-        final result = await CactusContext.completion(currentHandle, messages, paramsWithTools);
-        _logCompletionTelemetry(result, initParams, success: result.success, message: result.success ? null : result.response);
-        return result;
-      } catch (e) {
-        debugPrint('Local completion failed: $e');
-        if (paramsWithTools.completionMode == CompletionMode.local || (paramsWithTools.completionMode == CompletionMode.hybrid && cactusToken == null)) {
-          _logCompletionTelemetry(null, initParams, success: false, message: e.toString());
-          rethrow;
+      if (currentHandle != null) {
+        try {
+          final result = await CactusContext.completion(currentHandle, messages, paramsWithTools);
+          _logCompletionTelemetry(result, initParams, success: result.success, message: result.success ? null : result.response);
+          return result;
+        } catch (e) {
+          debugPrint('Local completion failed: $e');
+          if (paramsWithTools.completionMode == CompletionMode.local || (paramsWithTools.completionMode == CompletionMode.hybrid && cactusToken == null)) {
+            _logCompletionTelemetry(null, initParams, success: false, message: e.toString());
+            rethrow;
+          }
+          debugPrint('Falling back to cloud completion');
         }
-        debugPrint('Falling back to cloud completion');
       }
-    }
-    
-    if (paramsWithTools.completionMode == CompletionMode.hybrid && cactusToken != null) {
-      try {
-        final openRouterService = OpenRouterService(apiKey: cactusToken);
-        final result = await openRouterService.generateCompletion(
-          messages: messages,
-          params: params,
-        );
-        openRouterService.dispose();
-        _logCompletionTelemetry(result, initParams, success: result.success, message: result.success ? null : result.response);
-        return result;
-      } catch (e) {
-        _logCompletionTelemetry(null, initParams, success: false, message: 'Cloud completion failed: $e');
-        throw Exception('Cloud completion failed: $e');
+      
+      if (paramsWithTools.completionMode == CompletionMode.hybrid && cactusToken != null) {
+        try {
+          final openRouterService = OpenRouterService(apiKey: cactusToken);
+          final result = await openRouterService.generateCompletion(
+            messages: messages,
+            params: params,
+          );
+          openRouterService.dispose();
+          _logCompletionTelemetry(result, initParams, success: result.success, message: result.success ? null : result.response);
+          return result;
+        } catch (e) {
+          _logCompletionTelemetry(null, initParams, success: false, message: 'Cloud completion failed: $e');
+          throw Exception('Cloud completion failed: $e');
+        }
       }
-    }
-    
-    throw Exception('Model $_lastDownloadedModel is not downloaded. Please download it before generating completions.');
+      
+      throw Exception('Model $_lastDownloadedModel is not downloaded. Please download it before generating completions.');
+    });
   }
 
   Future<CactusStreamedCompletionResult> generateCompletionStream({
@@ -232,26 +235,28 @@ class CactusLM {
   }
 
   Future<CactusEmbeddingResult> generateEmbedding({required String text, String? modelName}) async {
-    if (_lastDownloadedModel == null || !await _isModelDownloaded(_lastDownloadedModel!)) {
-      throw Exception('Model $_lastDownloadedModel is not downloaded. Please download it before generating completions.');
-    }
-    final currentHandle = await _getValidatedHandle();
-    final model = modelName ?? _lastDownloadedModel ?? defaultInitParams.model;
-    final initParams = CactusInitParams(model: model);
-    final modelMetadata = await _getModel(model);
-
-    try {
-      if(currentHandle != null) {
-        final result = await CactusContext.generateEmbedding(currentHandle, text, modelMetadata?.quantization ?? 8);
-        _logEmbeddingTelemetry(result, initParams, success: result.success, message: result.errorMessage);
-        return result;
-      } else {
-        throw Exception('Context not initialized');
+    return await _handleLock.synchronized(() async {
+      if (_lastDownloadedModel == null || !await _isModelDownloaded(_lastDownloadedModel!)) {
+        throw Exception('Model $_lastDownloadedModel is not downloaded. Please download it before generating completions.');
       }
-    } catch (e) {
-      _logEmbeddingTelemetry(null, initParams, success: false, message: e.toString());
-      rethrow;
-    }
+      final currentHandle = await _getValidatedHandle();
+      final model = modelName ?? _lastDownloadedModel ?? defaultInitParams.model;
+      final initParams = CactusInitParams(model: model);
+      final modelMetadata = await _getModel(model);
+
+      try {
+        if(currentHandle != null) {
+          final result = await CactusContext.generateEmbedding(currentHandle, text, modelMetadata?.quantization ?? 8);
+          _logEmbeddingTelemetry(result, initParams, success: result.success, message: result.errorMessage);
+          return result;
+        } else {
+          throw Exception('Context not initialized');
+        }
+      } catch (e) {
+        _logEmbeddingTelemetry(null, initParams, success: false, message: e.toString());
+        rethrow;
+      }
+    });
   }
 
   void unload() {
@@ -334,6 +339,26 @@ class CactusLM {
       return _models.firstWhere((model) => model.slug == slug);
     } catch (e) {
       return null;
+    }
+  }
+}
+
+class _AsyncLock {
+  Completer<void>? _completer;
+
+  Future<T> synchronized<T>(Future<T> Function() fn) async {
+    while (_completer != null) {
+      await _completer!.future;
+    }
+
+    _completer = Completer<void>();
+
+    try {
+      return await fn();
+    } finally {
+      final completer = _completer;
+      _completer = null;
+      completer?.complete();
     }
   }
 }
