@@ -124,7 +124,7 @@ class CactusLM {
     if (currentHandle != null) {
       try {
         final result = await CactusContext.completion(currentHandle, messages, paramsWithTools);
-        _logCompletionTelemetry(result, initParams);
+        _logCompletionTelemetry(result, initParams, success: result.success, message: result.success ? null : result.response);
         return result;
       } catch (e) {
         debugPrint('Local completion failed: $e');
@@ -144,7 +144,7 @@ class CactusLM {
           params: params,
         );
         openRouterService.dispose();
-        _logCompletionTelemetry(result, initParams, success: result.success);
+        _logCompletionTelemetry(result, initParams, success: result.success, message: result.success ? null : result.response);
         return result;
       } catch (e) {
         _logCompletionTelemetry(null, initParams, success: false, message: 'Cloud completion failed: $e');
@@ -192,7 +192,7 @@ class CactusLM {
       try {
         final streamedResult = CactusContext.completionStream(currentHandle, messages, paramsWithTools);
         streamedResult.result.then((result) {
-          _logCompletionTelemetry(result, initParams, success: result.success);
+          _logCompletionTelemetry(result, initParams, success: result.success, message: result.success ? null : result.response);
         }).catchError((error) {
           _logCompletionTelemetry(null, initParams, success: false, message: error.toString());
         });
@@ -217,7 +217,7 @@ class CactusLM {
         );
         streamedResult.result.whenComplete(() => openRouterService.dispose());
         streamedResult.result.then((result) {
-          _logCompletionTelemetry(result, initParams, success: result.success);
+          _logCompletionTelemetry(result, initParams, success: result.success, message: result.success ? null : result.response);
         }).catchError((error) {
           _logCompletionTelemetry(null, initParams, success: false, message: 'Cloud streaming completion failed: $error');
         });
@@ -243,7 +243,7 @@ class CactusLM {
     try {
       if(currentHandle != null) {
         final result = await CactusContext.generateEmbedding(currentHandle, text, modelMetadata?.quantization ?? 8);
-        _logEmbeddingTelemetry(result, initParams);
+        _logEmbeddingTelemetry(result, initParams, success: result.success, message: result.errorMessage);
         return result;
       } else {
         throw Exception('Context not initialized');
