@@ -98,7 +98,6 @@ Future<CactusCompletionResult> _completionInIsolate(Map<String, dynamic> params)
       
       try {
         final jsonResponse = jsonDecode(responseText) as Map<String, dynamic>;
-        print("Parsed JSON response: $jsonResponse");
         final success = jsonResponse['success'] as bool? ?? true;
         final response = jsonResponse['response'] as String? ?? responseText;
         final timeToFirstTokenMs = (jsonResponse['time_to_first_token_ms'] as num?)?.toDouble() ?? 0.0;
