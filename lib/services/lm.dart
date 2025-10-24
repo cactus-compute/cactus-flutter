@@ -4,14 +4,14 @@ import 'package:cactus/models/tools.dart';
 import 'package:cactus/services/telemetry.dart';
 import 'package:cactus/services/tool_filter.dart';
 import 'package:cactus/src/services/context.dart';
-import 'package:cactus/src/services/download.dart';
+import 'package:cactus/src/utils/models/download.dart';
 import 'package:cactus/models/types.dart';
-import 'package:cactus/src/services/supabase.dart';
-import 'package:cactus/src/services/openrouter.dart';
+import 'package:cactus/src/services/api/supabase.dart';
+import 'package:cactus/src/services/api/openrouter.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
-import 'package:cactus/src/services/telemetry.dart';
+import 'package:cactus/src/services/api/telemetry.dart';
 
 class CactusLM {
   int? _handle;

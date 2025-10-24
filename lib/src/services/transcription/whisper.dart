@@ -4,7 +4,7 @@ import 'dart:ffi';
 import 'package:cactus/models/types.dart';
 import 'package:cactus/src/services/bindings.dart';
 import 'package:cactus/src/models/binding.dart';
-import 'package:cactus/src/utils/speech_utils.dart';
+import 'package:cactus/src/utils/speech/speech_utils.dart';
 import 'package:ffi/ffi.dart';
 import 'package:flutter/foundation.dart';
 

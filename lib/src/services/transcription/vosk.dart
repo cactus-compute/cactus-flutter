@@ -7,7 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:cactus/src/services/bindings.dart';
 import 'package:cactus/src/models/binding.dart';
 import 'package:cactus/models/types.dart';
-import 'package:cactus/src/utils/speech_utils.dart';
+import 'package:cactus/src/utils/speech/speech_utils.dart';
 import 'package:record/record.dart';
 
 Future<Map<String, dynamic>> _initializeVoskInIsolate(Map<String, dynamic> params) async {

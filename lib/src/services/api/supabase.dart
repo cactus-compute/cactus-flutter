@@ -4,9 +4,9 @@ import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'package:cactus/src/models/log_record.dart';
 import 'package:cactus/models/types.dart';
-import 'package:cactus/src/services/log_buffer.dart';
-import 'package:cactus/src/services/model_cache.dart';
-import 'package:cactus/src/utils/ffi_utils.dart';
+import 'package:cactus/src/utils/logging/log_buffer.dart';
+import 'package:cactus/src/utils/models/model_cache.dart';
+import 'package:cactus/src/utils/platform/ffi_utils.dart';
 
 class Supabase {
   static bool? _skipTelemetry;

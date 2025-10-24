@@ -1,4 +1,4 @@
-import 'package:cactus/src/services/telemetry.dart';
+import 'package:cactus/src/services/api/telemetry.dart';
 
 class CactusTelemetry {
 

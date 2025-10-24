@@ -2,15 +2,15 @@ import 'dart:async';
 
 import 'package:cactus/models/types.dart';
 import 'package:cactus/services/telemetry.dart';
-import 'package:cactus/src/services/whisper.dart';
-import 'package:cactus/src/services/cactus_id.dart';
-import 'package:cactus/src/services/download.dart';
-import 'package:cactus/src/services/supabase.dart';
-import 'package:cactus/src/services/transcription_provider.dart';
+import 'package:cactus/src/services/transcription/whisper.dart';
+import 'package:cactus/src/utils/cactus_id.dart';
+import 'package:cactus/src/utils/models/download.dart';
+import 'package:cactus/src/services/api/supabase.dart';
+import 'package:cactus/src/services/transcription/transcription_provider.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
-import '../services/telemetry.dart';
+import '../api/telemetry.dart';
 
 class WhisperTranscriptionProvider implements TranscriptionProviderInterface {
   bool _isInitialized = false;

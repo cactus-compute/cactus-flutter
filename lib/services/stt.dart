@@ -2,10 +2,10 @@ import 'dart:async';
 
 import 'package:cactus/models/types.dart';
 import 'package:cactus/services/telemetry.dart';
-import 'package:cactus/src/services/telemetry.dart';
-import 'package:cactus/src/services/transcription_provider.dart';
-import 'package:cactus/src/services/vosk_provider.dart';
-import 'package:cactus/src/services/whisper_provider.dart';
+import 'package:cactus/src/services/api/telemetry.dart';
+import 'package:cactus/src/services/transcription/transcription_provider.dart';
+import 'package:cactus/src/services/transcription/vosk_provider.dart';
+import 'package:cactus/src/services/transcription/whisper_provider.dart';
 
 class CactusSTT {
   final TranscriptionProvider _provider;

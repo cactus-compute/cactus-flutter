@@ -1,6 +1,6 @@
 import 'dart:math';
 import 'package:cactus/services/telemetry.dart';
-import 'package:cactus/src/services/telemetry.dart';
+import 'package:cactus/src/services/api/telemetry.dart';
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
