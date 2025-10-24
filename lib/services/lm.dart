@@ -97,7 +97,7 @@ class CactusLM {
   }) async {
     return await _handleLock.synchronized(() async {
       final completionParams = params ?? defaultCompletionParams;
-      final model = completionParams.model ?? _lastDownloadedModel ?? defaultInitParams.model;
+      final model = _lastDownloadedModel ?? defaultInitParams.model;
       final initParams = CactusInitParams(model: model);
       final modelMetadata = await _getModel(model);
       
@@ -108,7 +108,6 @@ class CactusLM {
       
       // Create params with filtered tools
       final paramsWithTools = CactusCompletionParams(
-        model: completionParams.model,
         temperature: completionParams.temperature,
         topK: completionParams.topK,
         topP: completionParams.topP,
@@ -165,7 +164,7 @@ class CactusLM {
     String? cactusToken,
   }) async {
     final completionParams = params ?? defaultCompletionParams;
-    final model = completionParams.model ?? _lastDownloadedModel ?? defaultInitParams.model;
+    final model = _lastDownloadedModel ?? defaultInitParams.model;
     final initParams = CactusInitParams(model: model);
     final modelMetadata = await _getModel(model);
 
@@ -176,7 +175,6 @@ class CactusLM {
 
     // Create params with filtered tools
     final paramsWithTools = CactusCompletionParams(
-      model: completionParams.model,
       temperature: completionParams.temperature,
       topK: completionParams.topK,
       topP: completionParams.topP,
