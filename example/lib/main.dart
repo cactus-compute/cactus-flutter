@@ -1,15 +1,16 @@
 
-import 'package:cactus/services/telemetry.dart';
-import 'package:cactus_example/chat.dart';
+import 'package:cactus/cactus.dart';
+
 import 'package:flutter/material.dart';
-import 'basic_completion.dart';
-import 'streaming_completion.dart';
-import 'function_calling.dart';
-import 'hybrid_completion.dart';
-import 'fetch_models.dart';
-import 'embedding.dart';
-import 'rag.dart';
-import 'stt.dart';
+import 'pages/basic_completion.dart';
+import 'pages/chat.dart';
+import 'pages/embedding.dart';
+import 'pages/fetch_models.dart';
+import 'pages/function_calling.dart';
+import 'pages/hybrid_completion.dart';
+import 'pages/rag.dart';
+import 'pages/streaming_completion.dart';
+import 'pages/stt.dart';
 
 void main() {
   runApp(const MyApp());
