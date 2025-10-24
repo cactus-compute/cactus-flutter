@@ -28,9 +28,9 @@ class ChatMessage {
 }
 
 class CactusCompletionParams {
-  final double temperature;
-  final int topK;
-  final double topP;
+  final double? temperature;
+  final int? topK;
+  final double? topP;
   final int maxTokens;
   final List<String> stopSequences;
   final List<CactusTool>? tools;
@@ -38,9 +38,9 @@ class CactusCompletionParams {
   final int quantization;
 
   CactusCompletionParams({
-    this.temperature = 0.7,
-    this.topK = 20,
-    this.topP = 0.95,
+    this.temperature,
+    this.topK,
+    this.topP,
     this.maxTokens = 200,
     this.stopSequences = const ["<|im_end|>", "<end_of_turn>"],
     this.tools,

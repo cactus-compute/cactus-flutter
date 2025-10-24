@@ -266,9 +266,9 @@ class CactusContext {
 
     // Prepare options JSON
     final optionsJsonBuffer = StringBuffer('{');
-    optionsJsonBuffer.write('"temperature":${params.temperature},');
-    optionsJsonBuffer.write('"top_k":${params.topK},');
-    optionsJsonBuffer.write('"top_p":${params.topP},');
+    params.temperature != null ? optionsJsonBuffer.write('"temperature":${params.temperature},') : null;
+    params.topK != null ? optionsJsonBuffer.write('"top_k":${params.topK},') : null;
+    params.topP != null ? optionsJsonBuffer.write('"top_p":${params.topP},') : null;
     optionsJsonBuffer.write('"max_tokens":${params.maxTokens}');
     if (params.stopSequences.isNotEmpty) {
       optionsJsonBuffer.write(',"stop_sequences":[');
