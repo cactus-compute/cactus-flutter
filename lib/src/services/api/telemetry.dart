@@ -86,7 +86,7 @@ class Telemetry {
 
   Future<void> logTranscription(
     CactusCompletionResult? result,
-    CactusInitParams options, {
+    String model, {
     String? message,
     double? responseTime
   }) async {
@@ -95,7 +95,7 @@ class Telemetry {
       projectId: projectId,
       deviceId: deviceId,
       responseTime: responseTime,
-      model: options.model,
+      model: model,
       success: result?.success,
       telemetryToken: cactusTelemetryToken,
       message: message,

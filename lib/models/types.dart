@@ -212,12 +212,14 @@ class SpeechRecognitionParams {
   final int maxDuration;
   final int maxSilenceDuration;
   final double silenceThreshold;
+  final String? model;
 
   SpeechRecognitionParams({
     this.sampleRate = 16000,
     this.maxDuration = 30000,
     this.maxSilenceDuration = 2000,
     this.silenceThreshold = 500.0,
+    this.model,
   });
 }
 
