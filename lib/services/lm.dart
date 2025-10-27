@@ -320,24 +320,8 @@ class CactusLM {
     return _models;
   }
 
-  Future<bool> _isModelDownloaded([String? modelName]) async {
-    final currentModel = await _getModel(modelName ?? _lastDownloadedModel!);
-    if (currentModel == null) {
-      print("No data found for model: $_lastDownloadedModel");
-      return false;
-    }
-    return await DownloadService.modelExists(currentModel.slug);
-  }
-
-  Future<CactusModel?> _getModel(String slug) async {
-    if (_models.isEmpty) {
-      _models = await getModels();
-    }
-    try {
-      return _models.firstWhere((model) => model.slug == slug);
-    } catch (e) {
-      return null;
-    }
+  Future<bool> _isModelDownloaded(String modelName) async {
+    return await DownloadService.modelExists(modelName);
   }
 }
 
