@@ -1,11 +1,11 @@
 import 'dart:io';
 import 'dart:convert';
 
+import 'package:cactus/src/version.dart';
 import 'package:flutter/services.dart';
 import 'package:cactus/src/models/log_record.dart';
 import 'package:cactus/models/types.dart';
 import 'package:cactus/src/utils/logging/log_buffer.dart';
-import 'package:cactus/src/utils/models/model_cache.dart';
 import 'package:cactus/src/utils/platform/ffi_utils.dart';
 
 class Supabase {
@@ -132,15 +132,37 @@ class Supabase {
     }
   }
 
-  static Future<List<CactusModel>> fetchModels() async {
+  static Future<CactusModel?> getModel(String slug) async {
     try {
       final client = HttpClient();
-      final uri = Uri.parse('$_supabaseUrl/rest/v1/models?select=*&is_live=eq.true');
+      final uri = Uri.parse('$_supabaseUrl/functions/v1/get-models?slug=$slug&sdk_name=flutter&sdk_version=$packageVersion');
       final request = await client.getUrl(uri);
       
       request.headers.set('apikey', _supabaseKey);
       request.headers.set('Authorization', 'Bearer $_supabaseKey');
-      request.headers.set('Accept-Profile', 'cactus');
+      
+      final response = await request.close();
+      
+      if (response.statusCode == 200) {
+        final responseBody = await response.transform(utf8.decoder).join();
+        final dynamic json = jsonDecode(responseBody);
+        return CactusModel.fromJson(json as Map<String, dynamic>);
+      }
+      return null;
+    } catch (e) {
+      print('Error fetching model information: $e');
+      return null;
+    }
+  }
+
+  static Future<List<CactusModel>> fetchModels() async {
+    try {
+      final client = HttpClient();
+      final uri = Uri.parse('$_supabaseUrl/functions/v1/get-models?sdk_name=flutter&sdk_version=$packageVersion');
+      final request = await client.getUrl(uri);
+      
+      request.headers.set('apikey', _supabaseKey);
+      request.headers.set('Authorization', 'Bearer $_supabaseKey');
       
       final response = await request.close();
       
@@ -152,14 +174,12 @@ class Supabase {
           final model = CactusModel.fromJson(json as Map<String, dynamic>);
           return model;
         }).toList();
-        await ModelCache.saveModels(models);
         return models;
-      } else {
-        return await ModelCache.loadModels();
       }
+      return [];
     } catch (e) {
       print('Error fetching models: $e');
-      return await ModelCache.loadModels();
+      return [];
     }
   }
 
