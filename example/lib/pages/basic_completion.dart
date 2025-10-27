@@ -38,6 +38,9 @@ class _BasicCompletionPageState extends State<BasicCompletionPage> {
     try {
       final models = await lm.getModels();
       print("Available models: ${models.map((m) => "${m.slug}: ${m.sizeMb}MB").join(", ")}");
+      setState(() {
+        availableModels = models;
+      });
     } catch (e) {
       print("Error fetching models: $e");
     }
@@ -165,11 +168,17 @@ class _BasicCompletionPageState extends State<BasicCompletionPage> {
         foregroundColor: Colors.black,
         elevation: 1,
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
+      body: Stack(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SizedBox(
+                  height: 56,
+                ),
+                const SizedBox(height: 10),
             // Buttons section
             ElevatedButton(
               onPressed: isDownloading ? null : downloadModel,
@@ -310,6 +319,26 @@ class _BasicCompletionPageState extends State<BasicCompletionPage> {
             ),
           ],
         ),
+      ),
+          Positioned(
+            top: 16,
+            left: 16,
+            right: 16,
+            child: DropdownMenu(
+              hintText: 'Select Model',
+              expandedInsets: EdgeInsets.zero,
+              dropdownMenuEntries: availableModels.map((model) => DropdownMenuEntry(value: model.slug, label: '${model.slug} (${model.sizeMb}MB)')).toList(),
+              initialSelection: model,
+              onSelected: (String? value) {
+                if (value != null) {
+                  setState(() {
+                    model = value;
+                  });
+                }
+              },
+            ),
+          ),
+        ],
       ),
     );
   }

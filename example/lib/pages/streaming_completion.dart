@@ -21,10 +21,24 @@ class _StreamingCompletionPageState extends State<StreamingCompletionPage> {
   double lastTPS = 0;
   double lastTTFT = 0;
   String model = 'qwen3-0.6';
+  List<CactusModel> availableModels = [];
 
   @override
   void initState() {
     super.initState();
+    getAvailableModels();
+  }
+
+  Future<void> getAvailableModels() async {
+    try {
+      final models = await lm.getModels();
+      print("Available models: ${models.map((m) => "${m.slug}: ${m.sizeMb}MB").join(", ")}");
+      setState(() {
+        availableModels = models;
+      });
+    } catch (e) {
+      print("Error fetching models: $e");
+    }
   }
 
   @override
@@ -117,7 +131,10 @@ class _StreamingCompletionPageState extends State<StreamingCompletionPage> {
         params: CactusCompletionParams(
           maxTokens: 200
         ),
-        messages: [ChatMessage(content: 'You are Cactus, a very capable AI assistant running offline on a smartphone', role: "system"), ChatMessage(content: 'Hi, how are you?', role: "user")],
+        messages: [
+          ChatMessage(content: 'You are Cactus, a very capable AI assistant running offline on a smartphone', role: "system"), 
+          ChatMessage(content: 'Hi, how are you?', role: "user")
+        ],
       );
 
       await for (final chunk in streamedResult.stream) {
@@ -176,13 +193,19 @@ class _StreamingCompletionPageState extends State<StreamingCompletionPage> {
         foregroundColor: Colors.black,
         elevation: 1,
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Buttons section
-            ElevatedButton(
+      body: Stack(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SizedBox(
+                  height: 56,
+                ),
+                const SizedBox(height: 10),
+                // Buttons section
+                ElevatedButton(
               onPressed: isDownloading ? null : downloadModel,
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.black,
@@ -320,6 +343,29 @@ class _StreamingCompletionPageState extends State<StreamingCompletionPage> {
             ),
           ],
         ),
+      ),
+          Positioned(
+            top: 16,
+            left: 16,
+            right: 16,
+            child: DropdownMenu(
+              expandedInsets: EdgeInsets.zero,
+              dropdownMenuEntries: availableModels
+                  .map((model) => DropdownMenuEntry(
+                      value: model.slug,
+                      label: '${model.slug} (${model.sizeMb}MB)'))
+                  .toList(),
+              initialSelection: model,
+              onSelected: (String? value) {
+                if (value != null) {
+                  setState(() {
+                    model = value;
+                  });
+                }
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
