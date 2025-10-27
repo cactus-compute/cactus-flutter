@@ -38,12 +38,12 @@ class Telemetry {
     return deviceId;
   }
 
-  Future<void> logInit(bool success, CactusInitParams options, String message) async {
+  Future<void> logInit(bool success, String model, String message) async {
     final record = LogRecord(
       eventType: 'init',
       projectId: projectId,
       deviceId: deviceId,
-      model: options.model,
+      model: model,
       success: success,
       telemetryToken: cactusTelemetryToken,
       message: message
@@ -52,7 +52,7 @@ class Telemetry {
     await Supabase.sendLogRecord(record);
   }
 
-  Future<void> logCompletion(CactusCompletionResult? result, CactusInitParams options, {String? message, bool? success}) async {
+  Future<void> logCompletion(CactusCompletionResult? result, String model, {String? message, bool? success}) async {
     final record = LogRecord(
       eventType: 'completion',
       projectId: projectId,
@@ -60,7 +60,7 @@ class Telemetry {
       ttft: result?.timeToFirstTokenMs,
       tps: result?.tokensPerSecond,
       responseTime: result?.totalTimeMs,
-      model: options.model,
+      model: model,
       tokens: result?.totalTokens,
       success: success,
       message: message,
@@ -70,12 +70,12 @@ class Telemetry {
     await Supabase.sendLogRecord(record);
   }
 
-  Future<void> logEmbedding(CactusEmbeddingResult? result, CactusInitParams options, {String? message, bool? success}) async {
+  Future<void> logEmbedding(CactusEmbeddingResult? result, String model, {String? message, bool? success}) async {
     final record = LogRecord(
       eventType: 'embedding',
       projectId: projectId,
       deviceId: deviceId,
-      model: options.model,
+      model: model,
       success: result?.success,
       message: message,
       telemetryToken: cactusTelemetryToken
