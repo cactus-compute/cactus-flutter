@@ -19,6 +19,7 @@ class _BasicCompletionPageState extends State<BasicCompletionPage> {
   String? lastResponse;
   double lastTPS = 0;
   double lastTTFT = 0;
+  String model = 'qwen3-0.6';
   List<CactusModel> availableModels = [];
 
   @override
@@ -50,6 +51,7 @@ class _BasicCompletionPageState extends State<BasicCompletionPage> {
     
     try {
       await lm.downloadModel(
+        model: model,
         downloadProcessCallback: (progress, status, isError) {
           setState(() {
             if (isError) {
@@ -85,7 +87,9 @@ class _BasicCompletionPageState extends State<BasicCompletionPage> {
     });
     
     try {
-      await lm.initializeModel();
+      await lm.initializeModel(
+        params: CactusInitParams(model: model)
+      );
       setState(() {
         isModelLoaded = true;
         outputText = 'Model initialized successfully! Ready to generate completions.';
@@ -279,6 +283,12 @@ class _BasicCompletionPageState extends State<BasicCompletionPage> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceAround,
                         children: [
+                          Column(
+                            children: [
+                              const Text('Model', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black)),
+                              Text(model, style: const TextStyle(color: Colors.black)),
+                            ],
+                          ),
                           Column(
                             children: [
                               const Text('TTFT', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black)),
