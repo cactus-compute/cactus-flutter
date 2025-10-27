@@ -147,3 +147,46 @@ typedef WhisperFullGetSegmentT0Dart = int Function(WhisperContext ctx, int iSegm
 
 typedef WhisperFullGetSegmentT1Native = Int64 Function(WhisperContext ctx, Int32 iSegment);
 typedef WhisperFullGetSegmentT1Dart = int Function(WhisperContext ctx, int iSegment);
+
+// Async FFI type definitions for Dart_PostCObject communication
+typedef InitializeDartApiDLNative = IntPtr Function(Pointer<Void> data);
+typedef InitializeDartApiDLDart = int Function(Pointer<Void> data);
+
+typedef CactusInitAsyncNative = Void Function(
+    Pointer<Utf8> modelPath,
+    Size contextSize,
+    Int64 dartPort);
+typedef CactusInitAsyncDart = void Function(
+    Pointer<Utf8> modelPath,
+    int contextSize,
+    int dartPort);
+
+typedef CactusCompleteAsyncNative = Void Function(
+    CactusModel model,
+    Pointer<Utf8> messagesJson,
+    Pointer<Utf8> optionsJson,
+    Pointer<Utf8> toolsJson,
+    Int32 maxTokens,
+    Int32 quantization,
+    Bool enableStreaming,
+    Int64 dartPort);
+typedef CactusCompleteAsyncDart = void Function(
+    CactusModel model,
+    Pointer<Utf8> messagesJson,
+    Pointer<Utf8> optionsJson,
+    Pointer<Utf8> toolsJson,
+    int maxTokens,
+    int quantization,
+    bool enableStreaming,
+    int dartPort);
+
+typedef CactusEmbedAsyncNative = Void Function(
+    CactusModel model,
+    Pointer<Utf8> text,
+    Int32 quantization,
+    Int64 dartPort);
+typedef CactusEmbedAsyncDart = void Function(
+    CactusModel model,
+    Pointer<Utf8> text,
+    int quantization,
+    int dartPort);

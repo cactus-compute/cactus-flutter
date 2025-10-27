@@ -1,230 +1,266 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:ffi';
 import 'dart:isolate';
-import 'dart:math';
 
 import 'package:cactus/models/types.dart';
 import 'package:cactus/models/tools.dart';
-import 'package:cactus/src/models/binding.dart';
 import 'package:ffi/ffi.dart';
 import 'package:flutter/foundation.dart';
 
 import 'bindings.dart' as bindings;
 
-// Global callback storage for streaming completions
-CactusTokenCallback? _activeTokenCallback;
+// Dart API DL initialization flag
+bool _dartApiInitialized = false;
 
-// Static callback function that can be used with Pointer.fromFunction
-@pragma('vm:entry-point')
-void _staticTokenCallbackDispatcher(Pointer<Utf8> tokenC, int tokenId, Pointer<Void> userData) {
-  try {
-    final callback = _activeTokenCallback;
-    if (callback != null) {
-      final tokenString = tokenC.toDartString();
-      callback(tokenString);
+void _ensureDartApiInitialized() {
+  if (!_dartApiInitialized) {
+    final initResult = bindings.initializeDartApiDL(NativeApi.initializeApiDLData);
+    if (initResult != 0) {
+      throw Exception('Failed to initialize Dart API DL');
     }
-  } catch (e) {
-    debugPrint('Token callback error: $e');
+    _dartApiInitialized = true;
+    debugPrint('Dart API DL initialized successfully');
   }
 }
 
-Future<(int?, String)> _initContextInIsolate(Map<String, dynamic> params) async {
-  final modelPath = params['modelPath'] as String;
-  final contextSize = params['contextSize'] as int;
+Future<(int?, String)> _initContextAsync(String modelPath, int contextSize) async {
+  _ensureDartApiInitialized();
+
+  final receivePort = ReceivePort();
+  final modelPathC = modelPath.toNativeUtf8(allocator: calloc);
 
   try {
-    debugPrint('Initializing context with model: $modelPath, contextSize: $contextSize');
-    final modelPathC = modelPath.toNativeUtf8(allocator: calloc);
-    try {
-      final handle = bindings.cactusInit(modelPathC, contextSize);
-      if (handle != nullptr) {
-        return (handle.address, 'Context initialized successfully');
+    debugPrint('Initializing context with model: $modelPath, contextSize: $contextSize (async)');
+
+    bindings.cactusInitAsync(
+      modelPathC,
+      contextSize,
+      receivePort.sendPort.nativePort,
+    );
+
+    final result = await receivePort.first;
+
+    if (result is Map) {
+      final success = result['success'] as bool;
+      if (success) {
+        final handle = result['handle'] as int;
+        final message = result['message'] as String? ?? 'Context initialized successfully';
+        return (handle, message);
       } else {
-        return (null, 'Failed to initialize context');
+        final message = result['message'] as String? ?? 'Failed to initialize context';
+        return (null, message);
       }
-    } finally {
-      calloc.free(modelPathC);
+    } else {
+      return (null, 'Unexpected result format from async init');
     }
   } catch (e) {
     return (null, 'Exception during context initialization: $e');
+  } finally {
+    calloc.free(modelPathC);
+    receivePort.close();
   }
 }
 
-Future<CactusCompletionResult> _completionInIsolate(Map<String, dynamic> params) async {
-  final handle = params['handle'] as int;
-  final messagesJson = params['messagesJson'] as String;
-  final optionsJson = params['optionsJson'] as String;
-  final toolsJson = params['toolsJson'] as String?;
-  final bufferSize = params['bufferSize'] as int;
-  final hasCallback = params['hasCallback'] as bool;
-  final SendPort? replyPort = params['replyPort'] as SendPort?;
+Future<CactusCompletionResult> _completionAsync({
+  required int handle,
+  required String messagesJson,
+  required String optionsJson,
+  String? toolsJson,
+  required int maxTokens,
+  required int quantization,
+  bool enableStreaming = false,
+  StreamController<String>? tokenController,
+}) async {
+  _ensureDartApiInitialized();
 
-  final responseBuffer = calloc<Uint8>(bufferSize);
+  final receivePort = ReceivePort();
   final messagesJsonC = messagesJson.toNativeUtf8(allocator: calloc);
   final optionsJsonC = optionsJson.toNativeUtf8(allocator: calloc);
   final toolsJsonC = toolsJson?.toNativeUtf8(allocator: calloc);
 
-  Pointer<NativeFunction<CactusTokenCallbackNative>>? callbackPointer;
-
   try {
-    if (hasCallback && replyPort != null) {
-      // Set up token callback to send tokens back through isolate
-      _activeTokenCallback = (token) {
-        replyPort.send({'type': 'token', 'data': token});
-        return true; // Always continue in isolate mode
-      };
-      
-      callbackPointer = Pointer.fromFunction<CactusTokenCallbackNative>(
-        _staticTokenCallbackDispatcher
-      );
-    }
+    debugPrint('Starting async completion (streaming: $enableStreaming)');
 
-    final result = bindings.cactusComplete(
+    bindings.cactusCompleteAsync(
       Pointer.fromAddress(handle),
       messagesJsonC,
-      responseBuffer.cast<Utf8>(),
-      bufferSize,
       optionsJsonC,
       toolsJsonC ?? nullptr,
-      callbackPointer ?? nullptr,
-      nullptr,
+      maxTokens,
+      quantization,
+      enableStreaming,
+      receivePort.sendPort.nativePort,
     );
 
-    debugPrint('Received completion result code: $result');
+    CactusCompletionResult? finalResult;
 
-    if (result > 0) {
-      final responseText = utf8.decode(responseBuffer.asTypedList(result), allowMalformed: true).trim();
-      
-      try {
-        final jsonResponse = jsonDecode(responseText) as Map<String, dynamic>;
-        final success = jsonResponse['success'] as bool? ?? true;
-        final response = jsonResponse['response'] as String? ?? responseText;
-        final timeToFirstTokenMs = (jsonResponse['time_to_first_token_ms'] as num?)?.toDouble() ?? 0.0;
-        final totalTimeMs = (jsonResponse['total_time_ms'] as num?)?.toDouble() ?? 0.0;
-        final tokensPerSecond = (jsonResponse['tokens_per_second'] as num?)?.toDouble() ?? 0.0;
-        final prefillTokens = jsonResponse['prefill_tokens'] as int? ?? 0;
-        final decodeTokens = jsonResponse['decode_tokens'] as int? ?? 0;
-        final totalTokens = jsonResponse['total_tokens'] as int? ?? 0;
-        
-        // Parse tool calls
-        List<ToolCall> toolCalls = [];
-        if (jsonResponse['tool_calls'] != null) {
-          final toolCallsJson = jsonResponse['tool_calls'] as List<dynamic>;
-          toolCalls = toolCallsJson
-              .map((toolCallJson) => ToolCall.fromJson(toolCallJson as Map<String, dynamic>))
-              .toList();
+    await for (final message in receivePort) {
+      if (message is Map) {
+        final type = message['type'] as String?;
+
+        if (type == 'token' && enableStreaming && tokenController != null) {
+          final token = message['data'] as String;
+          tokenController.add(token);
+        } else if (type == 'result' || type == 'complete') {
+          final data = message['data'];
+          if (data is Map) {
+            finalResult = _parseCompletionResult(data);
+          }
+          break;
+        } else if (type == 'error') {
+          final errorMsg = message['message'] as String? ?? 'Unknown error';
+          finalResult = CactusCompletionResult(
+            success: false,
+            response: errorMsg,
+            timeToFirstTokenMs: 0.0,
+            totalTimeMs: 0.0,
+            tokensPerSecond: 0.0,
+            prefillTokens: 0,
+            decodeTokens: 0,
+            totalTokens: 0,
+            toolCalls: [],
+          );
+          break;
         }
-
-        return CactusCompletionResult(
-          success: success,
-          response: response,
-          timeToFirstTokenMs: timeToFirstTokenMs,
-          totalTimeMs: totalTimeMs,
-          tokensPerSecond: tokensPerSecond,
-          prefillTokens: prefillTokens,
-          decodeTokens: decodeTokens,
-          totalTokens: totalTokens,
-          toolCalls: toolCalls,
-        );
-      } catch (e) {
-        debugPrint('Unable to parse the response json: $e');
-        return CactusCompletionResult(
-          success: false,
-          response: 'Error: Unable to parse the response',
-          timeToFirstTokenMs: 0.0,
-          totalTimeMs: 0.0,
-          tokensPerSecond: 0.0,
-          prefillTokens: 0,
-          decodeTokens: 0,
-          totalTokens: 0,
-          toolCalls: [],
-        );
       }
-    } else {
-      return CactusCompletionResult(
-        success: false,
-        response: 'Error: completion failed with code $result',
-        timeToFirstTokenMs: 0.0,
-        totalTimeMs: 0.0,
-        tokensPerSecond: 0.0,
-        prefillTokens: 0,
-        decodeTokens: 0,
-        totalTokens: 0,
-        toolCalls: [],
-      );
     }
+
+    return finalResult ?? CactusCompletionResult(
+      success: false,
+      response: 'No result received from async completion',
+      timeToFirstTokenMs: 0.0,
+      totalTimeMs: 0.0,
+      tokensPerSecond: 0.0,
+      prefillTokens: 0,
+      decodeTokens: 0,
+      totalTokens: 0,
+      toolCalls: [],
+    );
+  } catch (e) {
+    debugPrint('Exception during async completion: $e');
+    return CactusCompletionResult(
+      success: false,
+      response: 'Exception: $e',
+      timeToFirstTokenMs: 0.0,
+      totalTimeMs: 0.0,
+      tokensPerSecond: 0.0,
+      prefillTokens: 0,
+      decodeTokens: 0,
+      totalTokens: 0,
+      toolCalls: [],
+    );
   } finally {
-    _activeTokenCallback = null;
-    calloc.free(responseBuffer);
     calloc.free(messagesJsonC);
     calloc.free(optionsJsonC);
     if (toolsJsonC != null) {
       calloc.free(toolsJsonC);
     }
+    receivePort.close();
   }
 }
 
-Future<CactusEmbeddingResult> _generateEmbeddingInIsolate(Map<String, dynamic> params) async {
-  final handle = params['handle'] as int;
-  final text = params['text'] as String;
-  final bufferSize = params['bufferSize'] as int;
+CactusCompletionResult _parseCompletionResult(Map<dynamic, dynamic> data) {
+  try {
+    final success = data['success'] as bool? ?? true;
+    final response = data['response'] as String? ?? '';
+    final timeToFirstTokenMs = (data['time_to_first_token_ms'] as num?)?.toDouble() ?? 0.0;
+    final totalTimeMs = (data['total_time_ms'] as num?)?.toDouble() ?? 0.0;
+    final tokensPerSecond = (data['tokens_per_second'] as num?)?.toDouble() ?? 0.0;
+    final prefillTokens = data['prefill_tokens'] as int? ?? 0;
+    final decodeTokens = data['decode_tokens'] as int? ?? 0;
+    final totalTokens = data['total_tokens'] as int? ?? 0;
 
+    // Parse tool calls
+    List<ToolCall> toolCalls = [];
+    if (data['tool_calls'] != null) {
+      final toolCallsJson = data['tool_calls'] as List<dynamic>;
+      toolCalls = toolCallsJson
+          .map((toolCallJson) => ToolCall.fromJson(toolCallJson as Map<String, dynamic>))
+          .toList();
+    }
+
+    return CactusCompletionResult(
+      success: success,
+      response: response,
+      timeToFirstTokenMs: timeToFirstTokenMs,
+      totalTimeMs: totalTimeMs,
+      tokensPerSecond: tokensPerSecond,
+      prefillTokens: prefillTokens,
+      decodeTokens: decodeTokens,
+      totalTokens: totalTokens,
+      toolCalls: toolCalls,
+    );
+  } catch (e) {
+    debugPrint('Unable to parse completion result: $e');
+    return CactusCompletionResult(
+      success: false,
+      response: 'Error parsing result: $e',
+      timeToFirstTokenMs: 0.0,
+      totalTimeMs: 0.0,
+      tokensPerSecond: 0.0,
+      prefillTokens: 0,
+      decodeTokens: 0,
+      totalTokens: 0,
+      toolCalls: [],
+    );
+  }
+}
+
+Future<CactusEmbeddingResult> _generateEmbeddingAsync({
+  required int handle,
+  required String text,
+  required int quantization,
+}) async {
+  _ensureDartApiInitialized();
+
+  final receivePort = ReceivePort();
   final textC = text.toNativeUtf8(allocator: calloc);
-  final embeddingDimPtr = calloc<Size>();
-  final embeddingsBuffer = calloc<Float>(bufferSize);
 
   try {
-    debugPrint('Generating embedding for text: ${text.length > 50 ? text.substring(0, 50) + "..." : text}');
+    debugPrint('Generating embedding for text: ${text.length > 50 ? '${text.substring(0, 50)}...' : text} (async)');
 
-    // Calculate buffer size in bytes (bufferSize * sizeof(float))
-    final bufferSizeInBytes = bufferSize * 4;
-
-    final result = bindings.cactusEmbed(
+    bindings.cactusEmbedAsync(
       Pointer.fromAddress(handle),
       textC,
-      embeddingsBuffer,
-      bufferSizeInBytes,
-      embeddingDimPtr,
+      quantization,
+      receivePort.sendPort.nativePort,
     );
 
-    debugPrint('Received embedding result code: $result');
+    final result = await receivePort.first;
 
-    if (result > 0) {
-      final actualEmbeddingDim = embeddingDimPtr.value;
-      debugPrint('Actual embedding dimension: $actualEmbeddingDim');
-      
-      if (actualEmbeddingDim > bufferSize) {
+    if (result is Map) {
+      final success = result['success'] as bool;
+      if (success) {
+        final embeddingsData = result['embeddings'] as List<dynamic>;
+        final embeddings = embeddingsData.map((e) => (e as num).toDouble()).toList();
+        final dimension = result['dimension'] as int;
+
+        debugPrint('Successfully received ${embeddings.length} embedding values');
+
+        return CactusEmbeddingResult(
+          success: true,
+          embeddings: embeddings,
+          dimension: dimension,
+        );
+      } else {
+        final errorMsg = result['message'] as String? ?? 'Embedding generation failed';
         return CactusEmbeddingResult(
           success: false,
           embeddings: [],
           dimension: 0,
-          errorMessage: 'Embedding dimension ($actualEmbeddingDim) exceeds allocated buffer size ($bufferSize)',
+          errorMessage: errorMsg,
         );
       }
-      
-      final embeddings = <double>[];
-      for (int i = 0; i < actualEmbeddingDim; i++) {
-        embeddings.add(embeddingsBuffer[i]);
-      }
-      
-      debugPrint('Successfully extracted ${embeddings.length} embedding values');
-      
-      return CactusEmbeddingResult(
-        success: true,
-        embeddings: embeddings,
-        dimension: actualEmbeddingDim,
-      );
     } else {
       return CactusEmbeddingResult(
         success: false,
         embeddings: [],
         dimension: 0,
-        errorMessage: 'Embedding generation failed with code $result',
+        errorMessage: 'Unexpected result format from async embedding',
       );
     }
   } catch (e) {
-    debugPrint('Exception during embedding generation: $e');
+    debugPrint('Exception during async embedding generation: $e');
     return CactusEmbeddingResult(
       success: false,
       embeddings: [],
@@ -233,8 +269,7 @@ Future<CactusEmbeddingResult> _generateEmbeddingInIsolate(Map<String, dynamic> p
     );
   } finally {
     calloc.free(textC);
-    calloc.free(embeddingDimPtr);
-    calloc.free(embeddingsBuffer);
+    receivePort.close();
   }
 }
 
@@ -295,13 +330,7 @@ class CactusContext {
   }
 
   static Future<(int?, String)> initContext(String modelPath, int contextSize) async {
-    // Run the heavy initialization in an isolate using compute
-    final isolateParams = {
-      'modelPath': modelPath,
-      'contextSize': contextSize,
-    };
-
-    return await compute(_initContextInIsolate, isolateParams);
+    return await _initContextAsync(modelPath, contextSize);
   }
 
   static void freeContext(int handle) {
@@ -320,15 +349,15 @@ class CactusContext {
   ) async {
     final jsonData = _prepareCompletionJson(messages, params);
 
-    return await compute(_completionInIsolate, {
-      'handle': handle,
-      'messagesJson': jsonData['messagesJson']!,
-      'optionsJson': jsonData['optionsJson']!,
-      'toolsJson': jsonData['toolsJson'],
-      'bufferSize': max(params.maxTokens * params.quantization, 1024),
-      'hasCallback': false,
-      'replyPort': null,
-    });
+    return await _completionAsync(
+      handle: handle,
+      messagesJson: jsonData['messagesJson']!,
+      optionsJson: jsonData['optionsJson']!,
+      toolsJson: jsonData['toolsJson'],
+      maxTokens: params.maxTokens,
+      quantization: params.quantization,
+      enableStreaming: false,
+    );
   }
 
   static CactusStreamedCompletionResult completionStream(
@@ -340,44 +369,24 @@ class CactusContext {
 
     final controller = StreamController<String>();
     final resultCompleter = Completer<CactusCompletionResult>();
-    final replyPort = ReceivePort();
 
-    late StreamSubscription subscription;
-    subscription = replyPort.listen((message) {
-      if (message is Map) {
-        final type = message['type'] as String;
-        if (type == 'token') {
-          final token = message['data'] as String;
-          controller.add(token);
-        } else if (type == 'result') {
-          final result = message['data'] as CactusCompletionResult;
-          resultCompleter.complete(result);
-          controller.close();
-          subscription.cancel();
-          replyPort.close();
-        } else if (type == 'error') {
-          final error = message['data'];
-          if (error is CactusCompletionResult) {
-            resultCompleter.complete(error);
-          } else {
-            resultCompleter.completeError(error.toString());
-          }
-          controller.addError(error);
-          controller.close();
-          subscription.cancel();
-          replyPort.close();
-        }
-      }
-    });
-
-    Isolate.spawn(_isolateCompletionEntry, {
-      'handle': handle,
-      'messagesJson': jsonData['messagesJson']!,
-      'optionsJson': jsonData['optionsJson']!,
-      'toolsJson': jsonData['toolsJson'],
-      'bufferSize': max(params.maxTokens * params.quantization, 1024),
-      'hasCallback': true,
-      'replyPort': replyPort.sendPort,
+    // Run async completion with streaming in the background
+    _completionAsync(
+      handle: handle,
+      messagesJson: jsonData['messagesJson']!,
+      optionsJson: jsonData['optionsJson']!,
+      toolsJson: jsonData['toolsJson'],
+      maxTokens: params.maxTokens,
+      quantization: params.quantization,
+      enableStreaming: true,
+      tokenController: controller,
+    ).then((result) {
+      resultCompleter.complete(result);
+      controller.close();
+    }).catchError((error) {
+      resultCompleter.completeError(error);
+      controller.addError(error);
+      controller.close();
     });
 
     return CactusStreamedCompletionResult(
@@ -387,24 +396,10 @@ class CactusContext {
   }
 
   static Future<CactusEmbeddingResult> generateEmbedding(int handle, String text, int quantization) async {
-    return await compute(_generateEmbeddingInIsolate, {
-      'handle': handle,
-      'text': text,
-      'bufferSize': max(text.length * quantization, 1024),
-    });
-  }
-
-  static Future<void> _isolateCompletionEntry(Map<String, dynamic> params) async {
-    final replyPort = params['replyPort'] as SendPort;
-    try {
-      final result = await _completionInIsolate(params);
-      if (result.success) {
-        replyPort.send({'type': 'result', 'data': result});
-      } else {
-        replyPort.send({'type': 'error', 'data': result});
-      }
-    } catch (e) {
-      replyPort.send({'type': 'error', 'data': e.toString()});
-    }
+    return await _generateEmbeddingAsync(
+      handle: handle,
+      text: text,
+      quantization: quantization,
+    );
   }
 }

@@ -48,6 +48,38 @@ CACTUS_FFI_EXPORT void cactus_stop(cactus_model_t model);
 
 CACTUS_FFI_EXPORT void cactus_destroy(cactus_model_t model);
 
+// ============================================================================
+// ASYNC FFI FUNCTIONS - for Dart_PostCObject communication
+// ============================================================================
+
+// Initialize Dart API for async callbacks - MUST be called once on startup
+CACTUS_FFI_EXPORT intptr_t InitializeDartApiDL(void* data);
+
+// Async FFI functions that return immediately and post results via Dart_PostCObject
+CACTUS_FFI_EXPORT void cactus_init_async(
+    const char* model_path,
+    size_t context_size,
+    int64_t dart_port
+);
+
+CACTUS_FFI_EXPORT void cactus_complete_async(
+    cactus_model_t model,
+    const char* messages_json,
+    const char* options_json,
+    const char* tools_json,
+    int32_t max_tokens,
+    int32_t quantization,
+    bool enable_streaming,
+    int64_t dart_port
+);
+
+CACTUS_FFI_EXPORT void cactus_embed_async(
+    cactus_model_t model,
+    const char* text,
+    int32_t quantization,
+    int64_t dart_port
+);
+
 #ifdef __cplusplus
 }
 #endif

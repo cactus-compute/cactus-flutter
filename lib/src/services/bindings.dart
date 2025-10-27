@@ -31,6 +31,23 @@ final cactusEmbed = cactusLib
     .lookup<NativeFunction<CactusEmbedNative>>('cactus_embed')
     .asFunction<CactusEmbedDart>();
 
+// Async FFI function bindings
+final initializeDartApiDL = cactusLib
+    .lookup<NativeFunction<InitializeDartApiDLNative>>('InitializeDartApiDL')
+    .asFunction<InitializeDartApiDLDart>();
+
+final cactusInitAsync = cactusLib
+    .lookup<NativeFunction<CactusInitAsyncNative>>('cactus_init_async')
+    .asFunction<CactusInitAsyncDart>();
+
+final cactusCompleteAsync = cactusLib
+    .lookup<NativeFunction<CactusCompleteAsyncNative>>('cactus_complete_async')
+    .asFunction<CactusCompleteAsyncDart>();
+
+final cactusEmbedAsync = cactusLib
+    .lookup<NativeFunction<CactusEmbedAsyncNative>>('cactus_embed_async')
+    .asFunction<CactusEmbedAsyncDart>();
+
 final DynamicLibrary cactusUtil = DynamicLibrary.open(_getLibraryPath('cactus_util'));
 
 final registerApp = cactusUtil
