@@ -9,7 +9,7 @@ import 'package:cactus/src/services/transcription/whisper_provider.dart';
 
 class CactusSTT {
   final TranscriptionProvider _provider;
-  late final TranscriptionProviderInterface _providerInstance;
+  late final BaseTranscriptionProvider _providerInstance;
 
   CactusSTT({TranscriptionProvider provider = TranscriptionProvider.vosk}) 
       : _provider = provider {
@@ -42,7 +42,7 @@ class CactusSTT {
           defaultModel = "vosk-en-us";
           break;
         case TranscriptionProvider.whisper:
-          defaultModel = "tiny";
+          defaultModel = "whisper-tiny";
           break;
       }
     }
@@ -53,7 +53,7 @@ class CactusSTT {
     );
   }
 
-  Future<bool> init({String? model}) async {
+  Future<bool> init({required String model}) async {
     if (!Telemetry.isInitialized) {
       await Telemetry.init(CactusTelemetry.telemetryToken);
     }
@@ -82,8 +82,8 @@ class CactusSTT {
     return await _providerInstance.getVoiceModels();
   }
 
-  Future<bool> isModelDownloaded([String? modelName]) async {
-    return await _providerInstance.isModelDownloaded(modelName);
+  Future<bool> isModelDownloaded({required String modelName}) async {
+    return await _providerInstance.isModelDownloaded(modelName: modelName);
   }
 
   void dispose() {

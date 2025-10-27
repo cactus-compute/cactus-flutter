@@ -1,51 +1,63 @@
-import 'dart:async';
-
 import 'package:cactus/models/types.dart';
-import 'package:cactus/services/telemetry.dart';
-import 'package:cactus/src/utils/cactus_id.dart';
 import 'package:cactus/src/utils/models/download.dart';
 import 'package:cactus/src/services/transcription/vosk.dart';
-import 'package:cactus/src/services/api/supabase.dart';
 import 'package:cactus/src/services/transcription/transcription_provider.dart';
-import 'package:flutter/foundation.dart';
-import 'package:path_provider/path_provider.dart';
 
-import '../api/telemetry.dart';
-
-class VoskTranscriptionProvider implements TranscriptionProviderInterface {
-  bool _isInitialized = false;
-  String _lastDownloadedModelName = "vosk-en-us";
-  List<VoiceModel> _voiceModels = [];
-  
+class VoskTranscriptionProvider extends BaseTranscriptionProvider {
   // Speaker model is universal, no need to change it for different languages
   static const String _spkModelFolder = "vosk-model-spk-0.4";
   static const String _spkModelUrl = "https://alphacephei.com/vosk/models/vosk-model-spk-0.4.zip";
 
   @override
-  Future<bool> download({
-    String model = "vosk-en-us",
-    CactusProgressCallback? downloadProcessCallback,
-  }) async {
-    if (await isModelDownloaded(model) && await DownloadService.modelExists(_spkModelFolder)) {
-      return true;
-    }
+  String get providerName => 'vosk';
 
-    final currentModel = await _getModel(model);
-    if (currentModel == null) {
-      debugPrint("No data found for model: $model");
-      return false;
-    }
+  @override
+  String get defaultModel => 'vosk-en-us';
 
+  @override
+  Future<bool> initializeService(String modelPath, {String? additionalModelPath}) async {
+    return await VoskService.initialize(modelPath, additionalModelPath ?? '');
+  }
+
+  @override
+  Future<SpeechRecognitionResult?> performRecognition(
+    SpeechRecognitionParams params,
+    String? filePath,
+  ) async {
+    return await VoskService.recognize(
+      params: params,
+      filePath: filePath,
+    );
+  }
+
+  @override
+  bool get serviceReady => true;
+
+  @override
+  bool get serviceRecording => VoskService.isCurrentlyRecording;
+
+  @override
+  void stopService() {
+    VoskService.stop();
+  }
+
+  @override
+  void disposeService() {
+    VoskService.dispose();
+  }
+
+  @override
+  Future<List<DownloadTask>> buildDownloadTasks(VoiceModel model, String modelName) async {
     final tasks = <DownloadTask>[];
-    
-    if (!await DownloadService.modelExists(currentModel.slug)) {
+
+    if (!await DownloadService.modelExists(model.slug)) {
       tasks.add(DownloadTask(
-        url: currentModel.url,
-        filename: "$model.zip",
-        folder: model,
+        url: model.url,
+        filename: "$modelName.zip",
+        folder: modelName,
       ));
     }
-    
+
     if (!await DownloadService.modelExists(_spkModelFolder)) {
       tasks.add(DownloadTask(
         url: _spkModelUrl,
@@ -54,137 +66,22 @@ class VoskTranscriptionProvider implements TranscriptionProviderInterface {
       ));
     }
 
-    final success = await DownloadService.downloadAndExtractModels(tasks, downloadProcessCallback);
-    if (success) {
-      _lastDownloadedModelName = model;
-    }
-    return success;
+    return tasks;
   }
 
   @override
-  Future<bool> init({String? model}) async {
-    _isInitialized = false;
-    final modelToUse = model ?? _lastDownloadedModelName;
-    
-    try {
-      if (!Telemetry.isInitialized) {
-        final String projectId = await CactusId.getProjectId();
-        final String? deviceId = await Telemetry.fetchDeviceId();
-        Telemetry(projectId, deviceId, CactusTelemetry.telemetryToken);
-      }
-
-      final appDocDir = await getApplicationDocumentsDirectory();
-      final modelPath = '${appDocDir.path}/models/$modelToUse';
-      final spkModelPath = '${appDocDir.path}/models/$_spkModelFolder';
-
-      _isInitialized = await VoskService.initialize(modelPath, spkModelPath);
-      
-      if (Telemetry.isInitialized) {
-        final message = _isInitialized ? "" : "Failed to initialize model: $modelToUse";
-        Telemetry.instance?.logInit(
-          _isInitialized,
-          CactusInitParams(model: modelToUse),
-          message,
-        );
-      }
-    } catch (e) {
-      debugPrint("Error initializing STT: ${e.toString()}");
-      if (Telemetry.isInitialized) {
-        Telemetry.instance?.logInit(
-          false,
-          CactusInitParams(model: modelToUse),
-          "Error in initializing STT: ${e.toString()}",
-        );
-      }
-    }
-    
-    return _isInitialized;
+  String buildModelPath(String appDocPath, String model) {
+    return '$appDocPath/models/$model';
   }
 
   @override
-  Future<SpeechRecognitionResult?> transcribe({
-    SpeechRecognitionParams? params,
-    String? filePath
-  }) async {
-    final startTime = DateTime.now();
-    final transcriptionParams = params ?? SpeechRecognitionParams();
-    SpeechRecognitionResult? result;
-    String? message;
-
-    if (_isInitialized) {
-        result = await VoskService.recognize(
-          params: transcriptionParams,
-          filePath: filePath
-      );
-    } else {
-      debugPrint("Local STT not initialized.");
-      message = "Local STT not initialized";
-      return null;
-    }
-
-    if (Telemetry.isInitialized) {
-      Telemetry.instance?.logTranscription(
-        CactusCompletionResult(
-          success: result?.success == true,
-          response: result?.text ?? '',
-          timeToFirstTokenMs: 0,
-          totalTimeMs: result?.processingTime ?? 0,
-          tokensPerSecond: 0,
-          prefillTokens: 0,
-          decodeTokens: 0,
-          totalTokens: 0,
-        ),
-        CactusInitParams(model: _lastDownloadedModelName),
-        message: message,
-        responseTime: DateTime.now().difference(startTime).inMilliseconds.toDouble()
-      );
-    }
-
-    return result;
+  String? getAdditionalModelPath(String appDocPath, String model) {
+    return '$appDocPath/models/$_spkModelFolder';
   }
 
   @override
-  void stop() {
-    VoskService.stop();
-  }
-
-  @override
-  bool get isRecording => VoskService.isCurrentlyRecording;
-
-  @override
-  bool isReady() => _isInitialized;
-
-  @override
-  Future<List<VoiceModel>> getVoiceModels() async {
-    if (_voiceModels.isEmpty) {
-      _voiceModels = await Supabase.fetchVoiceModels(provider: 'vosk');
-      for (var model in _voiceModels) {
-        model.isDownloaded = await DownloadService.modelExists(model.slug);
-      }
-    }
-    return _voiceModels;
-  }
-
-  @override
-  Future<bool> isModelDownloaded([String? modelName]) async {
-    final modelSlug = modelName ?? _lastDownloadedModelName;
-    return await DownloadService.modelExists(modelSlug) && await DownloadService.modelExists(_spkModelFolder);
-  }
-
-  @override
-  void dispose() {
-    VoskService.dispose();
-    _isInitialized = false;
-  }
-
-  Future<VoiceModel?> _getModel(String slug) async {
-    if (_voiceModels.isEmpty) {
-      _voiceModels = await getVoiceModels();
-    }
-    try {
-      return _voiceModels.firstWhere((model) => model.slug == slug);
-    } catch (e) {
-      return null;
-    }
+  Future<bool> isModelDownloaded({required String modelName}) async {
+    return await DownloadService.modelExists(modelName) &&
+           await DownloadService.modelExists(_spkModelFolder);
   }
 }
