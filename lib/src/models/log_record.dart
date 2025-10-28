@@ -3,7 +3,7 @@ import 'package:cactus/src/version.dart';
 class LogRecord {
   final String eventType;
   final String? projectId;
-  final String? deviceId;
+  String? deviceId;
   final double? ttft;
   final double? tps;
   final double? responseTime;
@@ -54,7 +54,7 @@ class LogRecord {
     return LogRecord(
       eventType: json['event_type'] as String,
       projectId: json['project_id'] as String,
-      deviceId: json['device_id'] as String,
+      deviceId: json['device_id'] as String?,
       ttft: json['ttft'] as double?,
       tps: json['tps'] as double?,
       responseTime: json['response_time'] as double?,

@@ -43,9 +43,14 @@ class Supabase {
         if (failedRecords.isNotEmpty) {
           print('Attempting to send ${failedRecords.length} buffered log records...');
           
-          final bufferedSuccess = await _sendLogRecordsBatch(
-            failedRecords.map((buffered) => buffered.record).toList()
-          );
+          // Get current device ID and update all buffered records
+          final currentDeviceId = await getDeviceId();
+          final updatedRecords = failedRecords.map((buffered) {
+            buffered.record.deviceId = currentDeviceId;
+            return buffered.record;
+          }).toList();
+          
+          final bufferedSuccess = await _sendLogRecordsBatch(updatedRecords);
           
           if (bufferedSuccess) {
             await LogBuffer.clearFailedLogRecords();
