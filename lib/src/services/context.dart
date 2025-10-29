@@ -109,8 +109,8 @@ Future<CactusCompletionResult> _completionInIsolate(Map<String, dynamic> params)
         
         // Parse tool calls
         List<ToolCall> toolCalls = [];
-        if (jsonResponse['tool_calls'] != null) {
-          final toolCallsJson = jsonResponse['tool_calls'] as List<dynamic>;
+        if (jsonResponse['function_calls'] != null) {
+          final toolCallsJson = jsonResponse['function_calls'] as List<dynamic>;
           toolCalls = toolCallsJson
               .map((toolCallJson) => ToolCall.fromJson(toolCallJson as Map<String, dynamic>))
               .toList();
