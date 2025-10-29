@@ -45,6 +45,8 @@ class CactusResult {
   final bool stoppedWord;
   final bool stoppedLimit;
   final String stoppingWord;
+  num? tokensPerSecond;
+  int? timeToFirstTokenMs;
 
   CactusResult({
     required this.text,
@@ -55,6 +57,8 @@ class CactusResult {
     required this.stoppedWord,
     required this.stoppedLimit,
     required this.stoppingWord,
+    this.tokensPerSecond,
+    this.timeToFirstTokenMs,
   });
 }
 

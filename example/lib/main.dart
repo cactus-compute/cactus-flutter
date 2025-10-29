@@ -1,3 +1,4 @@
+import 'package:cactus_example/streaming_completion.dart';
 import 'package:flutter/material.dart';
 import 'chat_screen.dart';
 import 'cactus_service.dart';
@@ -17,7 +18,7 @@ class MyApp extends StatelessWidget {
         primarySwatch: Colors.teal,
         visualDensity: VisualDensity.adaptivePlatformDensity,
       ),
-      home: const AppWrapper(),
+      home: const StreamingCompletionPage(),
     );
   }
 }

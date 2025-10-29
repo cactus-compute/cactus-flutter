@@ -17,10 +17,25 @@ CactusTokenCallback? _currentOnNewTokenCallback;
 @pragma('vm:entry-point')
 bool _staticTokenCallbackDispatcher(Pointer<Utf8> tokenC) {
   try {
-    return _currentOnNewTokenCallback?.call(tokenC.toDartString()) ?? true;
+    // Use toDartString with allowMalformed to handle incomplete UTF-8 sequences
+    final token = tokenC.cast<Utf8>().toDartString(length: tokenC.length);
+    return _currentOnNewTokenCallback?.call(token) ?? true;
   } catch (e) {
     debugPrint('Token callback error: $e');
-    return false;
+    // Try with allowMalformed flag as fallback
+    try {
+      final chars = <int>[];
+      var offset = 0;
+      while (tokenC.cast<Uint8>()[offset] != 0) {
+        chars.add(tokenC.cast<Uint8>()[offset]);
+        offset++;
+      }
+      final token = utf8.decode(chars, allowMalformed: true);
+      return _currentOnNewTokenCallback?.call(token) ?? true;
+    } catch (e2) {
+      debugPrint('Unexpected error: $e2');
+      return false;
+    }
   }
 }
 
@@ -131,6 +146,8 @@ class CactusContext {
       final totalTime = endTime.difference(startTime).inMilliseconds;
       final tokPerSec = totalTime > 0 ? (result.tokensPredicted * 1000.0) / totalTime : null;
       final ttft = firstTokenTime?.difference(startTime).inMilliseconds;
+      result.tokensPerSecond = tokPerSec;
+      result.timeToFirstTokenMs = ttft;
       CactusTelemetry.track({
         'event': 'completion',
         'tok_per_sec': tokPerSec,
