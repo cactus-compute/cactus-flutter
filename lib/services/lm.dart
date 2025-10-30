@@ -16,7 +16,7 @@ import 'package:cactus/src/services/api/telemetry.dart';
 class CactusLM {
   int? _handle;
   String? _lastInitializedModel;
-  CactusInitParams defaultInitParams = CactusInitParams(model: "qwen3-0.6", contextSize: 2048);
+  CactusInitParams defaultInitParams = CactusInitParams();
   CactusCompletionParams defaultCompletionParams = CactusCompletionParams();
   List<CactusModel> _models = [];
 
@@ -42,12 +42,12 @@ class CactusLM {
     if (currentModel == null) {
       throw Exception('Failed to get model $model');
     }
-    
-      final actualFilename = currentModel.downloadUrl.split('?').first.split('/').last;
+
+    final actualFilename = currentModel.downloadUrl.split('?').first.split('/').last;
     final task = DownloadTask(
-        url: currentModel.downloadUrl,
-        filename: actualFilename,
-        folder: currentModel.slug,
+      url: currentModel.downloadUrl,
+      filename: actualFilename,
+      folder: currentModel.slug,
     );
 
     final success = await DownloadService.downloadAndExtractModels([task], downloadProcessCallback);
@@ -72,7 +72,7 @@ class CactusLM {
       debugPrint('Failed to initialize model context with model at $modelPath, trying to download the model first.');
       final downloadSuccess = await downloadModel(model: model);
       if(downloadSuccess) {
-      await initializeModel(params: params);
+        await initializeModel(params: params);
       }
     }
     if(Telemetry.isInitialized) {
@@ -90,33 +90,31 @@ class CactusLM {
     CactusCompletionParams? params
   }) async {
     return await _handleLock.synchronized(() async {
-      final completionParams = params ?? defaultCompletionParams;
+      CactusCompletionParams completionParams = params ?? defaultCompletionParams;
       final model = params?.model ?? _lastInitializedModel ?? defaultInitParams.model;
-      
-      List<CactusTool>? toolsToUse = completionParams.tools;
-      if (enableToolFiltering && completionParams.tools != null && completionParams.tools!.isNotEmpty) {
-        toolsToUse = await _filterTools(messages, completionParams.tools!);
-      }
-      
-      // Create params with filtered tools
-      final paramsWithTools = CactusCompletionParams(
-        temperature: completionParams.temperature,
-        topK: completionParams.topK,
-        topP: completionParams.topP,
-        maxTokens: completionParams.maxTokens,
-        stopSequences: completionParams.stopSequences,
-        tools: toolsToUse,
-        completionMode: completionParams.completionMode,
-        quantization: completionParams.quantization,
-      );
-
-      debugPrint('Completion mode: ${paramsWithTools.completionMode}');
-
       int? currentHandle = await _getValidatedHandle(model: model);
+      int quantization = (await Supabase.getModel(model))?.quantization ?? 8;
 
       if (currentHandle != null) {
+        if(completionParams.tools != null) {
+          List<CactusTool>? toolsToUse = completionParams.tools;
+          if (enableToolFiltering && completionParams.tools != null && completionParams.tools!.isNotEmpty) {
+            toolsToUse = await _filterTools(messages, completionParams.tools!);
+          }
+          
+          // Create params with filtered tools
+          completionParams = CactusCompletionParams(
+            temperature: completionParams.temperature,
+            topK: completionParams.topK,
+            topP: completionParams.topP,
+            maxTokens: completionParams.maxTokens,
+            stopSequences: completionParams.stopSequences,
+            tools: toolsToUse,
+            completionMode: completionParams.completionMode
+          );
+        }
         try {
-          final result = await CactusContext.completion(currentHandle, messages, paramsWithTools);
+          final result = await CactusContext.completion(currentHandle, messages, completionParams, quantization);
           _logCompletionTelemetry(result, model, success: result.success, message: result.success ? null : result.response);
           return result;
         } catch (e) {
@@ -152,35 +150,32 @@ class CactusLM {
   Future<CactusStreamedCompletionResult> generateCompletionStream({
     required List<ChatMessage> messages,
     CactusCompletionParams? params,
-    List<CactusTool>? tools,
   }) async {
-    final completionParams = params ?? defaultCompletionParams;
+    CactusCompletionParams completionParams = params ?? defaultCompletionParams;
     final model = params?.model ?? _lastInitializedModel ?? defaultInitParams.model;
-
-    List<CactusTool>? toolsToUse = tools ?? completionParams.tools;
-    if (enableToolFiltering && toolsToUse != null && toolsToUse.isNotEmpty) {
-      toolsToUse = await _filterTools(messages, toolsToUse);
-    }
-
-    // Create params with filtered tools
-    final paramsWithTools = CactusCompletionParams(
-      temperature: completionParams.temperature,
-      topK: completionParams.topK,
-      topP: completionParams.topP,
-      maxTokens: completionParams.maxTokens,
-      stopSequences: completionParams.stopSequences,
-      tools: toolsToUse,
-      completionMode: completionParams.completionMode,
-      quantization: completionParams.quantization,
-    );
-
-    debugPrint('Completion mode: ${paramsWithTools.completionMode}');
-
     int? currentHandle = await _getValidatedHandle(model: model);
+    int quantization = (await Supabase.getModel(model))?.quantization ?? 8;
 
     if (currentHandle != null) {
+      if(completionParams.tools != null) {
+        List<CactusTool>? toolsToUse = completionParams.tools;
+        if (enableToolFiltering && toolsToUse != null && toolsToUse.isNotEmpty) {
+          toolsToUse = await _filterTools(messages, toolsToUse);
+        }
+
+        // Create params with filtered tools
+        completionParams = CactusCompletionParams(
+          temperature: completionParams.temperature,
+          topK: completionParams.topK,
+          topP: completionParams.topP,
+          maxTokens: completionParams.maxTokens,
+          stopSequences: completionParams.stopSequences,
+          tools: toolsToUse,
+          completionMode: completionParams.completionMode
+        );
+      }
       try {
-        final streamedResult = CactusContext.completionStream(currentHandle, messages, paramsWithTools);
+        final streamedResult = CactusContext.completionStream(currentHandle, messages, completionParams, quantization);
         streamedResult.result.then((result) {
           _logCompletionTelemetry(result, model, success: result.success, message: result.success ? null : result.response);
         }).catchError((error) {
@@ -203,7 +198,7 @@ class CactusLM {
         final openRouterService = OpenRouterService(apiKey: completionParams.cactusToken!);
         final streamedResult = await openRouterService.generateCompletionStream(
           messages: messages,
-          params: params,
+          params: completionParams,
         );
         streamedResult.result.whenComplete(() => openRouterService.dispose());
         streamedResult.result.then((result) {
@@ -221,7 +216,7 @@ class CactusLM {
     throw Exception('Model $_lastInitializedModel is not downloaded. Please download it before generating completions.');
   }
 
-  Future<CactusEmbeddingResult> generateEmbedding({required String text, String? modelName, int quantization = 8}) async {
+  Future<CactusEmbeddingResult> generateEmbedding({required String text, String? modelName}) async {
     return await _handleLock.synchronized(() async {
       if (_lastInitializedModel == null || !await _isModelDownloaded(_lastInitializedModel!)) {
         throw Exception('Model $_lastInitializedModel is not downloaded. Please download it before generating completions.');
@@ -229,6 +224,7 @@ class CactusLM {
       
       final model = modelName ?? _lastInitializedModel ?? defaultInitParams.model;
       final currentHandle = await _getValidatedHandle(model: model);
+      final quantization = (await Supabase.getModel(model))?.quantization ?? 8;
 
       try {
         if(currentHandle != null) {
@@ -260,8 +256,7 @@ class CactusLM {
       return _handle;
     }
 
-    final targetModel = model;
-    await initializeModel(params: CactusInitParams(model: targetModel));
+    await initializeModel(params: CactusInitParams(model: model));
     return _handle;
   }
 

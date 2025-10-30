@@ -317,6 +317,7 @@ class CactusContext {
     int handle,
     List<ChatMessage> messages,
     CactusCompletionParams params,
+    int quantization
   ) async {
     final jsonData = _prepareCompletionJson(messages, params);
 
@@ -325,7 +326,7 @@ class CactusContext {
       'messagesJson': jsonData['messagesJson']!,
       'optionsJson': jsonData['optionsJson']!,
       'toolsJson': jsonData['toolsJson'],
-      'bufferSize': max(params.maxTokens * params.quantization, 1024),
+      'bufferSize': max(params.maxTokens * quantization, 1024),
       'hasCallback': false,
       'replyPort': null,
     });
@@ -335,6 +336,7 @@ class CactusContext {
     int handle,
     List<ChatMessage> messages,
     CactusCompletionParams params,
+    int quantization
   ) {
     final jsonData = _prepareCompletionJson(messages, params);
 
@@ -375,7 +377,7 @@ class CactusContext {
       'messagesJson': jsonData['messagesJson']!,
       'optionsJson': jsonData['optionsJson']!,
       'toolsJson': jsonData['toolsJson'],
-      'bufferSize': max(params.maxTokens * params.quantization, 1024),
+      'bufferSize': max(params.maxTokens * quantization, 1024),
       'hasCallback': true,
       'replyPort': replyPort.sendPort,
     });

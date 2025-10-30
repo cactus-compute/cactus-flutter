@@ -95,8 +95,8 @@ class CactusInitParams {
   final int? contextSize;
 
   CactusInitParams({
-    required this.model,
-    this.contextSize,
+    this.model = "qwen3-0.6",
+    this.contextSize = 2048,
   });
 }
 
