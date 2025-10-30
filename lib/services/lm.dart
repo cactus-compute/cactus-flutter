@@ -30,12 +30,12 @@ class CactusLM {
     this.toolFilterConfig,
   });
 
-  Future<void> downloadModel({
+  Future<bool> downloadModel({
     String model = "qwen3-0.6",
     CactusProgressCallback? downloadProcessCallback,
   }) async {
     if (await _isModelDownloaded(model)) {
-      return;
+      return Future<bool>.value(true);
     }
     
     final currentModel = await Supabase.getModel(model);
@@ -43,21 +43,18 @@ class CactusLM {
       throw Exception('Failed to get model $model');
     }
     
-    final tasks = <DownloadTask>[];
-    
-    if (!await DownloadService.modelExists(currentModel.slug)) {
       final actualFilename = currentModel.downloadUrl.split('?').first.split('/').last;
-      tasks.add(DownloadTask(
+    final task = DownloadTask(
         url: currentModel.downloadUrl,
         filename: actualFilename,
         folder: currentModel.slug,
-      ));
-    }
+    );
 
-    final success = await DownloadService.downloadAndExtractModels(tasks, downloadProcessCallback);
+    final success = await DownloadService.downloadAndExtractModels([task], downloadProcessCallback);
     if (!success) {
       throw Exception('Failed to download and extract model $model from ${currentModel.downloadUrl}');
     }
+    return success;
   }
 
   Future<void> initializeModel({CactusInitParams? params}) async {
