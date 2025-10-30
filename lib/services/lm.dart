@@ -88,8 +88,7 @@ class CactusLM {
 
   Future<CactusCompletionResult> generateCompletion({
     required List<ChatMessage> messages,
-    CactusCompletionParams? params,
-    String? cactusToken,
+    CactusCompletionParams? params
   }) async {
     return await _handleLock.synchronized(() async {
       final completionParams = params ?? defaultCompletionParams;
@@ -123,7 +122,7 @@ class CactusLM {
           return result;
         } catch (e) {
           debugPrint('Local completion failed: $e');
-          if (paramsWithTools.completionMode == CompletionMode.local || (paramsWithTools.completionMode == CompletionMode.hybrid && cactusToken == null)) {
+          if (completionParams.completionMode == CompletionMode.local || (completionParams.completionMode == CompletionMode.hybrid && completionParams.cactusToken == null)) {
             _logCompletionTelemetry(null, model, success: false, message: e.toString());
             rethrow;
           }
@@ -131,9 +130,9 @@ class CactusLM {
         }
       }
       
-      if (paramsWithTools.completionMode == CompletionMode.hybrid && cactusToken != null) {
+      if (completionParams.completionMode == CompletionMode.hybrid && completionParams.cactusToken != null) {
         try {
-          final openRouterService = OpenRouterService(apiKey: cactusToken);
+          final openRouterService = OpenRouterService(apiKey: completionParams.cactusToken!);
           final result = await openRouterService.generateCompletion(
             messages: messages,
             params: params,
@@ -155,7 +154,6 @@ class CactusLM {
     required List<ChatMessage> messages,
     CactusCompletionParams? params,
     List<CactusTool>? tools,
-    String? cactusToken,
   }) async {
     final completionParams = params ?? defaultCompletionParams;
     final model = params?.model ?? _lastInitializedModel ?? defaultInitParams.model;
@@ -193,7 +191,7 @@ class CactusLM {
         return streamedResult;
       } catch (e) {
         debugPrint('Local streaming completion failed: $e');
-        if (paramsWithTools.completionMode == CompletionMode.local || (paramsWithTools.completionMode == CompletionMode.hybrid && cactusToken == null)) {
+        if (completionParams.completionMode == CompletionMode.local || (completionParams.completionMode == CompletionMode.hybrid && completionParams.cactusToken == null)) {
           _logCompletionTelemetry(null, model, success: false, message: e.toString());
           rethrow;
         }
@@ -201,9 +199,9 @@ class CactusLM {
       }
     }
 
-    if (paramsWithTools.completionMode == CompletionMode.hybrid && cactusToken != null) {
+    if (completionParams.completionMode == CompletionMode.hybrid && completionParams.cactusToken != null) {
       try {
-        final openRouterService = OpenRouterService(apiKey: cactusToken);
+        final openRouterService = OpenRouterService(apiKey: completionParams.cactusToken!);
         final streamedResult = await openRouterService.generateCompletionStream(
           messages: messages,
           params: params,

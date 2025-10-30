@@ -44,9 +44,9 @@ class _HybridCompletionPageState extends State<HybridCompletionPage> {
       final result = await lm.generateCompletion(
         messages: [ChatMessage(content: "What's the weather in New York?", role: "user")],
         params: CactusCompletionParams(
-          completionMode: CompletionMode.hybrid
+          completionMode: CompletionMode.hybrid,
+          cactusToken: _tokenController.text,
         ),
-        cactusToken: _tokenController.text,
       );
 
       if (result.success) {

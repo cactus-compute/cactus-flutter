@@ -36,7 +36,7 @@ class CactusCompletionParams {
   final List<String> stopSequences;
   final List<CactusTool>? tools;
   final CompletionMode completionMode;
-  final int quantization;
+  final String? cactusToken;
 
   CactusCompletionParams({
     this.model,
@@ -47,7 +47,7 @@ class CactusCompletionParams {
     this.stopSequences = const ["<|im_end|>", "<end_of_turn>"],
     this.tools,
     this.completionMode = CompletionMode.local,
-    this.quantization = 8,
+    this.cactusToken,
   });
 }
 
