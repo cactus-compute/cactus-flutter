@@ -70,8 +70,10 @@ class CactusLM {
     _handle = result.$1; 
     if(_handle == null && !await _isModelDownloaded(model)) {
       debugPrint('Failed to initialize model context with model at $modelPath, trying to download the model first.');
-      await downloadModel(model: model);
+      final downloadSuccess = await downloadModel(model: model);
+      if(downloadSuccess) {
       await initializeModel(params: params);
+      }
     }
     if(Telemetry.isInitialized) {
       params?.model = model;
