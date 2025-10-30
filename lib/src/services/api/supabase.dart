@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:convert';
 
+import 'package:cactus/src/utils/models/model_cache.dart';
 import 'package:cactus/src/version.dart';
 import 'package:flutter/services.dart';
 import 'package:cactus/src/models/log_record.dart';
@@ -151,12 +152,14 @@ class Supabase {
       if (response.statusCode == 200) {
         final responseBody = await response.transform(utf8.decoder).join();
         final dynamic json = jsonDecode(responseBody);
-        return CactusModel.fromJson(json as Map<String, dynamic>);
+        final model = CactusModel.fromJson(json as Map<String, dynamic>);
+        ModelCache.saveModel(model);
+        return model;
       }
-      return null;
+      return ModelCache.loadModel(slug);
     } catch (e) {
       print('Error fetching model information: $e');
-      return null;
+      return ModelCache.loadModel(slug);
     }
   }
 
