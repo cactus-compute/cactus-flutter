@@ -90,7 +90,7 @@ class CactusLM {
     return await _handleLock.synchronized(() async {
       CactusCompletionParams completionParams = params ?? defaultCompletionParams;
       final model = params?.model ?? _lastInitializedModel ?? defaultInitParams.model;
-      int? currentHandle = await _getValidatedHandle(model: model);
+      int? currentHandle = await _getValidatedHandle(model: model, reInit: completionParams.tools?.isNotEmpty == true);
       int quantization = (await Supabase.getModel(model))?.quantization ?? 8;
 
       if (currentHandle != null) {
@@ -151,7 +151,7 @@ class CactusLM {
   }) async {
     CactusCompletionParams completionParams = params ?? defaultCompletionParams;
     final model = params?.model ?? _lastInitializedModel ?? defaultInitParams.model;
-    int? currentHandle = await _getValidatedHandle(model: model);
+    int? currentHandle = await _getValidatedHandle(model: model, reInit: completionParams.tools?.isNotEmpty == true);
     int quantization = (await Supabase.getModel(model))?.quantization ?? 8;
 
     if (currentHandle != null) {
@@ -259,8 +259,8 @@ class CactusLM {
     return _models;
   }
 
-  Future<int?> _getValidatedHandle({required String model}) async {
-    if (_handle != null && (model == _lastInitializedModel)) {
+  Future<int?> _getValidatedHandle({required String model, bool reInit = false}) async {
+    if (_handle != null && (model == _lastInitializedModel) && !reInit) {
       return _handle;
     }
 
