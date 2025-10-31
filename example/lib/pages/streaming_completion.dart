@@ -32,12 +32,12 @@ class _StreamingCompletionPageState extends State<StreamingCompletionPage> {
   Future<void> getAvailableModels() async {
     try {
       final models = await lm.getModels();
-      print("Available models: ${models.map((m) => "${m.slug}: ${m.sizeMb}MB").join(", ")}");
+      debugPrint("Available models: ${models.map((m) => "${m.slug}: ${m.sizeMb}MB").join(", ")}");
       setState(() {
         availableModels = models;
       });
     } catch (e) {
-      print("Error fetching models: $e");
+      debugPrint("Error fetching models: $e");
     }
   }
 

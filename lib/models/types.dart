@@ -36,7 +36,7 @@ class CactusCompletionParams {
   final List<String> stopSequences;
   final List<CactusTool>? tools;
   final CompletionMode completionMode;
-  final int quantization;
+  final String? cactusToken;
 
   CactusCompletionParams({
     this.model,
@@ -47,7 +47,7 @@ class CactusCompletionParams {
     this.stopSequences = const ["<|im_end|>", "<end_of_turn>"],
     this.tools,
     this.completionMode = CompletionMode.local,
-    this.quantization = 8,
+    this.cactusToken,
   });
 }
 
@@ -91,12 +91,12 @@ class CactusException implements Exception {
 }
 
 class CactusInitParams {
-  String model;
+  final String model;
   final int? contextSize;
 
   CactusInitParams({
-    required this.model,
-    this.contextSize,
+    this.model = "qwen3-0.6",
+    this.contextSize = 2048,
   });
 }
 
@@ -130,7 +130,7 @@ class CactusModel {
   final bool supportsVision;
   final String name;
   bool isDownloaded;
-  int quantization;
+  final int quantization;
 
   CactusModel({
     required this.createdAt,

@@ -2,6 +2,7 @@ import 'dart:ffi';
 import 'dart:io' show Platform;
 import 'package:cactus/src/models/binding.dart';
 import 'package:ffi/ffi.dart';
+import 'package:flutter/foundation.dart';
 
 String _getLibraryPath(String libName) {
   if (Platform.isIOS || Platform.isMacOS) {
@@ -50,7 +51,7 @@ final DynamicLibrary? voskLib = Platform.isAndroid ? (() {
   try {
     return DynamicLibrary.open(_getLibraryPath('vosk'));
   } catch (e) {
-    print('Warning: Could not load Vosk library: $e');
+    debugPrint('Warning: Could not load Vosk library: $e');
     return null;
   }
 })() : null;

@@ -176,11 +176,11 @@ class VoskService with SpeechServiceStateMixin {
         _instance.setInitialized(true);
         return true;
       } else {
-        print(result['error'] ?? 'Unknown initialization error');
+        debugPrint(result['error'] ?? 'Unknown initialization error');
         return false;
       }
     } catch (e) {
-      print('Error initializing speech recognition: $e');
+      debugPrint('Error initializing speech recognition: $e');
       return false;
     }
   }
@@ -334,7 +334,7 @@ class VoskService with SpeechServiceStateMixin {
           
           // Check for maximum duration timeout
           if (currentTime - recordingStartTime > params.maxDuration) {
-            print("Maximum recording duration reached");
+            debugPrint("Maximum recording duration reached");
             break;
           }
 
@@ -410,7 +410,7 @@ class VoskService with SpeechServiceStateMixin {
                 if (silenceStartTime == 0) {
                   silenceStartTime = currentTime;
                 } else if (currentTime - silenceStartTime > params.maxSilenceDuration) {
-                  print("Silence timeout reached after detecting speech");
+                  debugPrint("Silence timeout reached after detecting speech");
                   break;
                 }
               }

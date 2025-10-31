@@ -178,7 +178,7 @@ class _RAGPageState extends State<RAGPage> {
       }
     } catch (e) {
       debugPrint('Error picking and reading PDF: $e');
-      if(context.mounted) {
+      if(mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to read PDF: $e')),
         );
@@ -275,7 +275,7 @@ class _RAGPageState extends State<RAGPage> {
         dbStats = stats;
       });
     } catch (e) {
-      print('Error getting database stats: $e');
+      debugPrint('Error getting database stats: $e');
     }
   }
 

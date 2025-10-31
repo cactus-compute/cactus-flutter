@@ -37,12 +37,12 @@ class _BasicCompletionPageState extends State<BasicCompletionPage> {
   Future<void> getAvailableModels() async {
     try {
       final models = await lm.getModels();
-      print("Available models: ${models.map((m) => "${m.slug}: ${m.sizeMb}MB").join(", ")}");
+      debugPrint("Available models: ${models.map((m) => "${m.slug}: ${m.sizeMb}MB").join(", ")}");
       setState(() {
         availableModels = models;
       });
     } catch (e) {
-      print("Error fetching models: $e");
+      debugPrint("Error fetching models: $e");
     }
   }
 
@@ -307,7 +307,7 @@ class _BasicCompletionPageState extends State<BasicCompletionPage> {
                           Column(
                             children: [
                               const Text('TPS', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black)),
-                              Text('${lastTPS.toStringAsFixed(2)}', style: const TextStyle(color: Colors.black)),
+                              Text(lastTPS.toStringAsFixed(2), style: const TextStyle(color: Colors.black)),
                             ],
                           ),
                         ],

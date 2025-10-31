@@ -120,14 +120,14 @@ class WhisperService with SpeechServiceStateMixin {
         _currentModelPath = result['modelPath'] as String;
         
         _instance.setInitialized(true);
-        print('Whisper initialized successfully with model: $_currentModelPath');
+        debugPrint('Whisper initialized successfully with model: $_currentModelPath');
         return true;
       } else {
-        print(result['error'] ?? 'Unknown initialization error');
+        debugPrint(result['error'] ?? 'Unknown initialization error');
         return false;
       }
     } catch (e) {
-      print('Error initializing Whisper: $e');
+      debugPrint('Error initializing Whisper: $e');
       return false;
     }
   }
