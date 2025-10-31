@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:cactus/src/utils/models/model_cache.dart';
 import 'package:cactus/src/version.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:cactus/src/models/log_record.dart';
 import 'package:cactus/models/types.dart';
@@ -38,11 +39,11 @@ class Supabase {
       final success = await _sendLogRecordsBatch([record]);
       
       if (success) {
-        print('Successfully sent current log record');
+        debugPrint('Successfully sent current log record');
         
         final failedRecords = await LogBuffer.loadFailedLogRecords();
         if (failedRecords.isNotEmpty) {
-          print('Attempting to send ${failedRecords.length} buffered log records...');
+          debugPrint('Attempting to send ${failedRecords.length} buffered log records...');
           
           // Get current device ID and update all buffered records
           final currentDeviceId = await getDeviceId();
@@ -55,20 +56,20 @@ class Supabase {
           
           if (bufferedSuccess) {
             await LogBuffer.clearFailedLogRecords();
-            print('Successfully sent ${failedRecords.length} buffered log records');
+            debugPrint('Successfully sent ${failedRecords.length} buffered log records');
           } else {
             for (final buffered in failedRecords) {
               await LogBuffer.handleRetryFailedLogRecord(buffered.record);
             }
-            print('Failed to send buffered records, keeping them for next successful attempt');
+            debugPrint('Failed to send buffered records, keeping them for next successful attempt');
           }
         }
       } else {
         await LogBuffer.handleFailedLogRecord(record);
-        print('Current log record failed, added to buffer');
+        debugPrint('Current log record failed, added to buffer');
       }
     } catch (e) {
-      print('Error sending log record: $e');
+      debugPrint('Error sending log record: $e');
       await LogBuffer.handleFailedLogRecord(record);
     }
   }
@@ -89,11 +90,11 @@ class Supabase {
       request.write(body);
       
       final response = await request.close();
-      print("Response from Supabase: ${response.statusCode}");
+      debugPrint("Response from Supabase: ${response.statusCode}");
       
       if (response.statusCode != 201 && response.statusCode != 200) {
         final responseBody = await response.transform(utf8.decoder).join();
-        print("Error response body: $responseBody");
+        debugPrint("Error response body: $responseBody");
         return false;
       }
       
@@ -127,7 +128,7 @@ class Supabase {
       
       if (response.statusCode == 200) {
         final responseBody = await response.transform(utf8.decoder).join();
-        print('Device registered successfully');        
+        debugPrint('Device registered successfully');        
         final deviceId = await registerApp(responseBody);
         return deviceId;
       } else {
@@ -158,7 +159,7 @@ class Supabase {
       }
       return ModelCache.loadModel(slug);
     } catch (e) {
-      print('Error fetching model information: $e');
+      debugPrint('Error fetching model information: $e');
       return ModelCache.loadModel(slug);
     }
   }
@@ -186,7 +187,7 @@ class Supabase {
       }
       return [];
     } catch (e) {
-      print('Error fetching models: $e');
+      debugPrint('Error fetching models: $e');
       return [];
     }
   }
@@ -209,7 +210,7 @@ class Supabase {
       final responseBody = await response.transform(utf8.decoder).join();
 
       if (response.statusCode == 200) {
-        print('Fetched voice models for provider $provider: $responseBody');
+        debugPrint('Fetched voice models for provider $provider: $responseBody');
         final List<dynamic> data = json.decode(responseBody);
         return data.map((json) => VoiceModel.fromJson(json)).toList();
       } else {

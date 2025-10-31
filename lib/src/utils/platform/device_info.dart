@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:android_id/android_id.dart';
 import 'package:device_info_plus/device_info_plus.dart';
+import 'package:flutter/foundation.dart';
 
 Future<Map<String, dynamic>> getDeviceMetadata() async {
   final deviceInfo = DeviceInfoPlugin();
@@ -19,7 +20,7 @@ Future<Map<String, dynamic>> getDeviceMetadata() async {
       };
     } else if (Platform.isIOS) {
       final iosInfo = await deviceInfo.iosInfo;
-      print("model name: ${iosInfo.modelName}, id: ${iosInfo.identifierForVendor}");
+      debugPrint("model name: ${iosInfo.modelName}, id: ${iosInfo.identifierForVendor}");
       deviceData = {
         'model': iosInfo.modelName,
         'os': 'iOS',

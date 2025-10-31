@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:cactus/models/types.dart';
+import 'package:flutter/foundation.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:record/record.dart';
 
@@ -58,7 +58,7 @@ class SpeechUtils {
       
       return samples;
     } catch (e) {
-      print('Error reading WAV file: $e');
+      debugPrint('Error reading WAV file: $e');
       return null;
     }
   }
@@ -84,7 +84,7 @@ class SpeechUtils {
         await file.delete();
       }
     } catch (e) {
-      print('Warning: Failed to cleanup temp file $filePath: $e');
+      debugPrint('Warning: Failed to cleanup temp file $filePath: $e');
     }
   }
 
@@ -134,7 +134,7 @@ mixin SpeechServiceStateMixin {
       try {
         await _audioRecorder.stop();
       } catch (e) {
-        print('Warning: Error stopping audio recorder: $e');
+        debugPrint('Warning: Error stopping audio recorder: $e');
       }
     }
   }
@@ -149,7 +149,7 @@ mixin SpeechServiceStateMixin {
       _isRecording = true;
       return true;
     } catch (e) {
-      print('Error starting recording: $e');
+      debugPrint('Error starting recording: $e');
       _isRecording = false;
       return false;
     }

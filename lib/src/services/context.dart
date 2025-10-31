@@ -175,7 +175,7 @@ Future<CactusEmbeddingResult> _generateEmbeddingInIsolate(Map<String, dynamic> p
   final embeddingsBuffer = calloc<Float>(bufferSize);
 
   try {
-    debugPrint('Generating embedding for text: ${text.length > 50 ? text.substring(0, 50) + "..." : text}');
+    debugPrint('Generating embedding for text: ${text.length > 50 ? "${text.substring(0, 50)}..." : text}');
 
     // Calculate buffer size in bytes (bufferSize * sizeof(float))
     final bufferSizeInBytes = bufferSize * 4;

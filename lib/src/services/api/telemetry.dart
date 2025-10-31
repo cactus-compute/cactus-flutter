@@ -4,6 +4,7 @@ import 'package:cactus/src/utils/platform/device_info.dart';
 import 'package:cactus/models/types.dart';
 import 'package:cactus/src/utils/platform/ffi_utils.dart';
 import 'package:cactus/src/utils/cactus_id.dart';
+import 'package:flutter/foundation.dart';
 
 class Telemetry {
   static Telemetry? _instance;
@@ -27,7 +28,7 @@ class Telemetry {
   static Future<String?> fetchDeviceId() async {
     String? deviceId = await getDeviceId();
     if (deviceId == null) {
-      print('Failed to get device ID, registering device...');
+      debugPrint('Failed to get device ID, registering device...');
       try {
         final deviceData = await getDeviceMetadata();
         return await Supabase.registerDevice(deviceData);

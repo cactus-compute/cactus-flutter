@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:cactus/models/types.dart';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ModelCache {
@@ -21,7 +22,7 @@ class ModelCache {
       });
       await prefs.setString("${_modelKey}_${model.slug}", jsonString);
     } catch (e) {
-      print('Error saving model to cache: $e');
+      debugPrint('Error saving model to cache: $e');
       rethrow;
     }
   }
@@ -45,7 +46,7 @@ class ModelCache {
         isDownloaded: json['is_downloaded'] as bool? ?? false,
       );
     } catch (e) {
-      print('Error loading model from cache: $e');
+      debugPrint('Error loading model from cache: $e');
       return null;
     }
   }

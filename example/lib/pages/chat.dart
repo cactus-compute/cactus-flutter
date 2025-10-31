@@ -63,7 +63,7 @@ class _ChatPageState extends State<ChatPage> {
         .where((m) => m.message.role != 'typing')
         .map((m) => m.message)
         .toList();
-    print("Messages to pass: ${messagesToPass.map((m) => "[${m.role}] ${m.content}").join(", ")}");
+    debugPrint("Messages to pass: ${messagesToPass.map((m) => "[${m.role}] ${m.content}").join(", ")}");
     
     final CactusStreamedCompletionResult res = await cactusLM.generateCompletionStream(
       messages: messagesToPass

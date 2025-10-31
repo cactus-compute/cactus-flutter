@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:cactus/src/models/log_record.dart';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class LogBuffer {
@@ -16,7 +17,7 @@ class LogBuffer {
       final List<dynamic> jsonList = jsonDecode(jsonString) as List<dynamic>;
       return jsonList.map((json) => BufferedLogRecord.fromJson(json as Map<String, dynamic>)).toList();
     } catch (e) {
-      print('Error loading failed log records: $e');
+      debugPrint('Error loading failed log records: $e');
       return [];
     }
   }
@@ -26,7 +27,7 @@ class LogBuffer {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_failedLogRecordsKey);
     } catch (e) {
-      print('Error clearing failed log records: $e');
+      debugPrint('Error clearing failed log records: $e');
     }
   }
 
@@ -54,7 +55,7 @@ class LogBuffer {
     if (bufferedRecord.retryCount > _maxRetries) {
       failedRecords.removeAt(existingIndex);
     } else {
-      print('Retry ${bufferedRecord.retryCount}/${_maxRetries} for buffered log record');
+      debugPrint('Retry ${bufferedRecord.retryCount}/$_maxRetries for buffered log record');
     }
     await _saveFailedLogRecords(failedRecords);
   }
@@ -65,7 +66,7 @@ class LogBuffer {
       final jsonString = jsonEncode(records.map((record) => record.toJson()).toList());
       await prefs.setString(_failedLogRecordsKey, jsonString);
     } catch (e) {
-      print('Error saving failed log records: $e');
+      debugPrint('Error saving failed log records: $e');
     }
   }
 }
