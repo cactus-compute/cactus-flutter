@@ -91,7 +91,7 @@ class CactusException implements Exception {
 }
 
 class CactusInitParams {
-  String model;
+  final String model;
   final int? contextSize;
 
   CactusInitParams({
@@ -130,7 +130,7 @@ class CactusModel {
   final bool supportsVision;
   final String name;
   bool isDownloaded;
-  int quantization;
+  final int quantization;
 
   CactusModel({
     required this.createdAt,

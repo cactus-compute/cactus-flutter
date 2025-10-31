@@ -18,7 +18,7 @@ class CactusLM {
   String? _lastInitializedModel;
   CactusInitParams defaultInitParams = CactusInitParams();
   CactusCompletionParams defaultCompletionParams = CactusCompletionParams();
-  List<CactusModel> _models = [];
+  final List<CactusModel> _models = [];
 
   bool enableToolFiltering;
   ToolFilterConfig? toolFilterConfig;  
@@ -30,12 +30,12 @@ class CactusLM {
     this.toolFilterConfig,
   });
 
-  Future<bool> downloadModel({
-    String model = "qwen3-0.6",
-    CactusProgressCallback? downloadProcessCallback,
+  Future<void> downloadModel({
+    final String model = "qwen3-0.6",
+    final CactusProgressCallback? downloadProcessCallback,
   }) async {
     if (await _isModelDownloaded(model)) {
-      return Future<bool>.value(true);
+      return;
     }
     
     final currentModel = await Supabase.getModel(model);
@@ -54,31 +54,29 @@ class CactusLM {
     if (!success) {
       throw Exception('Failed to download and extract model $model from ${currentModel.downloadUrl}');
     }
-    return success;
   }
 
-  Future<void> initializeModel({CactusInitParams? params}) async {
+  Future<void> initializeModel({final CactusInitParams? params}) async {
     if (!Telemetry.isInitialized) {
       await Telemetry.init(CactusTelemetry.telemetryToken);
     }
 
     final model = params?.model?? _lastInitializedModel ?? defaultInitParams.model;
-    final appDocDir = await getApplicationDocumentsDirectory();
-    final modelPath = '${appDocDir.path}/models/$model';
+    final modelPath = '${(await getApplicationDocumentsDirectory()).path}/models/$model';
 
     final result = await CactusContext.initContext(modelPath, ((params?.contextSize) ?? defaultInitParams.contextSize)!);
     _handle = result.$1; 
+
     if(_handle == null && !await _isModelDownloaded(model)) {
       debugPrint('Failed to initialize model context with model at $modelPath, trying to download the model first.');
-      final downloadSuccess = await downloadModel(model: model);
-      if(downloadSuccess) {
-        await initializeModel(params: params);
-      }
+      await downloadModel(model: model);
+      return initializeModel(params: params);
     }
+
     if(Telemetry.isInitialized) {
-      params?.model = model;
       Telemetry.instance?.logInit(_handle != null, model, result.$2);
     }
+    
     if(_handle == null) {
       throw Exception('Failed to initialize model context with model at $modelPath');
     }
@@ -251,6 +249,16 @@ class CactusLM {
 
   bool isLoaded() => _handle != null;
 
+  Future<List<CactusModel>> getModels() async {
+    if (_models.isEmpty) {
+      _models.addAll(await Supabase.fetchModels());
+      for (var model in _models) {
+        model.isDownloaded = await _isModelDownloaded(model.slug);
+      }
+    }
+    return _models;
+  }
+
   Future<int?> _getValidatedHandle({required String model}) async {
     if (_handle != null && (model == _lastInitializedModel)) {
       return _handle;
@@ -291,16 +299,6 @@ class CactusLM {
     }
     
     return filteredTools;
-  }
-
-  Future<List<CactusModel>> getModels() async {
-    if (_models.isEmpty) {
-      _models = await Supabase.fetchModels();
-      for (var model in _models) {
-        model.isDownloaded = await _isModelDownloaded(model.slug);
-      }
-    }
-    return _models;
   }
 
   Future<bool> _isModelDownloaded(String modelName) async {
