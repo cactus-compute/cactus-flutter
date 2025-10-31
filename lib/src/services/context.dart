@@ -326,7 +326,7 @@ class CactusContext {
       'messagesJson': jsonData['messagesJson']!,
       'optionsJson': jsonData['optionsJson']!,
       'toolsJson': jsonData['toolsJson'],
-      'bufferSize': max(params.maxTokens * quantization, 1024),
+      'bufferSize': max(params.maxTokens * quantization, 2048),
       'hasCallback': false,
       'replyPort': null,
     });
@@ -377,7 +377,7 @@ class CactusContext {
       'messagesJson': jsonData['messagesJson']!,
       'optionsJson': jsonData['optionsJson']!,
       'toolsJson': jsonData['toolsJson'],
-      'bufferSize': max(params.maxTokens * quantization, 1024),
+      'bufferSize': max(params.maxTokens * quantization, 2048),
       'hasCallback': true,
       'replyPort': replyPort.sendPort,
     });
