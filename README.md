@@ -86,7 +86,7 @@ Future<void> streamingExample() async {
   final lm = CactusLM();
   
   // Download model (defaults to "qwen3-0.6" if model parameter is omitted)
-  await lm.downloadModel();
+  await lm.downloadModel(model: "qwen3-0.6");
   await lm.initializeModel();
 
   // Get the streaming response with default parameters
@@ -115,7 +115,7 @@ Future<void> streamingExample() async {
 Future<void> functionCallingExample() async {
   final lm = CactusLM();
   
-  await lm.downloadModel();
+  await lm.downloadModel(model: "qwen3-0.6");
   await lm.initializeModel();
 
   final tools = [
@@ -146,13 +146,98 @@ Future<void> functionCallingExample() async {
 }
 ```
 
+### Tool Filtering (Experimental)
+
+When working with many tools, you can use tool filtering to automatically select the most relevant tools for each query. This reduces context size and improves model performance. Tool filtering is **enabled by default** and works automatically when you provide tools to `generateCompletion()` or `generateCompletionStream()`.
+
+**How it works:**
+- The `ToolFilterService` extracts the last user message from the conversation
+- It scores each tool based on relevance to the query
+- Only the most relevant tools (above the similarity threshold) are passed to the model
+- If no tools pass the threshold, all tools are used (up to `maxTools` limit)
+
+**Available Strategies:**
+- **Simple (default)**: Fast keyword-based matching with fuzzy scoring
+- **Semantic**: Uses embeddings for intent understanding (slower but more accurate)
+
+```dart
+import 'package:cactus/cactus.dart';
+import 'package:cactus/services/tool_filter.dart';
+
+Future<void> toolFilteringExample() async {
+  // Configure tool filtering via constructor (optional)
+  final lm = CactusLM(
+    enableToolFiltering: true,  // default: true
+    toolFilterConfig: ToolFilterConfig.simple(maxTools: 3),  // default config if not specified
+  );
+  await lm.downloadModel(model: "qwen3-0.6");
+  await lm.initializeModel();
+
+  // Define multiple tools
+  final tools = [
+    CactusTool(
+      name: "get_weather",
+      description: "Get current weather for a location",
+      parameters: ToolParametersSchema(
+        properties: {
+          'location': ToolParameter(type: 'string', description: 'City name', required: true),
+        },
+      ),
+    ),
+    CactusTool(
+      name: "get_stock_price",
+      description: "Get current stock price for a company",
+      parameters: ToolParametersSchema(
+        properties: {
+          'symbol': ToolParameter(type: 'string', description: 'Stock symbol', required: true),
+        },
+      ),
+    ),
+    CactusTool(
+      name: "send_email",
+      description: "Send an email to someone",
+      parameters: ToolParametersSchema(
+        properties: {
+          'to': ToolParameter(type: 'string', description: 'Email address', required: true),
+          'subject': ToolParameter(type: 'string', description: 'Email subject', required: true),
+          'body': ToolParameter(type: 'string', description: 'Email body', required: true),
+        },
+      ),
+    ),
+  ];
+
+  // Tool filtering happens automatically!
+  // The ToolFilterService will analyze the query "What's the weather in Paris?"
+  // and automatically select only the most relevant tool(s) (e.g., get_weather)
+  final result = await lm.generateCompletion(
+    messages: [ChatMessage(content: "What's the weather in Paris?", role: "user")],
+    params: CactusCompletionParams(
+      tools: tools
+    )
+  );
+
+  if (result.success) {
+    print("Response: ${result.response}");
+    print("Tool calls: ${result.toolCalls}");
+  }
+
+  lm.unload();
+}
+```
+
+**Note:** When tool filtering is active, you'll see debug output like:
+```
+Tool filtering: 3 -> 1 tools
+Filtered tools: get_weather
+```
+
 ### Hybrid Completion (Cloud Fallback)
 
 The `CactusLM` supports a `hybrid` completion mode that falls back to a cloud-based LLM provider (OpenRouter) if local inference fails or is not available. This ensures reliability and provides a seamless experience.
 
 To use hybrid mode:
 1.  Set `completionMode` to `CompletionMode.hybrid` in `CactusCompletionParams`.
-2.  Provide an `cactusToken` to `generateCompletion` or `generateCompletionStream`.
+2.  Provide a `cactusToken` in `CactusCompletionParams`.
 
 ```dart
 import 'package:cactus/cactus.dart';
@@ -165,9 +250,9 @@ Future<void> hybridCompletionExample() async {
   final result = await lm.generateCompletion(
     messages: [ChatMessage(content: "What's the weather in New York?", role: "user")],
     params: CactusCompletionParams(
-      completionMode: CompletionMode.hybrid
+      completionMode: CompletionMode.hybrid,
+      cactusToken: "YOUR_CACTUS_TOKEN",
     ),
-    cactusToken: "YOUR_CACTUS_TOKEN",
   );
 
   if (result.success) {
@@ -200,34 +285,39 @@ Future<void> fetchModelsExample() async {
 
 ### Default Parameters
 The `CactusLM` class provides sensible defaults for completion parameters:
-- `temperature: 0.1` - Controls randomness (0.0 = deterministic, 1.0 = very random)
-- `topK: 40` - Number of top tokens to consider
-- `topP: 0.95` - Nucleus sampling parameter
 - `maxTokens: 200` - Maximum tokens to generate
+- `stopSequences: ["<|im_end|>", "<end_of_turn>"]` - Stop sequences for completion
 - `completionMode: CompletionMode.local` - Default to local-only inference.
 
 ### LLM API Reference
 
 #### CactusLM Class
+- `CactusLM({bool enableToolFiltering = true, ToolFilterConfig? toolFilterConfig})` - Constructor. Set `enableToolFiltering` to false to disable automatic tool filtering. Provide `toolFilterConfig` to customize filtering behavior (defaults to `ToolFilterConfig.simple()` if not specified).
 - `Future<void> downloadModel({String model = "qwen3-0.6", CactusProgressCallback? downloadProcessCallback})` - Download a model by slug (e.g., "qwen3-0.6", "gemma3-270m", etc.). Use `getModels()` to see available model slugs. Defaults to "qwen3-0.6" if not specified.
-- `Future<void> initializeModel(CactusInitParams params)` - Initialize model for inference
-- `Future<CactusCompletionResult> generateCompletion({required List<ChatMessage> messages, CactusCompletionParams? params, String? cactusToken})` - Generate text completion (uses default params if none provided)
-- `Future<CactusStreamedCompletionResult> generateCompletionStream({required List<ChatMessage> messages, CactusCompletionParams? params, List<CactusTool>? tools, String? cactusToken})` - Generate streaming text completion (uses default params if none provided)
+- `Future<void> initializeModel({CactusInitParams? params})` - Initialize model for inference
+- `Future<CactusCompletionResult> generateCompletion({required List<ChatMessage> messages, CactusCompletionParams? params})` - Generate text completion (uses default params if none provided). Automatically filters tools if `enableToolFiltering` is true (default).
+- `Future<CactusStreamedCompletionResult> generateCompletionStream({required List<ChatMessage> messages, CactusCompletionParams? params})` - Generate streaming text completion (uses default params if none provided). Automatically filters tools if `enableToolFiltering` is true (default).
 - `Future<List<CactusModel>> getModels()` - Fetch available models with caching
-- `Future<CactusEmbeddingResult?> generateEmbedding({required String text})` - Generate text embeddings
+- `Future<CactusEmbeddingResult> generateEmbedding({required String text, String? modelName})` - Generate text embeddings
 - `void unload()` - Free model from memory
 - `bool isLoaded()` - Check if model is loaded
 
 #### Data Classes
-- `CactusInitParams({String? model, int? contextSize})` - Model initialization parameters
-- `CactusCompletionParams({double temperature, int topK, double topP, int maxTokens, List<String> stopSequences, List<CactusTool>? tools, CompletionMode completionMode})` - Completion parameters
+- `CactusInitParams({String model = "qwen3-0.6", int? contextSize = 2048})` - Model initialization parameters
+- `CactusCompletionParams({String? model, double? temperature, int? topK, double? topP, int maxTokens = 200, List<String> stopSequences = ["<|im_end|>", "<end_of_turn>"], List<CactusTool>? tools, CompletionMode completionMode = CompletionMode.local, String? cactusToken})` - Completion parameters
 - `ChatMessage({required String content, required String role, int? timestamp})` - Chat message format
-- `CactusCompletionResult` - Contains response, timing metrics, and success status
-- `CactusStreamedCompletionResult` - Contains the stream and the final result of a streamed completion.
-- `CactusModel({required String name, required String slug, required int sizeMb, required bool supportsToolCalling, required bool supportsVision, required bool isDownloaded})` - Model information
+- `CactusCompletionResult({required bool success, required String response, required double timeToFirstTokenMs, required double totalTimeMs, required double tokensPerSecond, required int prefillTokens, required int decodeTokens, required int totalTokens, List<ToolCall> toolCalls = []})` - Contains response, timing metrics, tool calls, and success status
+- `CactusStreamedCompletionResult({required Stream<String> stream, required Future<CactusCompletionResult> result})` - Contains the stream and the final result of a streamed completion.
+- `CactusModel({required DateTime createdAt, required String slug, required String downloadUrl, required int sizeMb, required bool supportsToolCalling, required bool supportsVision, required String name, bool isDownloaded = false, int quantization = 8})` - Model information
 - `CactusEmbeddingResult({required bool success, required List<double> embeddings, required int dimension, String? errorMessage})` - Embedding generation result
-- `CactusTool({required String name, required String description, required Map<String, CactusToolParameter> parameters})` - Function calling tool definition
-- `CactusToolParameter({required String type, required String description, required bool required})` - Tool parameter specification
+- `CactusTool({required String name, required String description, required ToolParametersSchema parameters})` - Function calling tool definition
+- `ToolParametersSchema({String type = 'object', required Map<String, ToolParameter> properties})` - Tool parameters schema with automatic required field extraction
+- `ToolParameter({required String type, required String description, bool required = false})` - Tool parameter specification
+- `ToolCall({required String name, required Map<String, String> arguments})` - Tool call result from model
+- `ToolFilterConfig({ToolFilterStrategy strategy = ToolFilterStrategy.simple, int? maxTools, double similarityThreshold = 0.3})` - Configuration for tool filtering behavior
+  - Factory: `ToolFilterConfig.simple({int maxTools = 3})` - Creates a simple keyword-based filter config
+- `ToolFilterStrategy` - Enum for tool filtering strategy (`simple` for keyword matching, `semantic` for embedding-based matching)
+- `ToolFilterService({ToolFilterConfig? config, required CactusLM lm})` - Service for filtering tools based on query relevance (used internally)
 - `CactusProgressCallback = void Function(double? progress, String statusMessage, bool isError)` - Progress callback for downloads
 - `CompletionMode` - Enum for completion mode (`local` or `hybrid`).
 
@@ -244,7 +334,7 @@ Future<void> embeddingExample() async {
 
   try {
     // Download and initialize a model (same as for completions)
-    await lm.downloadModel();
+    await lm.downloadModel(model: "qwen3-0.6");
     await lm.initializeModel();
 
     // Generate embeddings for a text
@@ -268,7 +358,7 @@ Future<void> embeddingExample() async {
 ### Embedding API Reference
 
 #### CactusLM Class (Embedding Methods)
-- `Future<CactusEmbeddingResult?> generateEmbedding({required String text})` - Generate text embeddings
+- `Future<CactusEmbeddingResult> generateEmbedding({required String text, String? modelName})` - Generate text embeddings
 
 #### Embedding Data Classes
 - `CactusEmbeddingResult({required bool success, required List<double> embeddings, required int dimension, String? errorMessage})` - Contains the generated embedding vector and metadata
@@ -295,7 +385,7 @@ Future<void> sttExample() async {
 
   try {
     // Download a voice model with progress callback
-    // Default models: "vosk-en-us" for Vosk, "tiny" for Whisper
+    // Default models: "vosk-en-us" for Vosk, "whisper-tiny" for Whisper
     await stt.download(
       downloadProcessCallback: (progress, status, isError) {
         if (isError) {
@@ -307,7 +397,8 @@ Future<void> sttExample() async {
     );
     
     // Initialize the speech recognition model
-    await stt.init();
+    // For Vosk default: "vosk-en-us", for Whisper default: "whisper-tiny"
+    await stt.init(model: "vosk-en-us");
 
     // Transcribe audio (from microphone or file)
     final result = await stt.transcribe();
@@ -354,8 +445,8 @@ Future<void> providerComparisonExample() async {
 Future<void> fileTranscriptionExample() async {
   final stt = CactusSTT();
   
-  await stt.download();
-  await stt.init();
+  await stt.download(model: "vosk-en-us");
+  await stt.init(model: "vosk-en-us");
 
   // Transcribe from an audio file
   final result = await stt.transcribe(
@@ -375,8 +466,8 @@ Future<void> fileTranscriptionExample() async {
 Future<void> customParametersExample() async {
   final stt = CactusSTT();
   
-  await stt.download();
-  await stt.init();
+  await stt.download(model: "vosk-en-us");
+  await stt.init(model: "vosk-en-us");
 
   // Configure custom speech recognition parameters
   final params = SpeechRecognitionParams(
@@ -384,6 +475,7 @@ Future<void> customParametersExample() async {
     maxDuration: 30000,          // Maximum recording duration (ms)
     maxSilenceDuration: 3000,    // Max silence before stopping (ms)
     silenceThreshold: 300.0,     // Silence detection threshold
+    model: "vosk-en-us",         // Optional: specify model
   );
 
   final result = await stt.transcribe(params: params);
@@ -408,6 +500,7 @@ Future<void> fetchVoiceModelsExample() async {
     print("Model: ${model.slug}");
     print("Language: ${model.language}");
     print("Size: ${model.sizeMb} MB");
+    print("File name: ${model.fileName}");
     print("Downloaded: ${model.isDownloaded}");
     print("---");
   }
@@ -419,8 +512,8 @@ Future<void> fetchVoiceModelsExample() async {
 Future<void> realTimeStatusExample() async {
   final stt = CactusSTT();
   
-  await stt.download();
-  await stt.init();
+  await stt.download(model: "vosk-en-us");
+  await stt.init(model: "vosk-en-us");
 
   // Start transcription
   final transcriptionFuture = stt.transcribe();
@@ -447,7 +540,7 @@ The `CactusSTT` class uses sensible defaults for speech recognition:
 - **Vosk provider defaults:**
   - `model: "vosk-en-us"` - Default English (US) voice model
 - **Whisper provider defaults:**  
-  - `model: "tiny"` - Default lightweight Whisper model
+  - `model: "whisper-tiny"` - Default Whisper model
 - `sampleRate: 16000` - Standard sample rate for speech recognition
 - `maxDuration: 30000` - Maximum 30 seconds recording time
 - `maxSilenceDuration: 2000` - Stop after 2 seconds of silence
@@ -458,21 +551,21 @@ The `CactusSTT` class uses sensible defaults for speech recognition:
 #### CactusSTT Class
 - `CactusSTT({TranscriptionProvider provider = TranscriptionProvider.vosk})` - Constructor with optional provider selection
 - `TranscriptionProvider get provider` - Get the current transcription provider
-- `Future<bool> download({String model = "", CactusProgressCallback? downloadProcessCallback})` - Download a voice model with optional progress callback (defaults: "vosk-en-us" for Vosk, "tiny" for Whisper)
-- `Future<bool> init({String? model})` - Initialize speech recognition model
+- `Future<bool> download({String model = "", CactusProgressCallback? downloadProcessCallback})` - Download a voice model with optional progress callback (defaults: "vosk-en-us" for Vosk, "whisper-tiny" for Whisper)
+- `Future<bool> init({required String model})` - Initialize speech recognition model (required model parameter)
 - `Future<SpeechRecognitionResult?> transcribe({SpeechRecognitionParams? params, String? filePath})` - Transcribe speech from microphone or file
 - `void stop()` - Stop current recording session
 - `bool get isRecording` - Check if currently recording
 - `bool isReady()` - Check if model is initialized and ready
 - `Future<List<VoiceModel>> getVoiceModels()` - Fetch available voice models
-- `Future<bool> isModelDownloaded([String? modelName])` - Check if a specific model is downloaded
+- `Future<bool> isModelDownloaded({required String modelName})` - Check if a specific model is downloaded
 - `void dispose()` - Clean up resources and free memory
 
 #### STT Data Classes
 - `TranscriptionProvider` - Enum for choosing transcription provider (`vosk`, `whisper`)
-- `SpeechRecognitionParams({int sampleRate = 16000, int maxDuration = 30000, int maxSilenceDuration = 2000, double silenceThreshold = 500.0})` - Speech recognition configuration
+- `SpeechRecognitionParams({int sampleRate = 16000, int maxDuration = 30000, int maxSilenceDuration = 2000, double silenceThreshold = 500.0, String? model})` - Speech recognition configuration
 - `SpeechRecognitionResult({required bool success, required String text, double? processingTime})` - Transcription result with timing information
-- `VoiceModel({required String slug, required String language, required String url, required int sizeMb, required String fileName, bool isDownloaded = false})` - Voice model information
+- `VoiceModel({required DateTime createdAt, required String slug, required String language, required String url, required int sizeMb, required String fileName, bool isDownloaded = false})` - Voice model information
 - `CactusProgressCallback = void Function(double? progress, String statusMessage, bool isError)` - Progress callback for model downloads
 
 ## Retrieval-Augmented Generation (RAG)
@@ -499,14 +592,14 @@ Future<void> ragExample() async {
 
   try {
     // 1. Initialize LM and RAG
-    await lm.downloadModel();
+    await lm.downloadModel(model: "qwen3-0.6");
     await lm.initializeModel();
     await rag.initialize();
 
     // 2. Set up the embedding generator (uses the LM to generate embeddings)
     rag.setEmbeddingGenerator((text) async {
       final result = await lm.generateEmbedding(text: text);
-      return result?.embeddings ?? [];
+      return result.embeddings;
     });
 
     // 3. Configure chunking parameters (optional - defaults: chunkSize=512, chunkOverlap=64)
@@ -562,10 +655,10 @@ Future<void> ragExample() async {
 - `Future<DatabaseStats> getStats()` - Get statistics about the database
 
 #### RAG Data Classes
-- `Document` - Represents a stored document with its metadata and associated chunks
-- `DocumentChunk` - Represents a text chunk with its content and embeddings (1024-dimensional vectors by default)
+- `Document({int id = 0, required String fileName, required String filePath, DateTime? createdAt, DateTime? updatedAt, int? fileSize, String? fileHash})` - Represents a stored document with its metadata and associated chunks. Has a `content` getter that joins all chunk contents.
+- `DocumentChunk({int id = 0, required String content, required List<double> embeddings})` - Represents a text chunk with its content and embeddings (1024-dimensional vectors by default)
 - `ChunkSearchResult({required DocumentChunk chunk, required double distance})` - Contains a document chunk and its distance score from the query vector (lower distance = more similar). Distance is squared Euclidean distance from ObjectBox HNSW index
-- `DatabaseStats` - Contains statistics about the document store including total documents, chunks, and content length
+- `DatabaseStats({required int totalDocuments, required int documentsWithEmbeddings, required int totalContentLength})` - Contains statistics about the document store including total documents, chunks, and content length
 - `EmbeddingGenerator = Future<List<double>> Function(String text)` - Function type for generating embeddings from text
 
 ## Platform-Specific Setup
