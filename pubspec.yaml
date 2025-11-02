@@ -1,5 +1,5 @@
 name: cactus
-description: "Framework for running AI models on mobile devices"
+description: "Build AI apps with Cactus"
 version: 1.0.0-beta
 homepage: https://cactuscompute.com
 repository: https://github.com/cactus-compute/cactus-flutter
