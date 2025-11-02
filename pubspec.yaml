@@ -1,6 +1,6 @@
 name: cactus
 description: "Build AI apps with Cactus"
-version: 1.0.0-beta
+version: 1.0.0
 homepage: https://cactuscompute.com
 repository: https://github.com/cactus-compute/cactus-flutter
 
@@ -20,7 +20,8 @@ dependencies:
   package_info_plus: ^8.3.1
   uuid: ^4.5.1
   objectbox: ^5.0.0
-  objectbox_flutter_libs: any
+  objectbox_flutter_libs: ^5.0.1
+  flat_buffers: ^24.3.0
   path: ^1.9.1
   record: ^6.1.1
   permission_handler: ^12.0.1
