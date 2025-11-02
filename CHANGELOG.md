@@ -1,6 +1,6 @@
 ## v1.0.0
 
-This Beta release includes support for:
+This release includes support for:
 - **Language Models**: 270M to 1.7B parameters
   - Google Gemma-3 (270M, 1B)
   - Qwen3 (600M, 1.7B)

@@ -47,7 +47,7 @@ packages:
       path: ".."
       relative: true
     source: path
-    version: "1.0.0-beta"
+    version: "1.0.0"
   characters:
     dependency: transitive
     description:
@@ -267,18 +267,18 @@ packages:
     dependency: transitive
     description:
       name: objectbox
-      sha256: "825b3106bbd8b15b2e7a08d75345a218db020fd87bd5dc246acae65ec08ebc06"
+      sha256: a735ea2ad3bc9af09827588b57c6823a85c54d929290f0c0c0e6da50778311e5
       url: "https://pub.dev"
     source: hosted
-    version: "5.0.0"
+    version: "5.0.1"
   objectbox_flutter_libs:
     dependency: transitive
     description:
       name: objectbox_flutter_libs
-      sha256: f5fd388ffebda310a1acda5c0076f854d7c0cb49634710eb88937ea4ae6c8e10
+      sha256: bf974c7fa525f65cd9d671fffb3086c3c2e1983fbce786f911b184b2e63861fd
       url: "https://pub.dev"
     source: hosted
-    version: "5.0.0"
+    version: "5.0.1"
   package_info_plus:
     dependency: transitive
     description:
