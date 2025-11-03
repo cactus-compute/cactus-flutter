@@ -1,6 +1,6 @@
 # Cactus Flutter Plugin
 
-![Cactus Logo](https://github.com/cactus-compute/cactus-flutter/blob/main/assets/logo.png)
+![Cactus Logo](https://github.com/cactus-compute/cactus-flutter/blob/main/assets/logo.png?raw=true)
 
 Official Flutter plugin for Cactus, a framework for deploying LLM models, speech-to-text, and RAG capabilities locally in your app. Requires iOS 12.0+, Android API 24+.
 
@@ -9,19 +9,9 @@ Official Flutter plugin for Cactus, a framework for deploying LLM models, speech
 
 ## Installation
 
-Add the dependency to your `pubspec.yaml`:
-
-```yaml
-dependencies:
-  cactus:
-    git:
-      url: https://github.com/cactus-compute/cactus-flutter.git
-      ref: main
-```
-
-Then run:
+Execute the following command in your project terminal:
 ```bash
-flutter pub get
+flutter pub add cactus
 ```
 
 ## Getting Started
