@@ -43,7 +43,7 @@ class CactusCompletionParams {
     this.temperature,
     this.topK,
     this.topP,
-    this.maxTokens = 200,
+    this.maxTokens = 512,
     this.stopSequences = const ["<|im_end|>", "<end_of_turn>"],
     this.tools,
     this.completionMode = CompletionMode.local,
