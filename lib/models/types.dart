@@ -165,7 +165,6 @@ enum CompletionMode {
 }
 
 enum TranscriptionProvider {
-  vosk,
   whisper
 }
 

@@ -4,16 +4,6 @@ import 'package:ffi/ffi.dart';
 final class CactusModelOpaque extends Opaque {}
 typedef CactusModel = Pointer<CactusModelOpaque>;
 
-// Vosk model types
-final class VoskModelOpaque extends Opaque {}
-typedef VoskModel = Pointer<VoskModelOpaque>;
-
-final class VoskSpkModelOpaque extends Opaque {}
-typedef VoskSpkModel = Pointer<VoskSpkModelOpaque>;
-
-final class VoskRecognizerOpaque extends Opaque {}
-typedef VoskRecognizer = Pointer<VoskRecognizerOpaque>;
-
 typedef CactusTokenCallbackNative = Void Function(Pointer<Utf8> token, Uint32 tokenId, Pointer<Void> userData);
 typedef CactusTokenCallbackDart = void Function(Pointer<Utf8> token, int tokenId, Pointer<Void> userData);
 
@@ -65,36 +55,6 @@ typedef GetAllEntriesDart = Pointer<Utf8> Function();
 
 typedef GetDeviceIdNative = Pointer<Utf8> Function();
 typedef GetDeviceIdDart = Pointer<Utf8> Function();
-
-typedef VoskModelNewNative = VoskModel Function(Pointer<Utf8> path);
-typedef VoskModelNewDart = VoskModel Function(Pointer<Utf8> path);
-
-typedef VoskModelFreeNative = Void Function(VoskModel model);
-typedef VoskModelFreeDart = void Function(VoskModel model);
-
-typedef VoskSpkModelNewNative = VoskSpkModel Function(Pointer<Utf8> path);
-typedef VoskSpkModelNewDart = VoskSpkModel Function(Pointer<Utf8> path);
-
-typedef VoskSpkModelFreeNative = Void Function(VoskSpkModel model);
-typedef VoskSpkModelFreeDart = void Function(VoskSpkModel model);
-
-typedef VoskRecognizerNewSpkNative = VoskRecognizer Function(VoskModel model, Float sampleRate, VoskSpkModel spkModel);
-typedef VoskRecognizerNewSpkDart = VoskRecognizer Function(VoskModel model, double sampleRate, VoskSpkModel spkModel);
-
-typedef VoskRecognizerAcceptWaveformNative = Bool Function(VoskRecognizer recognizer, Pointer<Uint8> data, Int32 len);
-typedef VoskRecognizerAcceptWaveformDart = bool Function(VoskRecognizer recognizer, Pointer<Uint8> data, int len);
-
-typedef VoskRecognizerResultNative = Pointer<Utf8> Function(VoskRecognizer recognizer);
-typedef VoskRecognizerResultDart = Pointer<Utf8> Function(VoskRecognizer recognizer);
-
-typedef VoskRecognizerFinalResultNative = Pointer<Utf8> Function(VoskRecognizer recognizer);
-typedef VoskRecognizerFinalResultDart = Pointer<Utf8> Function(VoskRecognizer recognizer);
-
-typedef VoskRecognizerPartialResultNative = Pointer<Utf8> Function(VoskRecognizer recognizer);
-typedef VoskRecognizerPartialResultDart = Pointer<Utf8> Function(VoskRecognizer recognizer);
-
-typedef VoskRecognizerFreeNative = Void Function(VoskRecognizer recognizer);
-typedef VoskRecognizerFreeDart = void Function(VoskRecognizer recognizer);
 
 // Whisper model types
 final class WhisperContextOpaque extends Opaque {}

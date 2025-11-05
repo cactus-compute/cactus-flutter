@@ -172,7 +172,7 @@ class DownloadService {
       final archive = ZipDecoder().decodeStream(inputStream);
       final symbolicLinks = <ArchiveFile>[];
       
-      // Find the root folder name in the archive (e.g., "vosk-model-small-en-us-0.15")
+      // Find the root folder name in the archive
       String? rootFolderName;
       for (final file in archive) {
         if (file.isFile || file.isDirectory) {

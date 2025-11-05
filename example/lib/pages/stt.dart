@@ -78,11 +78,7 @@ class _STTPageState extends State<STTPage> {
         }
       });
     } catch (e) {
-      // Use default model slug on network failure
-      final defaultSlug = _currentProvider == TranscriptionProvider.vosk 
-          ? "vosk-en-us"
-          : "whisper-tiny";
-      
+      const defaultSlug = "whisper-tiny";
       setState(() {
         _voiceModels = [];
         _selectedModel = defaultSlug;
@@ -313,10 +309,6 @@ class _STTPageState extends State<STTPage> {
                         DropdownMenuItem(
                           value: TranscriptionProvider.whisper,
                           child: Text('Whisper'),
-                        ),
-                        DropdownMenuItem(
-                          value: TranscriptionProvider.vosk,
-                          child: Text('Vosk'),
                         ),
                       ],
                       onChanged: _isModelLoaded ? null : (value) {

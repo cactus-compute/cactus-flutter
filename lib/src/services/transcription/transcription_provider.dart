@@ -18,7 +18,7 @@ abstract class BaseTranscriptionProvider {
   // Provider-specific abstract members
   String get providerName;
   String get defaultModel;
-  Future<bool> initializeService(String modelPath, {String? additionalModelPath});
+  Future<bool> initializeService(String modelPath);
   Future<SpeechRecognitionResult?> performRecognition(SpeechRecognitionParams params, String? filePath);
   bool get serviceReady;
   bool get serviceRecording;
@@ -26,9 +26,6 @@ abstract class BaseTranscriptionProvider {
   void disposeService();
   Future<List<DownloadTask>> buildDownloadTasks(VoiceModel model, String modelName);
   String buildModelPath(String appDocPath, String model);
-
-  // Optional additional model path (e.g., speaker model for Vosk)
-  String? getAdditionalModelPath(String appDocPath, String model) => null;
 
   Future<bool> download({
     String? model,
@@ -67,9 +64,8 @@ abstract class BaseTranscriptionProvider {
 
       final appDocDir = await getApplicationDocumentsDirectory();
       final modelPath = buildModelPath(appDocDir.path, model);
-      final additionalPath = getAdditionalModelPath(appDocDir.path, model);
 
-      _isInitialized = await initializeService(modelPath, additionalModelPath: additionalPath);
+      _isInitialized = await initializeService(modelPath);
 
       if (Telemetry.isInitialized) {
         final message = _isInitialized ? "" : "Failed to initialize $providerName model: $model";
