@@ -78,11 +78,7 @@ class _STTPageState extends State<STTPage> {
         }
       });
     } catch (e) {
-      // Use default model slug on network failure
-      final defaultSlug = _currentProvider == TranscriptionProvider.whisper
-          ? "whisper-tiny"
-          : "";
-
+      const defaultSlug = "whisper-tiny";
       setState(() {
         _voiceModels = [];
         _selectedModel = defaultSlug;
