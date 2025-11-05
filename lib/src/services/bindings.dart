@@ -2,7 +2,6 @@ import 'dart:ffi';
 import 'dart:io' show Platform;
 import 'package:cactus/src/models/binding.dart';
 import 'package:ffi/ffi.dart';
-import 'package:flutter/foundation.dart';
 
 String _getLibraryPath(String libName) {
   if (Platform.isIOS || Platform.isMacOS) {
@@ -45,46 +44,6 @@ final setAndroidDataDirectory = cactusUtil
 final getDeviceId = cactusUtil
     .lookup<NativeFunction<GetDeviceIdNative>>('get_device_id')
     .asFunction<GetDeviceIdDart>();
-
-// Vosk function bindings - only available on Android
-final DynamicLibrary? voskLib = Platform.isAndroid ? (() {
-  try {
-    return DynamicLibrary.open(_getLibraryPath('vosk'));
-  } catch (e) {
-    debugPrint('Warning: Could not load Vosk library: $e');
-    return null;
-  }
-})() : null;
-
-final voskModelNew = voskLib?.lookup<NativeFunction<VoskModelNewNative>>('vosk_model_new')
-    .asFunction<VoskModelNewDart>();
-
-final voskModelFree = voskLib?.lookup<NativeFunction<VoskModelFreeNative>>('vosk_model_free')
-    .asFunction<VoskModelFreeDart>();
-
-final voskSpkModelNew = voskLib?.lookup<NativeFunction<VoskSpkModelNewNative>>('vosk_spk_model_new')
-    .asFunction<VoskSpkModelNewDart>();
-
-final voskSpkModelFree = voskLib?.lookup<NativeFunction<VoskSpkModelFreeNative>>('vosk_spk_model_free')
-    .asFunction<VoskSpkModelFreeDart>();
-
-final voskRecognizerNewSpk = voskLib?.lookup<NativeFunction<VoskRecognizerNewSpkNative>>('vosk_recognizer_new_spk')
-    .asFunction<VoskRecognizerNewSpkDart>();
-
-final voskRecognizerAcceptWaveform = voskLib?.lookup<NativeFunction<VoskRecognizerAcceptWaveformNative>>('vosk_recognizer_accept_waveform')
-    .asFunction<VoskRecognizerAcceptWaveformDart>();
-
-final voskRecognizerResult = voskLib?.lookup<NativeFunction<VoskRecognizerResultNative>>('vosk_recognizer_result')
-    .asFunction<VoskRecognizerResultDart>();
-
-final voskRecognizerFinalResult = voskLib?.lookup<NativeFunction<VoskRecognizerFinalResultNative>>('vosk_recognizer_final_result')
-    .asFunction<VoskRecognizerFinalResultDart>();
-
-final voskRecognizerPartialResult = voskLib?.lookup<NativeFunction<VoskRecognizerPartialResultNative>>('vosk_recognizer_partial_result')
-    .asFunction<VoskRecognizerPartialResultDart>();
-
-final voskRecognizerFree = voskLib?.lookup<NativeFunction<VoskRecognizerFreeNative>>('vosk_recognizer_free')
-    .asFunction<VoskRecognizerFreeDart>();
 
 // Whisper function bindings - available on both platforms
 final DynamicLibrary whisperLib = DynamicLibrary.open(_getLibraryPath('whisper'));

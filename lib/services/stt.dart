@@ -4,23 +4,19 @@ import 'package:cactus/models/types.dart';
 import 'package:cactus/services/telemetry.dart';
 import 'package:cactus/src/services/api/telemetry.dart';
 import 'package:cactus/src/services/transcription/transcription_provider.dart';
-import 'package:cactus/src/services/transcription/vosk_provider.dart';
 import 'package:cactus/src/services/transcription/whisper_provider.dart';
 
 class CactusSTT {
   final TranscriptionProvider _provider;
   late final BaseTranscriptionProvider _providerInstance;
 
-  CactusSTT({TranscriptionProvider provider = TranscriptionProvider.vosk}) 
+  CactusSTT({TranscriptionProvider provider = TranscriptionProvider.whisper}) 
       : _provider = provider {
     _initializeProvider();
   }
 
   void _initializeProvider() {
     switch (_provider) {
-      case TranscriptionProvider.vosk:
-        _providerInstance = VoskTranscriptionProvider();
-        break;
       case TranscriptionProvider.whisper:
         _providerInstance = WhisperTranscriptionProvider();
         break;
@@ -38,9 +34,6 @@ class CactusSTT {
     String defaultModel = model;
     if (model.isEmpty) {
       switch (_provider) {
-        case TranscriptionProvider.vosk:
-          defaultModel = "vosk-en-us";
-          break;
         case TranscriptionProvider.whisper:
           defaultModel = "whisper-tiny";
           break;
