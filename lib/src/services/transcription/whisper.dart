@@ -203,7 +203,7 @@ class WhisperService with SpeechServiceStateMixin {
 
       try {
         final config = SpeechUtils.createRecordingConfig(
-          sampleRate: 16000,
+          sampleRate: params.sampleRate,
           numChannels: 1,
         );
 

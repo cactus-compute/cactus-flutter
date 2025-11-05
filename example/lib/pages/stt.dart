@@ -176,8 +176,6 @@ class _STTPageState extends State<STTPage> {
       final params = SpeechRecognitionParams(
         sampleRate: 16000,
         maxDuration: 30000, // 30 seconds
-        maxSilenceDuration: 3000, // 3 seconds of silence
-        silenceThreshold: 500.0,
       );
       final result = await _stt.transcribe(params: params);
       

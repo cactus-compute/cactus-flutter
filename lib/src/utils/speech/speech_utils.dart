@@ -102,7 +102,6 @@ class SpeechUtils {
 
   static bool validateSpeechParams(SpeechRecognitionParams params) {
     return params.maxDuration > 0 &&
-           params.maxSilenceDuration > 0 &&
            params.sampleRate > 0;
   }
 }

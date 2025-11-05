@@ -464,8 +464,6 @@ Future<void> customParametersExample() async {
   final params = SpeechRecognitionParams(
     sampleRate: 16000,           // Audio sample rate (Hz)
     maxDuration: 30000,          // Maximum recording duration (ms)
-    maxSilenceDuration: 3000,    // Max silence before stopping (ms)
-    silenceThreshold: 300.0,     // Silence detection threshold
     model: "whisper-tiny",       // Optional: specify model
   );
 
@@ -531,8 +529,6 @@ The `CactusSTT` class uses sensible defaults for speech recognition:
 - `model: "whisper-tiny"` - Default Whisper model
 - `sampleRate: 16000` - Standard sample rate for speech recognition
 - `maxDuration: 30000` - Maximum 30 seconds recording time
-- `maxSilenceDuration: 2000` - Stop after 2 seconds of silence
-- `silenceThreshold: 500.0` - Sensitivity for silence detection
 
 ### STT API Reference
 
@@ -551,7 +547,7 @@ The `CactusSTT` class uses sensible defaults for speech recognition:
 
 #### STT Data Classes
 - `TranscriptionProvider` - Enum for choosing transcription provider (`whisper`)
-- `SpeechRecognitionParams({int sampleRate = 16000, int maxDuration = 30000, int maxSilenceDuration = 2000, double silenceThreshold = 500.0, String? model})` - Speech recognition configuration
+- `SpeechRecognitionParams({int sampleRate = 16000, int maxDuration = 30000, String? model})` - Speech recognition configuration
 - `SpeechRecognitionResult({required bool success, required String text, double? processingTime})` - Transcription result with timing information
 - `VoiceModel({required DateTime createdAt, required String slug, required String language, required String url, required int sizeMb, required String fileName, bool isDownloaded = false})` - Voice model information
 - `CactusProgressCallback = void Function(double? progress, String statusMessage, bool isError)` - Progress callback for model downloads

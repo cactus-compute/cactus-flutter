@@ -27,21 +27,11 @@ class CactusSTT {
   TranscriptionProvider get provider => _provider;
 
   Future<bool> download({
-    String model = "",
+    required String model,
     CactusProgressCallback? downloadProcessCallback,
   }) async {
-    // Set default model based on provider
-    String defaultModel = model;
-    if (model.isEmpty) {
-      switch (_provider) {
-        case TranscriptionProvider.whisper:
-          defaultModel = "whisper-tiny";
-          break;
-      }
-    }
-    
     return await _providerInstance.download(
-      model: defaultModel,
+      model: model,
       downloadProcessCallback: downloadProcessCallback,
     );
   }
