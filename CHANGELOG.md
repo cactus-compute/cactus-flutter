@@ -1,3 +1,9 @@
+## v1.0.1
+
+- Synced binaries with the latest Cactus engine
+- Added support for tool calling on LFM2 models
+- Drop vosk and default to whisper for STT
+
 ## v1.0.0
 
 This release includes support for:
