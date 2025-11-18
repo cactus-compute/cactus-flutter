@@ -9,7 +9,9 @@ dependencies:
   flutter:
     sdk: flutter
   cactus:
-    path: ../
+    git:
+      url: https://github.com/cactus-compute/cactus-flutter.git
+      ref: main
   read_pdf_text: ^0.3.1
   file_picker: ^10.3.3
 dev_dependencies:

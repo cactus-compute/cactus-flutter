@@ -44,10 +44,12 @@ packages:
   cactus:
     dependency: "direct main"
     description:
-      path: ".."
-      relative: true
-    source: path
-    version: "1.0.0"
+      path: "."
+      ref: main
+      resolved-ref: "7e52096c26122eaae886a047f41c987a8c850c90"
+      url: "https://github.com/cactus-compute/cactus-flutter.git"
+    source: git
+    version: "1.0.1"
   characters:
     dependency: transitive
     description:
