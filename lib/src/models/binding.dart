@@ -7,8 +7,8 @@ typedef CactusModel = Pointer<CactusModelOpaque>;
 typedef CactusTokenCallbackNative = Void Function(Pointer<Utf8> token, Uint32 tokenId, Pointer<Void> userData);
 typedef CactusTokenCallbackDart = void Function(Pointer<Utf8> token, int tokenId, Pointer<Void> userData);
 
-typedef CactusInitNative = CactusModel Function(Pointer<Utf8> modelPath, Size contextSize);
-typedef CactusInitDart = CactusModel Function(Pointer<Utf8> modelPath, int contextSize);
+typedef CactusInitNative = CactusModel Function(Pointer<Utf8> modelPath, Size contextSize, Pointer<Utf8> corpusDir);
+typedef CactusInitDart = CactusModel Function(Pointer<Utf8> modelPath, int contextSize, Pointer<Utf8> corpusDir);
 
 typedef CactusCompleteNative = Int32 Function(
     CactusModel model,

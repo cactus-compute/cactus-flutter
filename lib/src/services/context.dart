@@ -37,7 +37,8 @@ Future<(int?, String)> _initContextInIsolate(Map<String, dynamic> params) async 
     debugPrint('Initializing context with model: $modelPath, contextSize: $contextSize');
     final modelPathC = modelPath.toNativeUtf8(allocator: calloc);
     try {
-      final handle = bindings.cactusInit(modelPathC, contextSize);
+      // We are not using corpusDir for now, passing null pointer
+      final handle = bindings.cactusInit(modelPathC, contextSize, nullptr);
       if (handle != nullptr) {
         return (handle.address, 'Context initialized successfully');
       } else {
