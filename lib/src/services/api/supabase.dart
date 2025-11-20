@@ -3,35 +3,20 @@ import 'dart:convert';
 
 import 'package:cactus/src/utils/models/model_cache.dart';
 import 'package:cactus/src/version.dart';
+import 'package:cactus/services/telemetry.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
 import 'package:cactus/src/models/log_record.dart';
 import 'package:cactus/models/types.dart';
 import 'package:cactus/src/utils/logging/log_buffer.dart';
 import 'package:cactus/src/utils/platform/ffi_utils.dart';
 
 class Supabase {
-  static bool? _skipTelemetry;
 
   static const String _supabaseUrl = 'https://vlqqczxwyaodtcdmdmlw.supabase.co';
   static const String _supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZscXFjenh3eWFvZHRjZG1kbWx3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE1MTg2MzIsImV4cCI6MjA2NzA5NDYzMn0.nBzqGuK9j6RZ6mOPWU2boAC_5H9XDs-fPpo5P3WZYbI';
 
-  static Future<bool> _shouldSkipTelemetry() async {
-    if (_skipTelemetry != null) return _skipTelemetry!;
-    
-    try {
-      final content = await rootBundle.loadString('assets/.cactus_dev_config.json');
-      final config = jsonDecode(content) as Map<String, dynamic>;
-      _skipTelemetry = config['skip_telemetry'] == true;
-      return _skipTelemetry!;
-    } catch (_) {}
-    
-    _skipTelemetry = false;
-    return false;
-  }
-
   static Future<void> sendLogRecord(LogRecord record) async {
-    if (await _shouldSkipTelemetry()) {
+    if (!CactusTelemetry.isTelemetryEnabled) {
       return;
     }
     
@@ -106,8 +91,8 @@ class Supabase {
   }
 
   static Future<String?> registerDevice(Map<String, dynamic> deviceData) async {
-    if (await _shouldSkipTelemetry()) {
-      return 'dev-mode-device-id';
+    if (!CactusTelemetry.isTelemetryEnabled) {
+      return 'telemetry-disabled';
     }
     
     try {

@@ -17,9 +17,19 @@ flutter pub add cactus
 ## Getting Started
 
 ### Telemetry Setup (Optional)
+
+Telemetry is enabled by default to help improve the SDK. You can easily disable it:
+
 ```dart
 import 'package:cactus/cactus.dart';
 
+// Disable telemetry
+CactusTelemetry.isTelemetryEnabled = false;
+```
+
+You can also optionally set a telemetry token to track usage across your organization:
+
+```dart
 CactusTelemetry.setTelemetryToken("your-token-here");
 ```
 
