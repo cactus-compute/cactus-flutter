@@ -11,6 +11,7 @@ import 'pages/hybrid_completion.dart';
 import 'pages/rag.dart';
 import 'pages/streaming_completion.dart';
 import 'pages/stt.dart';
+import 'pages/vision.dart';
 
 void main() {
   runApp(const MyApp());
@@ -168,6 +169,15 @@ class _MyHomePageState extends State<MyHomePage> {
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => const ChatPage()),
+              );
+            },
+          ),
+          ListTile(
+            title: const Text('Vision'),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const VisionPage()),
               );
             },
           ),
