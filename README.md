@@ -110,7 +110,7 @@ Future<void> streamingExample() async {
 }
 ```
 
-### Function Calling (Experimental)
+### Function Calling
 ```dart
 Future<void> functionCallingExample() async {
   final lm = CactusLM();
@@ -146,7 +146,7 @@ Future<void> functionCallingExample() async {
 }
 ```
 
-### Tool Filtering (Experimental)
+### Tool Filtering
 
 When working with many tools, you can use tool filtering to automatically select the most relevant tools for each query. This reduces context size and improves model performance. Tool filtering is **enabled by default** and works automatically when you provide tools to `generateCompletion()` or `generateCompletionStream()`.
 
@@ -283,6 +283,39 @@ Future<void> fetchModelsExample() async {
 }
 ```
 
+## Vision (Multimodal)
+
+The `CactusLM` class supports vision-capable models that can analyze images. You can pass images alongside text messages to get AI-powered image descriptions and analysis.
+
+```dart
+Future<void> streamingVisionExample() async {
+  final lm = CactusLM();
+  await lm.initializeModel(params: CactusInitParams(model: 'lfm2-vl-450m'));
+
+  // Stream the image analysis response
+  final streamedResult = await lm.generateCompletionStream(
+    messages: [
+      ChatMessage(
+        content: 'You are a helpful AI assistant that can analyze images.',
+        role: "system"
+      ),
+      ChatMessage(
+        content: 'What objects can you see in this image?',
+        role: "user",
+        images: ['/path/to/image.jpg']
+      )
+    ],
+    params: CactusCompletionParams(maxTokens: 200)
+  );
+
+  // Process streaming output
+  await for (final chunk in streamedResult.stream) {
+    print(chunk);
+  }
+  lm.unload();
+}
+```
+
 ### Default Parameters
 The `CactusLM` class provides sensible defaults for completion parameters:
 - `maxTokens: 200` - Maximum tokens to generate
@@ -305,7 +338,7 @@ The `CactusLM` class provides sensible defaults for completion parameters:
 #### Data Classes
 - `CactusInitParams({String model = "qwen3-0.6", int? contextSize = 2048})` - Model initialization parameters
 - `CactusCompletionParams({String? model, double? temperature, int? topK, double? topP, int maxTokens = 200, List<String> stopSequences = ["<|im_end|>", "<end_of_turn>"], List<CactusTool>? tools, CompletionMode completionMode = CompletionMode.local, String? cactusToken})` - Completion parameters
-- `ChatMessage({required String content, required String role, int? timestamp})` - Chat message format
+- `ChatMessage({required String content, required String role, int? timestamp, List<String> images})` - Chat message format
 - `CactusCompletionResult({required bool success, required String response, required double timeToFirstTokenMs, required double totalTimeMs, required double tokensPerSecond, required int prefillTokens, required int decodeTokens, required int totalTokens, List<ToolCall> toolCalls = []})` - Contains response, timing metrics, tool calls, and success status
 - `CactusStreamedCompletionResult({required Stream<String> stream, required Future<CactusCompletionResult> result})` - Contains the stream and the final result of a streamed completion.
 - `CactusModel({required DateTime createdAt, required String slug, required String downloadUrl, required int sizeMb, required bool supportsToolCalling, required bool supportsVision, required String name, bool isDownloaded = false, int quantization = 8})` - Model information
@@ -320,108 +353,6 @@ The `CactusLM` class provides sensible defaults for completion parameters:
 - `ToolFilterService({ToolFilterConfig? config, required CactusLM lm})` - Service for filtering tools based on query relevance (used internally)
 - `CactusProgressCallback = void Function(double? progress, String statusMessage, bool isError)` - Progress callback for downloads
 - `CompletionMode` - Enum for completion mode (`local` or `hybrid`).
-
-## Vision (Multimodal)
-
-The `CactusLM` class supports vision-capable models that can analyze images. You can pass images alongside text messages to get AI-powered image descriptions and analysis.
-
-### Basic Vision Usage
-```dart
-import 'package:cactus/cactus.dart';
-
-Future<void> visionExample() async {
-  final lm = CactusLM();
-
-  try {
-    // Get available models and filter for vision-capable ones
-    final models = await lm.getModels();
-    final visionModels = models.where((m) => m.supportsVision).toList();
-
-    // Download and initialize a vision model
-    await lm.downloadModel(model: visionModels.first.slug);
-    await lm.initializeModel(
-      params: CactusInitParams(model: visionModels.first.slug)
-    );
-
-    // Analyze an image
-    final result = await lm.generateCompletion(
-      messages: [
-        ChatMessage(
-          content: 'You are a helpful AI assistant that can analyze images.',
-          role: "system"
-        ),
-        ChatMessage(
-          content: 'Describe this image',
-          role: "user",
-          images: ['/path/to/image.jpg'] // Path to local image file
-        )
-      ],
-      params: CactusCompletionParams(maxTokens: 200)
-    );
-
-    if (result.success) {
-      print("Image description: ${result.response}");
-      print("Tokens per second: ${result.tokensPerSecond}");
-    }
-  } finally {
-    lm.unload();
-  }
-}
-```
-
-### Streaming Vision Analysis
-```dart
-Future<void> streamingVisionExample() async {
-  final lm = CactusLM();
-
-  // Download and initialize a vision model
-  final models = await lm.getModels();
-  final visionModel = models.firstWhere((m) => m.supportsVision);
-
-  await lm.downloadModel(model: visionModel.slug);
-  await lm.initializeModel(params: CactusInitParams(model: visionModel.slug));
-
-  // Stream the image analysis response
-  final streamedResult = await lm.generateCompletionStream(
-    messages: [
-      ChatMessage(
-        content: 'You are a helpful AI assistant that can analyze images.',
-        role: "system"
-      ),
-      ChatMessage(
-        content: 'What objects can you see in this image?',
-        role: "user",
-        images: ['/path/to/image.jpg']
-      )
-    ],
-    params: CactusCompletionParams(maxTokens: 200)
-  );
-
-  // Process streaming output
-  await for (final chunk in streamedResult.stream) {
-    print(chunk);
-  }
-
-  final finalResult = await streamedResult.result;
-  if (finalResult.success) {
-    print("Time to first token: ${finalResult.timeToFirstTokenMs}ms");
-  }
-
-  lm.unload();
-}
-```
-
-### Vision API Reference
-
-#### ChatMessage with Images
-- `ChatMessage({required String content, required String role, List<String>? images})` - Chat message format with optional image paths. The `images` parameter accepts a list of local file paths to image files.
-
-#### Model Selection
-- Use `getModels()` to fetch available models
-- Filter for vision-capable models using `model.supportsVision`
-- Common vision models include those with multimodal capabilities
-
-**Note**: See the complete vision example implementation in `example/lib/pages/vision.dart` which demonstrates image picking, model management, and streaming vision analysis with a full UI.
 
 ## Embeddings
 
