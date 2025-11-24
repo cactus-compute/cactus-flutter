@@ -26,6 +26,14 @@ class _RAGChatPageState extends State<RAGChatPage> {
   // Controllers
   final _messageController = TextEditingController();
 
+  /// Strip thinking process tags from model output
+  String _stripThinkingTags(String text) {
+    // Remove content within <think>...</think> tags (case-insensitive)
+    final regex =
+        RegExp(r'<think>.*?</think>', caseSensitive: false, dotAll: true);
+    return text.replaceAll(regex, '').trim();
+  }
+
   // State flags
   bool _isInitializing = false;
   bool _isReady = false;
@@ -269,28 +277,46 @@ class _RAGChatPageState extends State<RAGChatPage> {
       // Search RAG database
       final results = await _rag.search(text: query, limit: 3);
 
-      // Build context from results
-      final context = results.map((r) => r.chunk.content).join('\n\n');
+      // Build context from results - limit context size
+      final contextChunks = results.map((r) => r.chunk.content).toList();
+      var context = contextChunks.join('\n\n');
+
+      // Truncate if context is too long (keep it under ~800 tokens ~3200 chars)
+      if (context.length > 3000) {
+        context = context.substring(0, 3000) + '...';
+      }
 
       // Generate response with context
       final response = await _chatModel.generateCompletion(
         messages: [
           ChatMessage(
               content:
-                  'You are a helpful assistant. Use the following context to answer the question.',
+                  'You are a helpful assistant. Answer questions based on the provided context.',
               role: 'system'),
           ChatMessage(
               content: 'Context:\n$context\n\nQuestion: $query', role: 'user'),
         ],
         params: CactusCompletionParams(
-          maxTokens: 300,
+          maxTokens: 400,
           temperature: 0.7,
+          stopSequences: [],
         ),
       );
 
+      if (!response.success) {
+        setState(() {
+          _messages.add(AppMessage(
+            text:
+                'Failed to generate response. Try with a shorter query or document.',
+            isUser: false,
+          ));
+        });
+        return;
+      }
+
       setState(() {
         _messages.add(AppMessage(
-          text: response.response,
+          text: _stripThinkingTags(response.response),
           isUser: false,
         ));
       });
@@ -319,9 +345,16 @@ class _RAGChatPageState extends State<RAGChatPage> {
 
       // Generate description
       final docNames = docs.map((d) => d['fileName']).join(', ');
-      final docContents = docs
+
+      // Limit document content length to avoid context overflow
+      var docContents = docs
           .map((d) => '${d['fileName']}:\n${d['content']}')
           .join('\n\n---\n\n');
+
+      // Truncate if too long (keep under ~1000 chars for summary)
+      if (docContents.length > 1500) {
+        docContents = docContents.substring(0, 1500) + '\n...[truncated]';
+      }
 
       final response = await _chatModel.generateCompletion(
         messages: [
@@ -330,18 +363,31 @@ class _RAGChatPageState extends State<RAGChatPage> {
               role: 'system'),
           ChatMessage(
               content:
-                  'Please provide a brief summary of the following documents:\n\n$docContents',
+                  'Provide a brief summary of this document:\n\n$docContents',
               role: 'user'),
         ],
         params: CactusCompletionParams(
-          maxTokens: 300,
+          maxTokens: 400,
           temperature: 0.7,
+          stopSequences: [],
         ),
       );
 
+      if (!response.success) {
+        setState(() {
+          _messages.add(AppMessage(
+            text:
+                'Documents added: $docNames\n\nFailed to generate summary. The document may be too large.',
+            isUser: false,
+          ));
+        });
+        return;
+      }
+
       setState(() {
         _messages.add(AppMessage(
-          text: 'Documents added: $docNames\n\n${response.response}',
+          text:
+              'Documents added: $docNames\n\n${_stripThinkingTags(response.response)}',
           isUser: false,
         ));
       });
@@ -372,15 +418,26 @@ class _RAGChatPageState extends State<RAGChatPage> {
           ChatMessage(content: query, role: 'user'),
         ],
         params: CactusCompletionParams(
-          maxTokens: 300,
+          maxTokens: 400,
           temperature: 0.7,
+          stopSequences: [],
         ),
       );
+
+      if (!response.success) {
+        setState(() {
+          _messages.add(AppMessage(
+            text: 'Failed to generate response. Please try again.',
+            isUser: false,
+          ));
+        });
+        return;
+      }
 
       // Add AI response
       setState(() {
         _messages.add(AppMessage(
-          text: response.response,
+          text: _stripThinkingTags(response.response),
           isUser: false,
         ));
       });
