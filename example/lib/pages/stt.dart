@@ -275,31 +275,22 @@ class _STTPageState extends State<STTPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (_isDownloading || _isInitializing || _isTranscribing || _isLoadingModels) 
+            if (_isDownloading || _isInitializing || _isTranscribing || _isLoadingModels)
               const LinearProgressIndicator(
                 valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
                 backgroundColor: Colors.grey,
               ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 8),
             
             // Info card
             Card(
               child: Padding(
-                padding: const EdgeInsets.all(16.0),
+                padding: const EdgeInsets.all(12.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Speech-to-Text Transcription Demo',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'This example demonstrates speech-to-text transcription using CactusSTT. Select a provider and model, initialize it, then you can transcribe from microphone input or from audio files.',
-                    ),
-                    const SizedBox(height: 16),
-                    const Text('Provider Selection', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 8),
+                    const Text('Provider', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 4),
                     DropdownButton<TranscriptionProvider>(
                       value: _currentProvider,
                       isExpanded: true,
@@ -321,9 +312,9 @@ class _STTPageState extends State<STTPage> {
                         }
                       },
                     ),
-                    const SizedBox(height: 16),
-                    const Text('Model Selection', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 8),
+                    const Text('Model', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 4),
                     if (_isLoadingModels)
                       const Text('Loading models...')
                     else if (_isUsingDefaultModel)
@@ -348,9 +339,9 @@ class _STTPageState extends State<STTPage> {
                 ),
               ),
             ),
-            
-            const SizedBox(height: 16),
-            
+
+            const SizedBox(height: 8),
+
                         // Initialize model button
             ElevatedButton(
               onPressed: (_isDownloading || _isInitializing || _isModelLoaded || _isLoadingModels || (_voiceModels.isEmpty && !_isUsingDefaultModel)) ? null : _downloadAndInitializeModel,
@@ -385,9 +376,9 @@ class _STTPageState extends State<STTPage> {
                   backgroundColor: Colors.grey.shade300,
                 ),
               ),
-            
-            const SizedBox(height: 8),
-            
+
+            const SizedBox(height: 4),
+
             // Transcription buttons in a row
             Row(
               children: [
@@ -427,37 +418,37 @@ class _STTPageState extends State<STTPage> {
                 ),
               ],
             ),
-            
-            const SizedBox(height: 16),
-            
+
+            const SizedBox(height: 8),
+
             // Output section
             Expanded(
               child: Card(
                 child: Padding(
-                  padding: const EdgeInsets.all(16.0),
+                  padding: const EdgeInsets.all(12.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
                         'Output:',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 6),
                       Text(_outputText),
                       
                       if (_lastResponse != null) ...[
                         const Divider(),
                         const Text(
                           'Transcription Result:',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
                         ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 6),
                         Expanded(
                           child: Container(
                             width: double.infinity,
                             color: Colors.grey.shade100,
                             child: Padding(
-                              padding: const EdgeInsets.all(12.0),
+                              padding: const EdgeInsets.all(8.0),
                               child: SingleChildScrollView(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
