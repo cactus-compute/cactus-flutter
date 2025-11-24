@@ -4,7 +4,6 @@ import 'package:cactus/cactus.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:read_pdf_text/read_pdf_text.dart';
 
-
 // Import our custom widgets
 import '../widgets/message_bubble.dart' show AppMessage, MessageBubble;
 import '../widgets/input_area.dart' show InputArea;
@@ -23,38 +22,37 @@ class _RAGChatPageState extends State<RAGChatPage> {
   final _embeddingModel = CactusLM();
   final _chatModel = CactusLM();
   final _rag = CactusRAG();
-  
+
   // Controllers
   final _messageController = TextEditingController();
-  
+
   // State flags
   bool _isInitializing = false;
   bool _isReady = false;
   bool _isProcessing = false;
-  
+
   // Data storage
   final List<AppMessage> _messages = [];
-  
+
   // Document state
   List<Document> _documents = [];
   bool _isAddingDocument = false;
   List<Map<String, dynamic>> _pendingDocs = [];
-      
+
   // Track if we're using RAG mode or describe mode
   bool get _hasQuery => _messageController.text.trim().isNotEmpty;
   bool get _hasPendingDocs => _pendingDocs.isNotEmpty;
-      
-  
+
   // Status tracking
   String _statusMessage = 'Initializing...';
-  
+
   @override
   void initState() {
     super.initState();
     CactusTelemetry.setTelemetryToken('a83c7f7a-43ad-4823-b012-cbeb587ae788');
     _initializeSystem();
   }
-  
+
   @override
   void dispose() {
     _embeddingModel.unload();
@@ -70,7 +68,7 @@ class _RAGChatPageState extends State<RAGChatPage> {
       _isInitializing = true;
       _statusMessage = 'Downloading embedding model...';
     });
-    
+
     try {
       // Step 1: Download and initialize embedding model
       await _embeddingModel.downloadModel(
@@ -81,12 +79,12 @@ class _RAGChatPageState extends State<RAGChatPage> {
           });
         },
       );
-      
+
       setState(() => _statusMessage = 'Initializing embedding model...');
       await _embeddingModel.initializeModel(
         params: CactusInitParams(model: 'qwen3-0.6-embed'),
       );
-      
+
       // Step 2: Download and initialize chat model (Qwen 3 - 600M)
       setState(() => _statusMessage = 'Downloading chat model...');
       await _chatModel.downloadModel(
@@ -97,12 +95,12 @@ class _RAGChatPageState extends State<RAGChatPage> {
           });
         },
       );
-      
+
       setState(() => _statusMessage = 'Initializing chat model...');
       await _chatModel.initializeModel(
         params: CactusInitParams(model: 'qwen3-0.6'),
       );
-      
+
       // Step 3: Initialize RAG database
       setState(() => _statusMessage = 'Setting up vector database...');
       await _rag.initialize();
@@ -110,15 +108,14 @@ class _RAGChatPageState extends State<RAGChatPage> {
         final result = await _embeddingModel.generateEmbedding(text: text);
         return result.embeddings;
       });
-      _rag.setChunking(chunkSize: 500, chunkOverlap: 50);
-      
+      _rag.setChunking(chunkSize: 1024, chunkOverlap: 128);
+
       // Step 4: Mark as ready
       setState(() {
         _isInitializing = false;
         _isReady = true;
         _statusMessage = 'System ready!';
       });
-      
     } catch (e) {
       setState(() {
         _isInitializing = false;
@@ -132,26 +129,24 @@ class _RAGChatPageState extends State<RAGChatPage> {
     try {
       setState(() => _isAddingDocument = true);
       // Pending documents (uploaded but not yet described)
-      
+
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['txt', 'md', 'pdf'],
       );
-      
+
       if (result == null || result.files.single.path == null) {
         setState(() => _isAddingDocument = false);
         return;
       }
-      
+
       final filePath = result.files.single.path!;
       final fileName = result.files.single.name;
       final fileSize = result.files.single.size;
       final extension = fileName.split('.').last.toLowerCase();
 
-      
-      
       String content;
-      
+
       // Extract text based on file type
       if (extension == 'pdf') {
         content = await ReadPdfText.getPDFtext(filePath);
@@ -159,7 +154,7 @@ class _RAGChatPageState extends State<RAGChatPage> {
         // For .txt and .md files
         content = await File(filePath).readAsString();
       }
-      
+
       if (content.isEmpty) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -168,7 +163,7 @@ class _RAGChatPageState extends State<RAGChatPage> {
         }
         return;
       }
-      
+
       // // Store document in RAG database - Might need to be done when sent button is clicked
       // await _rag.storeDocument(
       //   fileName: fileName,
@@ -177,7 +172,6 @@ class _RAGChatPageState extends State<RAGChatPage> {
       //   fileSize: fileSize,
       // );
 
-      
       // Add to pending docs list (in-chat attachment)
       setState(() {
         _pendingDocs.add({
@@ -186,19 +180,18 @@ class _RAGChatPageState extends State<RAGChatPage> {
           'content': content,
         });
       });
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Added: $fileName')),
         );
       }
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Added: $fileName')),
         );
       }
-      
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -209,7 +202,7 @@ class _RAGChatPageState extends State<RAGChatPage> {
       setState(() => _isAddingDocument = false);
     }
   }
-  
+
   /// Remove a pending document
   void _removePendingDoc(int index) {
     setState(() {
@@ -220,27 +213,27 @@ class _RAGChatPageState extends State<RAGChatPage> {
   /// Smart send: RAG search if query exists, auto-describe if only docs
   Future<void> _sendMessage() async {
     if (!_hasQuery && !_hasPendingDocs) return;
-    
+
     final userQuery = _messageController.text.trim();
     final docsToProcess = List<Map<String, dynamic>>.from(_pendingDocs);
-    
+
     // Clear input and pending
     _messageController.clear();
     setState(() {
       _pendingDocs.clear();
       _isProcessing = true;
     });
-    
+
     try {
       if (_hasQuery && docsToProcess.isNotEmpty) {
         // Mode 1: RAG search with query + docs
-        await _ragSearch(userQuery, docsToProcess);
+        await _ragSearchWithDocs(userQuery, docsToProcess);
       } else if (_hasQuery) {
         // Mode 2: Just query (no docs)
         await _simpleQuery(userQuery);
       } else {
         // Mode 3: Auto-describe docs (no query)
-        await _autoDescribe(docsToProcess);
+        await _autoDescribeDocs(docsToProcess);
       }
     } catch (e) {
       setState(() {
@@ -253,27 +246,141 @@ class _RAGChatPageState extends State<RAGChatPage> {
       setState(() => _isProcessing = false);
     }
   }
+
+  /// Mode 1: RAG search with documents
+  Future<void> _ragSearchWithDocs(
+      String query, List<Map<String, dynamic>> docs) async {
+    // Add user message
+    setState(() {
+      _messages.add(AppMessage(text: query, isUser: true));
+    });
+
+    try {
+      // Store documents first
+      for (final doc in docs) {
+        await _rag.storeDocument(
+          fileName: doc['fileName'],
+          filePath: '', // Not needed for content-based storage
+          content: doc['content'],
+          fileSize: doc['fileSize'],
+        );
+      }
+
+      // Search RAG database
+      final results = await _rag.search(text: query, limit: 3);
+
+      // Build context from results
+      final context = results.map((r) => r.chunk.content).join('\n\n');
+
+      // Generate response with context
+      final response = await _chatModel.generateCompletion(
+        messages: [
+          ChatMessage(
+              content:
+                  'You are a helpful assistant. Use the following context to answer the question.',
+              role: 'system'),
+          ChatMessage(
+              content: 'Context:\n$context\n\nQuestion: $query', role: 'user'),
+        ],
+        params: CactusCompletionParams(
+          maxTokens: 300,
+          temperature: 0.7,
+        ),
+      );
+
+      setState(() {
+        _messages.add(AppMessage(
+          text: response.response,
+          isUser: false,
+        ));
+      });
+    } catch (e) {
+      setState(() {
+        _messages.add(AppMessage(
+          text: 'Error: $e',
+          isUser: false,
+        ));
+      });
+    }
+  }
+
+  /// Mode 3: Auto-describe documents
+  Future<void> _autoDescribeDocs(List<Map<String, dynamic>> docs) async {
+    try {
+      // Store documents
+      for (final doc in docs) {
+        await _rag.storeDocument(
+          fileName: doc['fileName'],
+          filePath: '',
+          content: doc['content'],
+          fileSize: doc['fileSize'],
+        );
+      }
+
+      // Generate description
+      final docNames = docs.map((d) => d['fileName']).join(', ');
+      final docContents = docs
+          .map((d) => '${d['fileName']}:\n${d['content']}')
+          .join('\n\n---\n\n');
+
+      final response = await _chatModel.generateCompletion(
+        messages: [
+          ChatMessage(
+              content: 'You are a helpful assistant that summarizes documents.',
+              role: 'system'),
+          ChatMessage(
+              content:
+                  'Please provide a brief summary of the following documents:\n\n$docContents',
+              role: 'user'),
+        ],
+        params: CactusCompletionParams(
+          maxTokens: 300,
+          temperature: 0.7,
+        ),
+      );
+
+      setState(() {
+        _messages.add(AppMessage(
+          text: 'Documents added: $docNames\n\n${response.response}',
+          isUser: false,
+        ));
+      });
+    } catch (e) {
+      setState(() {
+        _messages.add(AppMessage(
+          text: 'Error: $e',
+          isUser: false,
+        ));
+      });
+    }
+  }
+
   /// Mode 2: Simple query without documents
   Future<void> _simpleQuery(String query) async {
     // Add user message
     setState(() {
       _messages.add(AppMessage(text: query, isUser: true));
     });
-    
+
     try {
       // Get LLM response
-      final response = await _chatModel.completion(
+      final response = await _chatModel.generateCompletion(
+        messages: [
+          ChatMessage(
+              content: 'You are Cactus, a helpful AI assistant.',
+              role: 'system'),
+          ChatMessage(content: query, role: 'user'),
+        ],
         params: CactusCompletionParams(
-          prompt: query,
           maxTokens: 300,
           temperature: 0.7,
         ),
       );
-      
+
       // Add AI response
       setState(() {
         _messages.add(AppMessage(
-          text: response.text,
+          text: response.response,
           isUser: false,
         ));
       });
