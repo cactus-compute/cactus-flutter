@@ -402,6 +402,7 @@ class _RAGChatPageState extends State<RAGChatPage> {
   }
 
   /// Mode 2: Simple query without documents
+  /// Simple query without documents
   Future<void> _simpleQuery(String query) async {
     // Add user message
     setState(() {
@@ -450,7 +451,123 @@ class _RAGChatPageState extends State<RAGChatPage> {
       });
     }
   }
+  
+  /// Mode 3: Auto-describe uploaded documents
+  Future<void> _autoDescribe(List<Map<String, dynamic>> docs) async {
+    // Add user message showing what was uploaded
+    final fileNames = docs.map((d) => d['fileName'] as String).join(', ');
+    setState(() {
+      _messages.add(AppMessage(
+        text: 'Uploaded: $fileNames',
+        isUser: true,
+      ));
+    });
+    
+    try {
+      // Combine all document content
+      final combinedContent = docs.map((d) => d['content'] as String).join('\n\n---\n\n');
+      
+      // Create summary prompt
+      final prompt = '''I have uploaded ${docs.length} document(s). Please provide a brief summary of what these documents contain (2-3 sentences):
 
+$combinedContent
+
+Summary:''';
+      
+      // Get LLM response
+      final response = await _chatModel.generateCompletion(
+        messages: [
+          ChatMessage(content: prompt, role: 'user'),
+        ],
+      );
+      
+      // Add AI response
+      setState(() {
+        _messages.add(AppMessage(
+          text: response.response,
+          isUser: false,
+        ));
+      });
+    } catch (e) {
+      setState(() {
+        _messages.add(AppMessage(
+          text: 'Error describing documents: $e',
+          isUser: false,
+        ));
+      });
+    }
+  }
+
+  Future<void> _ragSearch(String query, List<Map<String, dynamic>> docs) async {
+    // Add user message
+    final fileNames = docs.map((d) => d['fileName'] as String).join(', ');
+    setState(() {
+      _messages.add(AppMessage(
+        text: '$query\n\nDocuments: $fileNames',
+        isUser: true,
+      ));
+    });
+    
+    try {
+      // Step 1: Embed and store documents NOW (not during upload)
+      for (var doc in docs) {
+        await _rag.storeDocument(
+          fileName: doc['fileName'],
+          filePath: '', // Not needed for search
+          content: doc['content'],
+          fileSize: doc['fileSize'],
+        );
+      }
+      
+      // Step 2: Search for relevant context
+      final searchResults = await _rag.search(
+        text: query,
+        limit: 3,
+      );
+      
+      // Step 3: Build context from search results
+      String context = '';
+      if (searchResults.isNotEmpty) {
+        context = 'Relevant information from documents:\n\n';
+        for (var result in searchResults) {
+          final docName = result.chunk.document.target?.fileName ?? 'Unknown';
+          context += '[$docName]: ${result.chunk.content}\n\n';
+        }
+      }
+      
+      // Step 4: Build prompt with context
+      final prompt = context.isEmpty 
+          ? query 
+          : '''$context
+
+Based on the information above, please answer this question:
+$query''';
+      
+      // Step 5: Get LLM response
+      final response = await _chatModel.generateCompletion(
+        messages: [
+          ChatMessage(content: prompt, role: 'user'),
+        ],
+      );
+      
+      // Add AI response
+      setState(() {
+        _messages.add(AppMessage(
+          text: response.response,
+          isUser: false,
+        ));
+      });
+    } catch (e) {
+      setState(() {
+        _messages.add(AppMessage(
+          text: 'Error: $e',
+          isUser: false,
+        ));
+      });
+    }
+  }
+
+  
   @override
   Widget build(BuildContext context) {
     return Scaffold(
