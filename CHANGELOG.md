@@ -1,3 +1,8 @@
+## v1.0.2
+
+- Synced binaries with the latest Cactus engine
+- Added support for vision on LFM2 models
+
 ## v1.0.1
 
 - Synced binaries with the latest Cactus engine

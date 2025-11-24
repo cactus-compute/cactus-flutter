@@ -76,6 +76,18 @@ The examples are organized as a single Flutter app with navigation to different 
   - Database statistics
 - **UI**: Full RAG workflow with search interface and results display
 
+#### 8. **Vision** (`vision.dart`)
+- **What it demonstrates**: Image analysis using vision-capable models
+- **Features**:
+  - Vision model discovery and selection
+  - Model downloading with progress tracking
+  - Model initialization
+  - Image picking from gallery
+  - Real-time streaming image analysis
+  - Performance metrics (TTFT, TPS)
+  - Image preview
+- **UI**: Complete vision workflow with image selection, model management, and analysis results
+
 ## 🚀 How to Run
 
 1. **Setup Dependencies**:
@@ -106,6 +118,14 @@ The examples are organized as a single Flutter app with navigation to different 
 2. **Populate** → Add sample documents to vector database
 3. **Search** → Enter queries and find relevant documents
 4. **Results** → View similarity-ranked document results
+
+### Vision Workflow:
+1. **Select Model** → Choose a vision-capable model from dropdown
+2. **Download** → Download the selected vision model
+3. **Initialize** → Load model into memory
+4. **Pick Image** → Select an image from gallery
+5. **Analyze** → Generate streaming description of the image
+6. **Results** → View analysis, metrics, and image preview
 
 ## 🔧 Configuration
 

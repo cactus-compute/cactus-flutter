@@ -6,11 +6,13 @@ typedef CactusProgressCallback = void Function(double? progress, String statusMe
 class ChatMessage {
   final String content;
   final String role;
+  final List<String> images;
   final int? timestamp;
 
   ChatMessage({
     required this.content,
     required this.role,
+    this.images = const [],
     this.timestamp,
   });
 

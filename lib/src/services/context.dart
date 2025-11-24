@@ -37,7 +37,8 @@ Future<(int?, String)> _initContextInIsolate(Map<String, dynamic> params) async 
     debugPrint('Initializing context with model: $modelPath, contextSize: $contextSize');
     final modelPathC = modelPath.toNativeUtf8(allocator: calloc);
     try {
-      final handle = bindings.cactusInit(modelPathC, contextSize);
+      // We are not using corpusDir for now, passing null pointer
+      final handle = bindings.cactusInit(modelPathC, contextSize, nullptr);
       if (handle != nullptr) {
         return (handle.address, 'Context initialized successfully');
       } else {
@@ -259,6 +260,14 @@ class CactusContext {
       messagesJsonBuffer.write('{');
       messagesJsonBuffer.write('"role":"${messages[i].role}",');
       messagesJsonBuffer.write('"content":"${_escapeJsonString(messages[i].content)}"');
+      if (messages[i].images.isNotEmpty) {
+        messagesJsonBuffer.write(',"images":[');
+        for (int j = 0; j < messages[i].images.length; j++) {
+          if (j > 0) messagesJsonBuffer.write(',');
+          messagesJsonBuffer.write('"${_escapeJsonString(messages[i].images[j])}"');
+        }
+        messagesJsonBuffer.write(']');
+      }
       messagesJsonBuffer.write('}');
     }
     messagesJsonBuffer.write(']');

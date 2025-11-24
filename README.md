@@ -17,9 +17,19 @@ flutter pub add cactus
 ## Getting Started
 
 ### Telemetry Setup (Optional)
+
+Telemetry is enabled by default to help improve the SDK. You can easily disable it:
+
 ```dart
 import 'package:cactus/cactus.dart';
 
+// Disable telemetry
+CactusTelemetry.isTelemetryEnabled = false;
+```
+
+You can also optionally set a telemetry token to track usage across your organization:
+
+```dart
 CactusTelemetry.setTelemetryToken("your-token-here");
 ```
 
@@ -310,6 +320,108 @@ The `CactusLM` class provides sensible defaults for completion parameters:
 - `ToolFilterService({ToolFilterConfig? config, required CactusLM lm})` - Service for filtering tools based on query relevance (used internally)
 - `CactusProgressCallback = void Function(double? progress, String statusMessage, bool isError)` - Progress callback for downloads
 - `CompletionMode` - Enum for completion mode (`local` or `hybrid`).
+
+## Vision (Multimodal)
+
+The `CactusLM` class supports vision-capable models that can analyze images. You can pass images alongside text messages to get AI-powered image descriptions and analysis.
+
+### Basic Vision Usage
+```dart
+import 'package:cactus/cactus.dart';
+
+Future<void> visionExample() async {
+  final lm = CactusLM();
+
+  try {
+    // Get available models and filter for vision-capable ones
+    final models = await lm.getModels();
+    final visionModels = models.where((m) => m.supportsVision).toList();
+
+    // Download and initialize a vision model
+    await lm.downloadModel(model: visionModels.first.slug);
+    await lm.initializeModel(
+      params: CactusInitParams(model: visionModels.first.slug)
+    );
+
+    // Analyze an image
+    final result = await lm.generateCompletion(
+      messages: [
+        ChatMessage(
+          content: 'You are a helpful AI assistant that can analyze images.',
+          role: "system"
+        ),
+        ChatMessage(
+          content: 'Describe this image',
+          role: "user",
+          images: ['/path/to/image.jpg'] // Path to local image file
+        )
+      ],
+      params: CactusCompletionParams(maxTokens: 200)
+    );
+
+    if (result.success) {
+      print("Image description: ${result.response}");
+      print("Tokens per second: ${result.tokensPerSecond}");
+    }
+  } finally {
+    lm.unload();
+  }
+}
+```
+
+### Streaming Vision Analysis
+```dart
+Future<void> streamingVisionExample() async {
+  final lm = CactusLM();
+
+  // Download and initialize a vision model
+  final models = await lm.getModels();
+  final visionModel = models.firstWhere((m) => m.supportsVision);
+
+  await lm.downloadModel(model: visionModel.slug);
+  await lm.initializeModel(params: CactusInitParams(model: visionModel.slug));
+
+  // Stream the image analysis response
+  final streamedResult = await lm.generateCompletionStream(
+    messages: [
+      ChatMessage(
+        content: 'You are a helpful AI assistant that can analyze images.',
+        role: "system"
+      ),
+      ChatMessage(
+        content: 'What objects can you see in this image?',
+        role: "user",
+        images: ['/path/to/image.jpg']
+      )
+    ],
+    params: CactusCompletionParams(maxTokens: 200)
+  );
+
+  // Process streaming output
+  await for (final chunk in streamedResult.stream) {
+    print(chunk);
+  }
+
+  final finalResult = await streamedResult.result;
+  if (finalResult.success) {
+    print("Time to first token: ${finalResult.timeToFirstTokenMs}ms");
+  }
+
+  lm.unload();
+}
+```
+
+### Vision API Reference
+
+#### ChatMessage with Images
+- `ChatMessage({required String content, required String role, List<String>? images})` - Chat message format with optional image paths. The `images` parameter accepts a list of local file paths to image files.
+
+#### Model Selection
+- Use `getModels()` to fetch available models
+- Filter for vision-capable models using `model.supportsVision`
+- Common vision models include those with multimodal capabilities
+
+**Note**: See the complete vision example implementation in `example/lib/pages/vision.dart` which demonstrates image picking, model management, and streaming vision analysis with a full UI.
 
 ## Embeddings
 
@@ -691,6 +803,7 @@ Check out the example app in the `example/` directory for a complete Flutter imp
 - Model discovery and fetching available models
 - Model downloading with real-time progress indicators
 - Text completion with both regular and streaming modes
+- Vision/multimodal image analysis (`example/lib/pages/vision.dart`)
 - Speech-to-text transcription with Whisper
 - Voice model management and provider switching
 - Embedding generation

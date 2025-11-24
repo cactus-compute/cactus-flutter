@@ -15,6 +15,9 @@ dependencies:
       ref: main
   read_pdf_text: ^0.3.1
   file_picker: ^10.3.3
+  image_picker: ^1.0.0
+  path_provider: ^2.1.0
+  path: ^1.8.3
 dev_dependencies:
   flutter_test:
     sdk: flutter

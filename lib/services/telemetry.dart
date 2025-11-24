@@ -4,6 +4,8 @@ class CactusTelemetry {
 
   static String? telemetryToken;
 
+  static bool isTelemetryEnabled = true;
+
   static setTelemetryToken(String token) {
     telemetryToken = token.isEmpty ? null : token;
   }
