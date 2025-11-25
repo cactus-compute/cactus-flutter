@@ -3,6 +3,7 @@ import 'package:cactus/cactus.dart';
 
 import 'package:flutter/material.dart';
 import 'pages/basic_completion.dart';
+import 'pages/benchmarks.dart';
 import 'pages/chat.dart';
 import 'pages/embedding.dart';
 import 'pages/fetch_models.dart';
@@ -178,6 +179,15 @@ class _MyHomePageState extends State<MyHomePage> {
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => const VisionPage()),
+              );
+            },
+          ),
+          ListTile(
+            title: const Text('Benchmarks (Noah Evals)'),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const BenchmarksPage()),
               );
             },
           ),
