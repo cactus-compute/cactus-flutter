@@ -86,18 +86,18 @@ class Telemetry {
   }
 
   Future<void> logTranscription(
-    CactusCompletionResult? result,
+    CactusTranscriptionResult? result,
     String model, {
     String? message,
-    double? responseTime
+    bool? success
   }) async {
     final record = LogRecord(
       eventType: 'transcription',
       projectId: projectId,
       deviceId: deviceId,
-      responseTime: responseTime,
+      responseTime: result?.totalTimeMs,
       model: model,
-      success: result?.success,
+      success: success ?? result?.success,
       telemetryToken: cactusTelemetryToken,
       message: message,
       audioDuration: result?.totalTimeMs.toInt()

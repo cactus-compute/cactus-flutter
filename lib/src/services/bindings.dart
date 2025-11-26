@@ -31,6 +31,10 @@ final cactusEmbed = cactusLib
     .lookup<NativeFunction<CactusEmbedNative>>('cactus_embed')
     .asFunction<CactusEmbedDart>();
 
+final cactusTranscribe = cactusLib
+    .lookup<NativeFunction<CactusTranscribeNative>>('cactus_transcribe')
+    .asFunction<CactusTranscribeDart>();
+
 final DynamicLibrary cactusUtil = DynamicLibrary.open(_getLibraryPath('cactus_util'));
 
 final registerApp = cactusUtil
@@ -44,34 +48,3 @@ final setAndroidDataDirectory = cactusUtil
 final getDeviceId = cactusUtil
     .lookup<NativeFunction<GetDeviceIdNative>>('get_device_id')
     .asFunction<GetDeviceIdDart>();
-
-// Whisper function bindings - available on both platforms
-final DynamicLibrary whisperLib = DynamicLibrary.open(_getLibraryPath('whisper'));
-
-
-final whisperInitFromFile = whisperLib.lookup<NativeFunction<WhisperInitFromFileNative>>('whisper_init_from_file')
-    .asFunction<WhisperInitFromFileDart>();
-
-final whisperFree = whisperLib.lookup<NativeFunction<WhisperFreeNative>>('whisper_free')
-    .asFunction<WhisperFreeDart>();
-
-final whisperFreeParams = whisperLib.lookup<NativeFunction<WhisperFreeParamsNative>>('whisper_free_params')
-    .asFunction<WhisperFreeParamsDart>();
-
-final whisperFullDefaultParamsByRef = whisperLib.lookup<NativeFunction<WhisperFullDefaultParamsByRefNative>>('whisper_full_default_params_by_ref')
-    .asFunction<WhisperFullDefaultParamsByRefDart>();
-
-final whisperFull = whisperLib.lookup<NativeFunction<WhisperFullNative>>('whisper_full')
-    .asFunction<WhisperFullDart>();
-
-final whisperFullNSegments = whisperLib.lookup<NativeFunction<WhisperFullNSegmentsNative>>('whisper_full_n_segments')
-    .asFunction<WhisperFullNSegmentsDart>();
-
-final whisperFullGetSegmentText = whisperLib.lookup<NativeFunction<WhisperFullGetSegmentTextNative>>('whisper_full_get_segment_text')
-    .asFunction<WhisperFullGetSegmentTextDart>();
-
-final whisperFullGetSegmentT0 = whisperLib.lookup<NativeFunction<WhisperFullGetSegmentT0Native>>('whisper_full_get_segment_t0')
-    .asFunction<WhisperFullGetSegmentT0Dart>();
-
-final whisperFullGetSegmentT1 = whisperLib.lookup<NativeFunction<WhisperFullGetSegmentT1Native>>('whisper_full_get_segment_t1')
-    .asFunction<WhisperFullGetSegmentT1Dart>();

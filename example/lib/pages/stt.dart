@@ -10,12 +10,11 @@ class STTPage extends StatefulWidget {
 }
 
 class _STTPageState extends State<STTPage> {
-  TranscriptionProvider _currentProvider = TranscriptionProvider.whisper;
   late CactusSTT _stt;
-  
+
   List<VoiceModel> _voiceModels = [];
-  String _selectedModel = "tiny";
-  
+  String _selectedModel = "whisper-tiny";
+
   // State variables
   bool _isModelLoaded = false;
   bool _isDownloading = false;
@@ -24,37 +23,21 @@ class _STTPageState extends State<STTPage> {
   bool _isLoadingModels = false;
   bool _isUsingDefaultModel = false;
   String _outputText = "Ready to start. Select a model and initialize to begin.";
-  SpeechRecognitionResult? _lastResponse;
+  CactusTranscriptionResult? _lastResponse;
   String _downloadProgress = "";
   double? _downloadPercentage;
 
   @override
   void initState() {
     super.initState();
-    _stt = CactusSTT(provider: _currentProvider);
+    _stt = CactusSTT();
     _loadVoiceModels();
   }
 
   @override
   void dispose() {
-    _stt.stop();
-    _stt.dispose();
+    _stt.unload();
     super.dispose();
-  }
-
-  void _resetState() {
-    _isModelLoaded = false;
-    _isDownloading = false;
-    _isInitializing = false;
-    _isTranscribing = false;
-    _isLoadingModels = false;
-    _isUsingDefaultModel = false;
-    _voiceModels = [];
-    _lastResponse = null;
-    _downloadProgress = "";
-    _downloadPercentage = null;
-    _selectedModel = "tiny";
-    _outputText = "Ready to start. Select a model and initialize to begin.";
   }
 
   Future<void> _loadVoiceModels() async {
@@ -105,7 +88,7 @@ class _STTPageState extends State<STTPage> {
 
     try {
       // Download the model
-      final downloadSuccess = await _stt.download(
+      await _stt.downloadModel(
         model: _selectedModel,
         downloadProcessCallback: (progress, message, isError) {
           setState(() {
@@ -119,17 +102,6 @@ class _STTPageState extends State<STTPage> {
         },
       );
 
-      if (!downloadSuccess) {
-        setState(() {
-          _isDownloading = false;
-          _isInitializing = false;
-          _downloadProgress = "";
-          _downloadPercentage = null;
-          _outputText = "Failed to download model.";
-        });
-        return;
-      }
-
       setState(() {
         _isDownloading = false;
         _downloadProgress = "";
@@ -138,15 +110,12 @@ class _STTPageState extends State<STTPage> {
       });
 
       // Initialize the model
-      final initSuccess = await _stt.init(model: _selectedModel);
+      await _stt.initializeModel(params: CactusInitParams(model: _selectedModel));
+
       setState(() {
         _isInitializing = false;
-        if (initSuccess) {
-          _isModelLoaded = true;
-          _outputText = "Model downloaded and initialized successfully! Ready to transcribe audio.";
-        } else {
-          _outputText = "Failed to initialize model.";
-        }
+        _isModelLoaded = true;
+        _outputText = "Model downloaded and initialized successfully! Ready to transcribe audio.";
       });
     } catch (e) {
       setState(() {
@@ -155,45 +124,6 @@ class _STTPageState extends State<STTPage> {
         _downloadProgress = "";
         _downloadPercentage = null;
         _outputText = "Error: ${e.toString()}";
-      });
-    }
-  }
-
-  Future<void> _transcribeFromMicrophone() async {
-    if (!_isModelLoaded) {
-      setState(() {
-        _outputText = "Please initialize the model first.";
-      });
-      return;
-    }
-
-    try {
-      setState(() {
-        _isTranscribing = true;
-        _outputText = "Listening for audio... Speak now!";
-      });
-
-      final params = SpeechRecognitionParams(
-        sampleRate: 16000,
-        maxDuration: 30000, // 30 seconds
-      );
-      final result = await _stt.transcribe(params: params);
-      
-      setState(() {
-        _isTranscribing = false;
-        if (result != null && result.success) {
-          _lastResponse = result;
-          _outputText = "Transcription completed successfully!";
-        } else {
-          _outputText = result?.text ?? "Failed to transcribe audio.";
-          _lastResponse = null;
-        }
-      });
-    } catch (e) {
-      setState(() {
-        _isTranscribing = false;
-        _outputText = "Error during transcription: ${e.toString()}";
-        _lastResponse = null;
       });
     }
   }
@@ -216,32 +146,59 @@ class _STTPageState extends State<STTPage> {
 
       if (result != null && result.files.single.path != null) {
         final String audioFilePath = result.files.single.path!;
-        
+
         setState(() {
           _isTranscribing = true;
           _outputText = "Transcribing audio file: ${result.files.single.name}";
+          _lastResponse = null;
         });
 
-        final params = SpeechRecognitionParams(
-          sampleRate: 16000,
-        );
+        // Create a temporary result to accumulate streamed text
+        String streamedText = "";
 
-        // Start transcription from file
-        final transcriptionResult = await _stt.transcribe(
-          params: params,
-          filePath: audioFilePath,
-        );
-        
-        setState(() {
-          _isTranscribing = false;
-          if (transcriptionResult != null && transcriptionResult.success) {
-            _lastResponse = transcriptionResult;
-            _outputText = "File transcription completed successfully!";
-          } else {
-            _outputText = transcriptionResult?.text ?? "Failed to transcribe audio file.";
+        try {
+          // Start streaming transcription from file
+          final streamedResult = await _stt.transcribeStream(
+            audioFilePath: audioFilePath,
+          );
+
+          // Listen to the token stream
+          streamedResult.stream.listen(
+            (token) {
+              setState(() {
+                streamedText += token;
+                _outputText = "Transcribing: $streamedText";
+              });
+            },
+            onError: (error) {
+              setState(() {
+                _isTranscribing = false;
+                _outputText = "Error during streaming: ${error.toString()}";
+                _lastResponse = null;
+              });
+            },
+          );
+
+          // Wait for the final result
+          final transcriptionResult = await streamedResult.result;
+
+          setState(() {
+            _isTranscribing = false;
+            if (transcriptionResult.success) {
+              _lastResponse = transcriptionResult;
+              _outputText = "File transcription completed successfully!";
+            } else {
+              _outputText = transcriptionResult.errorMessage ?? "Failed to transcribe audio file.";
+              _lastResponse = null;
+            }
+          });
+        } catch (e) {
+          setState(() {
+            _isTranscribing = false;
+            _outputText = "Error during transcription: ${e.toString()}";
             _lastResponse = null;
-          }
-        });
+          });
+        }
       } else {
         // User cancelled the picker
         setState(() {
@@ -255,13 +212,6 @@ class _STTPageState extends State<STTPage> {
         _lastResponse = null;
       });
     }
-  }
-
-  void _stopTranscription() {
-    _stt.stop();
-    setState(() {
-      _outputText = "Processing recorded audio...";
-    });
   }
 
   @override
@@ -281,7 +231,7 @@ class _STTPageState extends State<STTPage> {
                 backgroundColor: Colors.grey,
               ),
             const SizedBox(height: 8),
-            
+
             // Info card
             Card(
               child: Padding(
@@ -289,30 +239,6 @@ class _STTPageState extends State<STTPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Provider', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 4),
-                    DropdownButton<TranscriptionProvider>(
-                      value: _currentProvider,
-                      isExpanded: true,
-                      items: const [
-                        DropdownMenuItem(
-                          value: TranscriptionProvider.whisper,
-                          child: Text('Whisper'),
-                        ),
-                      ],
-                      onChanged: _isModelLoaded ? null : (value) {
-                        if (value != null && value != _currentProvider) {
-                          setState(() {
-                            _currentProvider = value;
-                            _resetState();
-                          });
-                          _stt.dispose();
-                          _stt = CactusSTT(provider: _currentProvider);
-                          _loadVoiceModels();
-                        }
-                      },
-                    ),
-                    const SizedBox(height: 8),
                     const Text('Model', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 4),
                     if (_isLoadingModels)
@@ -342,7 +268,7 @@ class _STTPageState extends State<STTPage> {
 
             const SizedBox(height: 8),
 
-                        // Initialize model button
+            // Initialize model button
             ElevatedButton(
               onPressed: (_isDownloading || _isInitializing || _isModelLoaded || _isLoadingModels || (_voiceModels.isEmpty && !_isUsingDefaultModel)) ? null : _downloadAndInitializeModel,
               child: (_isDownloading || _isInitializing)
@@ -365,7 +291,7 @@ class _STTPageState extends State<STTPage> {
                     )
                   : Text(_isModelLoaded ? 'Model Ready ✓' : 'Download & Initialize Model'),
             ),
-            
+
             // Show linear progress indicator during download
             if (_isDownloading && _downloadPercentage != null)
               Padding(
@@ -379,44 +305,29 @@ class _STTPageState extends State<STTPage> {
 
             const SizedBox(height: 4),
 
-            // Transcription buttons in a row
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: (_isDownloading || _isInitializing || !_isModelLoaded || _isLoadingModels) 
-                        ? null 
-                        : (_isTranscribing ? _stopTranscription : _transcribeFromMicrophone),
-                    child: _isTranscribing
-                        ? Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
-                                  backgroundColor: Colors.grey.shade300,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              const Text('Stop Recording'),
-                            ],
-                          )
-                        : const Text('Microphone'),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: (_isInitializing || _isTranscribing || !_isModelLoaded || _isLoadingModels) 
-                        ? null 
-                        : _transcribeFromFile,
-                    child: const Text('File'),
-                  ),
-                ),
-              ],
+            // Transcription button
+            ElevatedButton(
+              onPressed: (_isInitializing || _isTranscribing || !_isModelLoaded || _isLoadingModels)
+                  ? null
+                  : _transcribeFromFile,
+              child: _isTranscribing
+                  ? Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+                            backgroundColor: Colors.grey.shade300,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        const Text('Transcribing...'),
+                      ],
+                    )
+                  : const Text('Transcribe Audio File'),
             ),
 
             const SizedBox(height: 8),
@@ -425,49 +336,93 @@ class _STTPageState extends State<STTPage> {
             Expanded(
               child: Card(
                 child: Padding(
-                  padding: const EdgeInsets.all(12.0),
+                  padding: const EdgeInsets.all(16.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
                         'Output:',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                       ),
-                      const SizedBox(height: 6),
-                      Text(_outputText),
-                      
+                      const SizedBox(height: 8),
+                      Text(
+                        _outputText,
+                        style: const TextStyle(fontSize: 15),
+                      ),
+
                       if (_lastResponse != null) ...[
-                        const Divider(),
+                        const SizedBox(height: 16),
                         const Text(
-                          'Transcription Result:',
-                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                          'Transcription:',
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                         ),
-                        const SizedBox(height: 6),
+                        const SizedBox(height: 8),
                         Expanded(
-                          child: Container(
-                            width: double.infinity,
-                            color: Colors.grey.shade100,
-                            child: Padding(
-                              padding: const EdgeInsets.all(8.0),
-                              child: SingleChildScrollView(
+                          child: SingleChildScrollView(
+                            child: Text(
+                              _lastResponse!.text,
+                              style: const TextStyle(fontSize: 15, height: 1.4),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        // Metrics row at the bottom
+                        Container(
+                          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade50,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceAround,
+                            children: [
+                              Expanded(
                                 child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(
-                                      _lastResponse!.text,
-                                      style: const TextStyle(fontSize: 16, color: Colors.black),
+                                    const Text(
+                                      'Model',
+                                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
                                     ),
-                                    if (_lastResponse!.processingTime != null) ...[
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        'Processing time: ${_lastResponse!.processingTime!.toStringAsFixed(0)}ms',
-                                        style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                                      ),
-                                    ],
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      _selectedModel,
+                                      style: const TextStyle(fontSize: 13),
+                                      textAlign: TextAlign.center,
+                                    ),
                                   ],
                                 ),
                               ),
-                            ),
+                              Expanded(
+                                child: Column(
+                                  children: [
+                                    const Text(
+                                      'TTFT',
+                                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      '${_lastResponse!.timeToFirstTokenMs.toStringAsFixed(2)} ms',
+                                      style: const TextStyle(fontSize: 13),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Expanded(
+                                child: Column(
+                                  children: [
+                                    const Text(
+                                      'Total',
+                                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      '${(_lastResponse!.totalTimeMs / 1000).toStringAsFixed(2)} s',
+                                      style: const TextStyle(fontSize: 13),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],

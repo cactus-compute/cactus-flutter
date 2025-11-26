@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:ffi';
+import 'dart:io';
 import 'dart:isolate';
 import 'dart:math';
 
@@ -194,7 +195,7 @@ Future<CactusEmbeddingResult> _generateEmbeddingInIsolate(Map<String, dynamic> p
     if (result > 0) {
       final actualEmbeddingDim = embeddingDimPtr.value;
       debugPrint('Actual embedding dimension: $actualEmbeddingDim');
-      
+
       if (actualEmbeddingDim > bufferSize) {
         return CactusEmbeddingResult(
           success: false,
@@ -203,14 +204,14 @@ Future<CactusEmbeddingResult> _generateEmbeddingInIsolate(Map<String, dynamic> p
           errorMessage: 'Embedding dimension ($actualEmbeddingDim) exceeds allocated buffer size ($bufferSize)',
         );
       }
-      
+
       final embeddings = <double>[];
       for (int i = 0; i < actualEmbeddingDim; i++) {
         embeddings.add(embeddingsBuffer[i]);
       }
-      
+
       debugPrint('Successfully extracted ${embeddings.length} embedding values');
-      
+
       return CactusEmbeddingResult(
         success: true,
         embeddings: embeddings,
@@ -236,6 +237,123 @@ Future<CactusEmbeddingResult> _generateEmbeddingInIsolate(Map<String, dynamic> p
     calloc.free(textC);
     calloc.free(embeddingDimPtr);
     calloc.free(embeddingsBuffer);
+  }
+}
+
+Future<CactusTranscriptionResult> _transcribeInIsolate(Map<String, dynamic> params) async {
+  final handle = params['handle'] as int;
+  final audioFilePath = params['audioFilePath'] as String;
+  final prompt = params['prompt'] as String;
+  final optionsJson = params['optionsJson'] as String;
+  final bufferSize = params['bufferSize'] as int;
+  final hasCallback = params['hasCallback'] as bool;
+  final SendPort? replyPort = params['replyPort'] as SendPort?;
+
+  // Validate audio file exists
+  final audioFile = File(audioFilePath);
+  if (!audioFile.existsSync()) {
+    debugPrint('ERROR: Audio file does not exist at path: $audioFilePath');
+    return CactusTranscriptionResult(
+      success: false,
+      text: '',
+      errorMessage: 'Audio file not found: $audioFilePath',
+      timeToFirstTokenMs: 0.0,
+      totalTimeMs: 0.0,
+    );
+  }
+
+  final fileSize = audioFile.lengthSync();
+  debugPrint('Audio file exists, size: $fileSize bytes');
+
+  final responseBuffer = calloc<Uint8>(bufferSize);
+  final audioFilePathC = audioFilePath.toNativeUtf8(allocator: calloc);
+  final promptC = prompt.toNativeUtf8(allocator: calloc);
+  final optionsJsonC = optionsJson.toNativeUtf8(allocator: calloc);
+
+  debugPrint('Native pointers allocated successfully');
+
+  Pointer<NativeFunction<CactusTokenCallbackNative>>? callbackPointer;
+
+  try {
+    if (hasCallback && replyPort != null) {
+      _activeTokenCallback = (token) {
+        replyPort.send({'type': 'token', 'data': token});
+        return true;
+      };
+
+      callbackPointer = Pointer.fromFunction<CactusTokenCallbackNative>(
+        _staticTokenCallbackDispatcher
+      );
+    }
+
+    debugPrint('About to call cactusTranscribe...');
+    final result = bindings.cactusTranscribe(
+      Pointer.fromAddress(handle),
+      audioFilePathC,
+      promptC,
+      responseBuffer.cast<Utf8>(),
+      bufferSize,
+      optionsJsonC,
+      callbackPointer ?? nullptr,
+      nullptr,
+    );
+
+    if (result <= 0) {
+      // Try to read any error message from the buffer
+      try {
+        final errorText = utf8.decode(responseBuffer.asTypedList(bufferSize), allowMalformed: true).trim();
+        if (errorText.isNotEmpty) {
+          debugPrint('Error message from C++: $errorText');
+        }
+      } catch (e) {
+        debugPrint('Could not read error message from buffer: $e');
+      }
+    }
+
+    if (result > 0) {
+      final responseText = utf8.decode(responseBuffer.asTypedList(result), allowMalformed: true).trim();
+      try {
+        final jsonResponse = jsonDecode(responseText) as Map<String, dynamic>;
+        final success = jsonResponse['success'] as bool? ?? true;
+        // Try 'text' first, then 'response', then fall back to raw responseText
+        final text = (jsonResponse['text'] as String?) ??
+                     (jsonResponse['response'] as String?) ??
+                     responseText;
+        final timeToFirstTokenMs = (jsonResponse['time_to_first_token_ms'] as num?)?.toDouble() ?? 0.0;
+        final totalTimeMs = (jsonResponse['total_time_ms'] as num?)?.toDouble() ?? 0.0;
+
+        return CactusTranscriptionResult(
+          success: success,
+          // [TEMP] Clean up special tokens from the text
+          text: text.trim().replaceAll('<|startoftranscript|>', ''),
+          timeToFirstTokenMs: timeToFirstTokenMs,
+          totalTimeMs: totalTimeMs,
+        );
+      } catch (e) {
+        debugPrint('Unable to parse the transcription response json: $e');
+        return CactusTranscriptionResult(
+          success: false,
+          text: '',
+          errorMessage: 'Error: Unable to parse the response',
+          timeToFirstTokenMs: 0.0,
+          totalTimeMs: 0.0,
+        );
+      }
+    } else {
+      return CactusTranscriptionResult(
+        success: false,
+        text: '',
+        errorMessage: 'Error: transcription failed with code $result',
+        timeToFirstTokenMs: 0.0,
+        totalTimeMs: 0.0,
+      );
+    }
+  } finally {
+    _activeTokenCallback = null;
+    calloc.free(responseBuffer);
+    calloc.free(audioFilePathC);
+    calloc.free(promptC);
+    calloc.free(optionsJsonC);
   }
 }
 
@@ -405,10 +523,101 @@ class CactusContext {
     });
   }
 
+  static Future<CactusTranscriptionResult> transcribe(
+    int handle,
+    String audioFilePath, 
+    String prompt, {
+    CactusTranscriptionParams? params,
+  }) async {
+    final transcriptionParams = params ?? CactusTranscriptionParams();
+    final optionsJson = '{"max_tokens":${transcriptionParams.maxTokens}}';
+
+    return await compute(_transcribeInIsolate, {
+      'handle': handle,
+      'audioFilePath': audioFilePath,
+      'prompt': prompt,
+      'optionsJson': optionsJson,
+      'bufferSize': transcriptionParams.maxTokens * 8,
+      'hasCallback': false,
+      'replyPort': null,
+    });
+  }
+
+  static CactusStreamedTranscriptionResult transcribeStream(
+    int handle,
+    String audioFilePath, 
+    String prompt, {
+    CactusTranscriptionParams? params,
+  }) {
+    final transcriptionParams = params ?? CactusTranscriptionParams();;
+    final optionsJson = '{"max_tokens":${transcriptionParams.maxTokens}}';
+
+    final controller = StreamController<String>();
+    final resultCompleter = Completer<CactusTranscriptionResult>();
+    final replyPort = ReceivePort();
+
+    late StreamSubscription subscription;
+    subscription = replyPort.listen((message) {
+      if (message is Map) {
+        final type = message['type'] as String;
+        if (type == 'token') {
+          final token = message['data'] as String;
+          controller.add(token);
+        } else if (type == 'result') {
+          final result = message['data'] as CactusTranscriptionResult;
+          resultCompleter.complete(result);
+          controller.close();
+          subscription.cancel();
+          replyPort.close();
+        } else if (type == 'error') {
+          final error = message['data'];
+          if (error is CactusTranscriptionResult) {
+            resultCompleter.complete(error);
+          } else {
+            resultCompleter.completeError(error.toString());
+          }
+          controller.addError(error);
+          controller.close();
+          subscription.cancel();
+          replyPort.close();
+        }
+      }
+    });
+
+    Isolate.spawn(_isolateTranscriptionEntry, {
+      'handle': handle,
+      'audioFilePath': audioFilePath,
+      'prompt': prompt,
+      'optionsJson': optionsJson,
+      'bufferSize': transcriptionParams.maxTokens * 8,
+      'hasCallback': true,
+      'replyPort': replyPort.sendPort,
+    });
+
+    return CactusStreamedTranscriptionResult(
+      stream: controller.stream,
+      result: resultCompleter.future,
+    );
+  }
+
   static Future<void> _isolateCompletionEntry(Map<String, dynamic> params) async {
     final replyPort = params['replyPort'] as SendPort;
     try {
       final result = await _completionInIsolate(params);
+      if (result.success) {
+        replyPort.send({'type': 'result', 'data': result});
+      } else {
+        replyPort.send({'type': 'error', 'data': result});
+      }
+    } catch (e) {
+      replyPort.send({'type': 'error', 'data': e.toString()});
+    }
+  }
+
+  static Future<void> _isolateTranscriptionEntry(Map<String, dynamic> params) async {
+    final replyPort = params['replyPort'] as SendPort;
+    try {
+      final result = await _transcribeInIsolate(params);
       if (result.success) {
         replyPort.send({'type': 'result', 'data': result});
       } else {

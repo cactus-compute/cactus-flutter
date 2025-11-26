@@ -123,6 +123,39 @@ class CactusEmbeddingResult {
   });
 }
 
+class CactusTranscriptionParams {
+  final int maxTokens;
+  final List<String> stopSequences;
+
+  CactusTranscriptionParams({
+    this.maxTokens = 2048,
+    this.stopSequences = const ["<|startoftranscript|>"],
+  });
+}
+
+class CactusTranscriptionResult {
+  final bool success;
+  final String text;
+  final double timeToFirstTokenMs;
+  final double totalTimeMs;
+  final String? errorMessage;
+
+  CactusTranscriptionResult({
+    required this.success,
+    required this.text,
+    required this.timeToFirstTokenMs,
+    required this.totalTimeMs,
+    this.errorMessage,
+  });
+}
+
+class CactusStreamedTranscriptionResult {
+  final Stream<String> stream;
+  final Future<CactusTranscriptionResult> result;
+
+  CactusStreamedTranscriptionResult({required this.stream, required this.result});
+}
+
 class CactusModel {
   final DateTime createdAt;
   final String slug;
