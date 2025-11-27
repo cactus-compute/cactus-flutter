@@ -256,9 +256,7 @@ Future<CactusTranscriptionResult> _transcribeInIsolate(Map<String, dynamic> para
     return CactusTranscriptionResult(
       success: false,
       text: '',
-      errorMessage: 'Audio file not found: $audioFilePath',
-      timeToFirstTokenMs: 0.0,
-      totalTimeMs: 0.0,
+      errorMessage: 'Audio file not found: $audioFilePath'
     );
   }
 
@@ -321,6 +319,7 @@ Future<CactusTranscriptionResult> _transcribeInIsolate(Map<String, dynamic> para
                      responseText;
         final timeToFirstTokenMs = (jsonResponse['time_to_first_token_ms'] as num?)?.toDouble() ?? 0.0;
         final totalTimeMs = (jsonResponse['total_time_ms'] as num?)?.toDouble() ?? 0.0;
+        final tokensPerSecond = (jsonResponse['tokens_per_second'] as num?)?.toDouble() ?? 0.0;
 
         return CactusTranscriptionResult(
           success: success,
@@ -328,15 +327,13 @@ Future<CactusTranscriptionResult> _transcribeInIsolate(Map<String, dynamic> para
           text: text.trim().replaceAll('<|startoftranscript|>', ''),
           timeToFirstTokenMs: timeToFirstTokenMs,
           totalTimeMs: totalTimeMs,
+          tokensPerSecond: tokensPerSecond
         );
       } catch (e) {
         debugPrint('Unable to parse the transcription response json: $e');
         return CactusTranscriptionResult(
           success: false,
           text: '',
-          errorMessage: 'Error: Unable to parse the response',
-          timeToFirstTokenMs: 0.0,
-          totalTimeMs: 0.0,
         );
       }
     } else {
@@ -344,8 +341,6 @@ Future<CactusTranscriptionResult> _transcribeInIsolate(Map<String, dynamic> para
         success: false,
         text: '',
         errorMessage: 'Error: transcription failed with code $result',
-        timeToFirstTokenMs: 0.0,
-        totalTimeMs: 0.0,
       );
     }
   } finally {
@@ -549,7 +544,7 @@ class CactusContext {
     String prompt, {
     CactusTranscriptionParams? params,
   }) {
-    final transcriptionParams = params ?? CactusTranscriptionParams();;
+    final transcriptionParams = params ?? CactusTranscriptionParams();
     final optionsJson = '{"max_tokens":${transcriptionParams.maxTokens}}';
 
     final controller = StreamController<String>();

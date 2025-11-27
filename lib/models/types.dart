@@ -138,13 +138,15 @@ class CactusTranscriptionResult {
   final String text;
   final double timeToFirstTokenMs;
   final double totalTimeMs;
+  final double tokensPerSecond;
   final String? errorMessage;
 
   CactusTranscriptionResult({
     required this.success,
     required this.text,
-    required this.timeToFirstTokenMs,
-    required this.totalTimeMs,
+    this.timeToFirstTokenMs = 0.0,
+    this.totalTimeMs = 0.0,
+    this.tokensPerSecond = 0.0,
     this.errorMessage,
   });
 }
