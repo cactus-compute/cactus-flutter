@@ -1,3 +1,8 @@
+## v1.2.0
+- Move to cactus whisper
+- Memory optimizations
+- Sync binaries with latest cactus engine
+
 ## v1.0.2
 
 - Synced binaries with the latest Cactus engine

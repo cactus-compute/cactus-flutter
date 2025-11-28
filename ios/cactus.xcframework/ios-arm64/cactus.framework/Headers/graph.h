@@ -32,7 +32,7 @@ enum class OpType {
     SUM, MEAN, VARIANCE, MIN, MAX,
     RMS_NORM, ROPE, SOFTMAX, ATTENTION, CONV1D_CAUSAL, CONV1D_K3,
     SCALAR_ADD, SCALAR_SUBTRACT, SCALAR_MULTIPLY, SCALAR_DIVIDE, SCALAR_EXP, SCALAR_SQRT, SCALAR_COS, SCALAR_SIN,
-    SILU, GELU,
+    SILU, GELU, GELU_ERF,
     SAMPLE, CONCAT,
     SCATTER_TOPK,
     TOPK, LAYERNORM,
@@ -92,9 +92,11 @@ struct TensorConfig {
 struct BroadcastInfo {
     std::vector<size_t> output_shape;
     bool needs_broadcasting;
-    
+
     static BroadcastInfo compute(const std::vector<size_t>& lhs, const std::vector<size_t>& rhs);
 };
+
+class BufferPool;
 
 struct BufferDesc {
     std::vector<size_t> shape;
@@ -102,22 +104,32 @@ struct BufferDesc {
     size_t byte_size;
     std::unique_ptr<char[]> data;
     void* external_data;
+    char* pooled_data;
     Precision precision;
     float quantization_scale;
-    
+
     BufferDesc();
     BufferDesc(const std::vector<size_t>& s, Precision prec = Precision::INT8, float scale = 1.0f);
-    
+    ~BufferDesc();
+
+    BufferDesc(BufferDesc&& other) noexcept;
+    BufferDesc& operator=(BufferDesc&& other) noexcept;
+
+    BufferDesc(const BufferDesc&) = delete;
+    BufferDesc& operator=(const BufferDesc&) = delete;
+
     void* get_data();
     const void* get_data() const;
-    
+
     template<typename T>
     T* data_as() { return static_cast<T*>(get_data()); }
-    
+
     template<typename T>
     const T* data_as() const { return static_cast<const T*>(get_data()); }
-    
+
     void allocate();
+    void allocate_from_pool(BufferPool& pool);
+    void release_to_pool(BufferPool& pool);
     void set_external(void* ptr);
 };
 
@@ -181,6 +193,33 @@ void compute_topk_node(GraphNode& node, const std::vector<std::unique_ptr<GraphN
 void compute_layernorm_node(GraphNode& node, const std::vector<std::unique_ptr<GraphNode>>& nodes, const std::unordered_map<size_t, size_t>& node_index_map);
 void compute_index_node(GraphNode& node, const std::vector<std::unique_ptr<GraphNode>>& nodes, const std::unordered_map<size_t, size_t>& node_index_map);
 
+void shrink_thread_local_buffers();
+
+class BufferPool {
+public:
+    BufferPool() = default;
+    ~BufferPool() = default;
+
+    BufferPool(const BufferPool&) = delete;
+    BufferPool& operator=(const BufferPool&) = delete;
+
+    char* acquire(size_t byte_size);
+    void release(char* ptr, size_t byte_size);
+    void clear();
+
+    size_t active_bytes() const { return active_bytes_; }
+    size_t pool_bytes() const { return pool_bytes_; }
+    size_t peak_bytes() const { return peak_bytes_; }
+
+private:
+    std::unordered_map<size_t, std::vector<std::unique_ptr<char[]>>> free_buffers_;
+    size_t active_bytes_ = 0;
+    size_t pool_bytes_ = 0;
+    size_t peak_bytes_ = 0;
+
+    size_t round_up_size(size_t size) const;
+};
+
 namespace ValidationUtils {
     void validate_tensor_dims(const std::vector<size_t>& shape, size_t required_dims, const std::string& op_name);
     void validate_precision(Precision actual, Precision required, const std::string& op_name);
@@ -219,6 +258,7 @@ public:
     
     size_t silu(size_t input);
     size_t gelu(size_t input);
+    size_t gelu_erf(size_t input);
     
     size_t matmul(size_t input1, size_t input2, bool pretransposed_rhs = false, ComputeBackend backend = ComputeBackend::CPU);
     size_t transpose(size_t input, ComputeBackend backend = ComputeBackend::CPU);
@@ -236,6 +276,7 @@ public:
     size_t gather(size_t embeddings, size_t indices);
     size_t mmap_embeddings(const std::string& filename);
     size_t mmap_weights(const std::string& filename);
+    size_t load_weights(const std::string& filename); 
     void set_quantization_scale(size_t node_id, float scale);
     size_t embedding(const std::string& filename, size_t indices);
     size_t embedding(size_t embedding_tensor, size_t indices);
@@ -284,6 +325,7 @@ private:
     std::vector<std::unique_ptr<GraphFile::MappedFile>> mapped_files_;
     std::unordered_map<std::string, size_t> weight_cache_;
     std::vector<DebugNodeEntry> debug_nodes_;
+    BufferPool buffer_pool_;
 };
 
 
