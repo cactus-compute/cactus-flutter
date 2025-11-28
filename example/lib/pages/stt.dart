@@ -13,7 +13,7 @@ class _STTPageState extends State<STTPage> {
   late CactusSTT _stt;
 
   List<VoiceModel> _voiceModels = [];
-  String _selectedModel = "whisper-tiny";
+  String _selectedModel = "whisper-small";
 
   // State variables
   bool _isModelLoaded = false;
@@ -61,7 +61,7 @@ class _STTPageState extends State<STTPage> {
         }
       });
     } catch (e) {
-      const defaultSlug = "whisper-tiny";
+      const defaultSlug = "whisper-small";
       setState(() {
         _voiceModels = [];
         _selectedModel = defaultSlug;
