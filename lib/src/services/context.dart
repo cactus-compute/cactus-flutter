@@ -268,8 +268,6 @@ Future<CactusTranscriptionResult> _transcribeInIsolate(Map<String, dynamic> para
   final promptC = prompt.toNativeUtf8(allocator: calloc);
   final optionsJsonC = optionsJson.toNativeUtf8(allocator: calloc);
 
-  debugPrint('Native pointers allocated successfully');
-
   Pointer<NativeFunction<CactusTokenCallbackNative>>? callbackPointer;
 
   try {
@@ -284,7 +282,6 @@ Future<CactusTranscriptionResult> _transcribeInIsolate(Map<String, dynamic> para
       );
     }
 
-    debugPrint('About to call cactusTranscribe...');
     final result = bindings.cactusTranscribe(
       Pointer.fromAddress(handle),
       audioFilePathC,
