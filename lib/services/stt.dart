@@ -34,14 +34,14 @@ class CactusSTT {
     );
 
     final task = DownloadTask(
-      url: currentModel.url,
+      url: currentModel.downloadUrl,
       filename: currentModel.fileName,
       folder: currentModel.slug,
     );
 
     final success = await DownloadService.downloadAndExtractModels([task], downloadProcessCallback);
     if (!success) {
-      throw Exception('Failed to download and extract voice model $model from ${currentModel.url}');
+      throw Exception('Failed to download and extract voice model $model from ${currentModel.downloadUrl}');
     }
   }
 

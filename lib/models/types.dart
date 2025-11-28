@@ -208,8 +208,7 @@ enum TranscriptionProvider {
 class VoiceModel {
   final DateTime createdAt;
   final String slug;
-  final String language;
-  final String url;
+  final String downloadUrl;
   final int sizeMb;
   final String fileName;
   bool isDownloaded;
@@ -217,8 +216,7 @@ class VoiceModel {
   VoiceModel({
     required this.createdAt,
     required this.slug,
-    required this.language,
-    required this.url,
+    required this.downloadUrl,
     required this.sizeMb,
     required this.fileName,
     this.isDownloaded = false,
@@ -228,8 +226,7 @@ class VoiceModel {
     return VoiceModel(
       createdAt: DateTime.parse(json['created_at'] as String),
       slug: json['slug'] as String,
-      language: json['language'] as String,
-      url: json['url'] as String,
+      downloadUrl: json['download_url'] as String,
       sizeMb: _parseIntFromDynamic(json['size_mb']),
       fileName: json['file_name'] as String,
       isDownloaded: false,

@@ -181,7 +181,7 @@ class Supabase {
     final client = HttpClient();
 
     try {
-      String url = '$_supabaseUrl/rest/v1/voice_models?select=*';
+      String url = '$_supabaseUrl/rest/v1/whisper?select=*';
       if (provider != null) {
         url += '&provider=eq.$provider';
       }
