@@ -6,6 +6,7 @@ import 'package:cactus/src/services/context.dart';
 import 'package:cactus/src/utils/models/download.dart';
 import 'package:cactus/src/services/api/supabase.dart';
 import 'package:cactus/src/services/api/telemetry.dart';
+import 'package:cactus/src/utils/speech/speech_utils.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -16,6 +17,7 @@ class CactusSTT {
   CactusInitParams defaultInitParams = CactusInitParams();
   CactusTranscriptionParams defaultTranscriptionParams = CactusTranscriptionParams();
   final List<VoiceModel> _models = [];
+  int chunkDurationSec = 5;
 
   final _handleLock = _AsyncLock();
 
@@ -73,27 +75,391 @@ class CactusSTT {
   }
 
   Future<CactusTranscriptionResult> transcribe({
-    required String audioFilePath,
+    String? audioFilePath,
+    Stream<Uint8List>? audioStream,
+    Function(CactusTranscriptionResult)? onChunk,
     String prompt = whisperPrompt,
     CactusTranscriptionParams? params,
   }) async {
-    return await _handleLock.synchronized(() async {
+    if (audioFilePath == null && audioStream == null) {
+      throw ArgumentError('Must provide either audioFilePath or audioStream');
+    }
+    
+    if (audioFilePath != null && audioStream != null) {
+      throw ArgumentError('Cannot provide both audioFilePath and audioStream');
+    }
+
+    // File transcription mode
+    if (audioFilePath != null) {
+      return await _handleLock.synchronized(() async {
+        final transcriptionParams = params ?? defaultTranscriptionParams;
+        final model = _lastInitializedModel ?? defaultInitParams.model;
+        final currentHandle = await _getValidatedHandle(model: model);
+
+        if (currentHandle != null) {
+          try {
+            final result = await CactusContext.transcribe(
+              currentHandle,
+              audioFilePath,
+              prompt,
+              params: transcriptionParams,
+            );
+            _logTranscriptionTelemetry(result, model, success: result.success, message: result.errorMessage);
+            return result;
+          } catch (e) {
+            debugPrint('Transcription failed: $e');
+            _logTranscriptionTelemetry(null, model, success: false, message: e.toString());
+            rethrow;
+          }
+        }
+
+        throw Exception('Model $_lastInitializedModel is not downloaded. Please download it before transcribing.');
+      });
+    }
+
+    final List<int> buffer = [];
+    final completer = Completer<CactusTranscriptionResult>();
+    CactusTranscriptionResult? combinedResult;
+
+    final subscription = audioStream!.listen(
+      (pcmChunk) async {
+        buffer.addAll(pcmChunk);
+        
+        final bufferDuration = PCMUtils.calculateDuration(buffer);
+        
+        if (bufferDuration >= chunkDurationSec) {
+          final pcmData = PCMUtils.validatePCMBuffer(buffer)
+              ? List<int>.from(buffer)
+              : PCMUtils.trimToValidSamples(buffer);
+          buffer.clear();
+          
+          // Don't transcribe empty buffers
+          if (pcmData.isEmpty) {
+            debugPrint('Skipping empty PCM buffer');
+            return;
+          }
+          
+          try {
+            final result = await _transcribePCMInternal(pcmData, prompt, params);
+            
+            // Combine results
+            if (combinedResult == null) {
+              combinedResult = result;
+            } else {
+              combinedResult = CactusTranscriptionResult(
+                success: result.success,
+                text: "${combinedResult!.text} ${result.text}".trim(),
+                timeToFirstTokenMs: combinedResult!.timeToFirstTokenMs,
+                totalTimeMs: combinedResult!.totalTimeMs + result.totalTimeMs,
+                tokensPerSecond: result.tokensPerSecond,
+              );
+            }
+            
+            onChunk?.call(result);
+          } catch (e) {
+            debugPrint('Failed to transcribe audio chunk: $e');
+            onChunk?.call(CactusTranscriptionResult(
+              success: false,
+              text: '',
+              errorMessage: e.toString(),
+            ));
+          }
+        }
+      },
+      onError: (error) {
+        debugPrint('Audio stream error: $error');
+        if (!completer.isCompleted) {
+          completer.completeError(error);
+        }
+      },
+      onDone: () async {
+        // Process remaining buffer
+        if (buffer.isNotEmpty) {
+          final pcmData = PCMUtils.validatePCMBuffer(buffer)
+              ? buffer
+              : PCMUtils.trimToValidSamples(buffer);
+          
+          // Don't transcribe empty buffers
+          if (pcmData.isEmpty) {
+            debugPrint('Skipping empty final buffer');
+            if (!completer.isCompleted) {
+              completer.complete(combinedResult ?? CactusTranscriptionResult(
+                success: false,
+                text: '',
+                errorMessage: 'No valid audio data received',
+              ));
+            }
+            return;
+          }
+          
+          try {
+            final result = await _transcribePCMInternal(pcmData, prompt, params);
+            
+            if (combinedResult == null) {
+              combinedResult = result;
+            } else {
+              combinedResult = CactusTranscriptionResult(
+                success: result.success,
+                text: "${combinedResult!.text} ${result.text}".trim(),
+                timeToFirstTokenMs: combinedResult!.timeToFirstTokenMs,
+                totalTimeMs: combinedResult!.totalTimeMs + result.totalTimeMs,
+                tokensPerSecond: result.tokensPerSecond,
+              );
+            }
+            
+            onChunk?.call(result);
+          } catch (e) {
+            debugPrint('Failed to transcribe final buffer: $e');
+          }
+        }
+        
+        if (!completer.isCompleted) {
+          completer.complete(combinedResult ?? CactusTranscriptionResult(
+            success: false,
+            text: '',
+            errorMessage: 'No audio data received',
+          ));
+        }
+      },
+    );
+
+    // Store subscription for potential cancellation
+    completer.future.whenComplete(() => subscription.cancel());
+
+    return completer.future;
+  }
+
+  Future<CactusStreamedTranscriptionResult> transcribeStream({
+    String? audioFilePath,
+    Stream<Uint8List>? audioStream,
+    String prompt = whisperPrompt,
+    CactusTranscriptionParams? params,
+  }) async {
+    if (audioFilePath == null && audioStream == null) {
+      throw ArgumentError('Must provide either audioFilePath or audioStream');
+    }
+    
+    if (audioFilePath != null && audioStream != null) {
+      throw ArgumentError('Cannot provide both audioFilePath and audioStream');
+    }
+
+    // File transcription mode
+    if (audioFilePath != null) {
       final transcriptionParams = params ?? defaultTranscriptionParams;
       final model = _lastInitializedModel ?? defaultInitParams.model;
       final currentHandle = await _getValidatedHandle(model: model);
 
       if (currentHandle != null) {
         try {
-          final result = await CactusContext.transcribe(
+          final streamedResult = CactusContext.transcribeStream(
             currentHandle,
             audioFilePath,
+            prompt,
+            params: transcriptionParams,
+          );
+          streamedResult.result.then((result) {
+            _logTranscriptionTelemetry(result, model, success: result.success, message: result.errorMessage);
+          }).catchError((error) {
+            _logTranscriptionTelemetry(null, model, success: false, message: error.toString());
+          });
+
+          return streamedResult;
+        } catch (e) {
+          debugPrint('Streaming transcription failed: $e');
+          _logTranscriptionTelemetry(null, model, success: false, message: e.toString());
+          rethrow;
+        }
+      }
+
+      throw Exception('Model $_lastInitializedModel is not downloaded. Please download it before transcribing.');
+    }
+
+    // Live streaming mode - handles buffering and token streaming
+    final tokenController = StreamController<String>();
+    final resultCompleter = Completer<CactusTranscriptionResult>();
+    final List<int> buffer = [];
+    CactusTranscriptionResult? combinedResult;
+
+    final subscription = audioStream!.listen(
+      (pcmChunk) async {
+        buffer.addAll(pcmChunk);
+        
+        final bufferDuration = PCMUtils.calculateDuration(buffer);
+        
+        if (bufferDuration >= chunkDurationSec) {
+          final pcmData = PCMUtils.validatePCMBuffer(buffer)
+              ? List<int>.from(buffer)
+              : PCMUtils.trimToValidSamples(buffer);
+          buffer.clear();
+          
+          // Don't transcribe empty buffers
+          if (pcmData.isEmpty) {
+            debugPrint('Skipping empty PCM buffer');
+            return;
+          }
+          
+          try {
+            final streamedResult = await _transcribePCMStreamInternal(pcmData, prompt, params);
+            
+            // Forward tokens
+            streamedResult.stream.listen(
+              (token) {
+                if (!tokenController.isClosed) {
+                  tokenController.add(token);
+                }
+              },
+              onError: (error) {
+                if (!tokenController.isClosed) {
+                  tokenController.addError(error);
+                }
+              },
+            );
+            
+            // Handle result
+            streamedResult.result.then((result) {
+              if (combinedResult == null) {
+                combinedResult = result;
+              } else {
+                combinedResult = CactusTranscriptionResult(
+                  success: result.success,
+                  text: "${combinedResult!.text} ${result.text}".trim(),
+                  timeToFirstTokenMs: combinedResult!.timeToFirstTokenMs,
+                  totalTimeMs: combinedResult!.totalTimeMs + result.totalTimeMs,
+                  tokensPerSecond: result.tokensPerSecond,
+                );
+              }
+            });
+          } catch (e) {
+            debugPrint('Failed to transcribe audio chunk: $e');
+            if (!tokenController.isClosed) {
+              tokenController.addError(e);
+            }
+          }
+        }
+      },
+      onError: (error) {
+        debugPrint('Audio stream error: $error');
+        if (!tokenController.isClosed) {
+          tokenController.addError(error);
+        }
+        if (!resultCompleter.isCompleted) {
+          resultCompleter.completeError(error);
+        }
+      },
+      onDone: () async {
+        // Process remaining buffer
+        if (buffer.isNotEmpty) {
+          final pcmData = PCMUtils.validatePCMBuffer(buffer)
+              ? buffer
+              : PCMUtils.trimToValidSamples(buffer);
+          
+          // Don't transcribe empty buffers
+          if (pcmData.isEmpty) {
+            debugPrint('Skipping empty final buffer');
+            if (!tokenController.isClosed) {
+              tokenController.close();
+            }
+            if (!resultCompleter.isCompleted) {
+              resultCompleter.complete(combinedResult ?? CactusTranscriptionResult(
+                success: false,
+                text: '',
+                errorMessage: 'No valid audio data received',
+              ));
+            }
+            return;
+          }
+          
+          try {
+            final streamedResult = await _transcribePCMStreamInternal(pcmData, prompt, params);
+            
+            streamedResult.stream.listen(
+              (token) {
+                if (!tokenController.isClosed) {
+                  tokenController.add(token);
+                }
+              },
+              onError: (error) {
+                if (!tokenController.isClosed) {
+                  tokenController.addError(error);
+                }
+              },
+            );
+            
+            final result = await streamedResult.result;
+            
+            if (combinedResult == null) {
+              combinedResult = result;
+            } else {
+              combinedResult = CactusTranscriptionResult(
+                success: result.success,
+                text: "${combinedResult!.text} ${result.text}".trim(),
+                timeToFirstTokenMs: combinedResult!.timeToFirstTokenMs,
+                totalTimeMs: combinedResult!.totalTimeMs + result.totalTimeMs,
+                tokensPerSecond: result.tokensPerSecond,
+              );
+            }
+          } catch (e) {
+            debugPrint('Failed to transcribe final buffer: $e');
+          }
+        }
+        
+        if (!tokenController.isClosed) {
+          tokenController.close();
+        }
+        if (!resultCompleter.isCompleted) {
+          resultCompleter.complete(combinedResult ?? CactusTranscriptionResult(
+            success: false,
+            text: '',
+            errorMessage: 'No audio data received',
+          ));
+        }
+      },
+    );
+
+    // Clean up subscription when done
+    resultCompleter.future.whenComplete(() => subscription.cancel());
+
+    return CactusStreamedTranscriptionResult(
+      stream: tokenController.stream,
+      result: resultCompleter.future,
+    );
+  }
+
+  // Internal helper methods
+  Future<CactusTranscriptionResult> _transcribePCMInternal(
+    List<int> pcmData,
+    String prompt,
+    CactusTranscriptionParams? params,
+  ) async {
+    // Validate PCM data is not empty
+    if (pcmData.isEmpty) {
+      debugPrint('ERROR: Cannot transcribe empty PCM data');
+      return CactusTranscriptionResult(
+        success: false,
+        text: '',
+        errorMessage: 'Empty PCM data provided',
+      );
+    }
+
+    return await _handleLock.synchronized(() async {
+      final transcriptionParams = params ?? defaultTranscriptionParams;
+      final model = _lastInitializedModel ?? defaultInitParams.model;
+      final currentHandle = await _getValidatedHandle(model: model);
+
+      if (currentHandle != null) {
+        reset();
+        
+        try {
+          final result = await CactusContext.transcribePCM(
+            currentHandle,
+            pcmData,
             prompt,
             params: transcriptionParams,
           );
           _logTranscriptionTelemetry(result, model, success: result.success, message: result.errorMessage);
           return result;
         } catch (e) {
-          debugPrint('Transcription failed: $e');
+          debugPrint('PCM transcription failed: $e');
           _logTranscriptionTelemetry(null, model, success: false, message: e.toString());
           rethrow;
         }
@@ -103,20 +469,37 @@ class CactusSTT {
     });
   }
 
-  Future<CactusStreamedTranscriptionResult> transcribeStream({
-    required String audioFilePath,
-    String prompt = whisperPrompt,
+  Future<CactusStreamedTranscriptionResult> _transcribePCMStreamInternal(
+    List<int> pcmData,
+    String prompt,
     CactusTranscriptionParams? params,
-  }) async {
+  ) async {
+    // Validate PCM data is not empty
+    if (pcmData.isEmpty) {
+      debugPrint('ERROR: Cannot transcribe empty PCM data');
+      final controller = StreamController<String>();
+      controller.close();
+      return CactusStreamedTranscriptionResult(
+        stream: controller.stream,
+        result: Future.value(CactusTranscriptionResult(
+          success: false,
+          text: '',
+          errorMessage: 'Empty PCM data provided',
+        )),
+      );
+    }
+
     final transcriptionParams = params ?? defaultTranscriptionParams;
     final model = _lastInitializedModel ?? defaultInitParams.model;
     final currentHandle = await _getValidatedHandle(model: model);
 
     if (currentHandle != null) {
       try {
-        final streamedResult = CactusContext.transcribeStream(
+        reset();
+
+        final streamedResult = CactusContext.transcribePCMStream(
           currentHandle,
-          audioFilePath,
+          pcmData,
           prompt,
           params: transcriptionParams,
         );
@@ -128,7 +511,7 @@ class CactusSTT {
 
         return streamedResult;
       } catch (e) {
-        debugPrint('Streaming transcription failed: $e');
+        debugPrint('PCM streaming transcription failed: $e');
         _logTranscriptionTelemetry(null, model, success: false, message: e.toString());
         rethrow;
       }

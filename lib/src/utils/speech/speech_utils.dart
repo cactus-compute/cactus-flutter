@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:cactus/models/types.dart';
 import 'package:flutter/foundation.dart';
@@ -157,5 +158,87 @@ mixin SpeechServiceStateMixin {
   void disposeResources() {
     _isInitialized = false;
     _isRecording = false;
+  }
+}
+
+class PCMUtils {
+  static const int whisperSampleRate = 16000;
+  static const int bytesPerSample = 2;
+
+  static bool validatePCMBuffer(List<int> pcmData) {
+    return pcmData.length % bytesPerSample == 0;
+  }
+  
+  static double calculateDuration(List<int> pcmData, {int sampleRate = whisperSampleRate}) {
+    final numSamples = pcmData.length ~/ bytesPerSample;
+    return numSamples / sampleRate;
+  }
+  
+  static int getSampleCount(List<int> pcmData) {
+    return pcmData.length ~/ bytesPerSample;
+  }
+  
+  static List<int> generateSyntheticAudio({
+    required int durationSeconds,
+    double frequency = 440.0,
+    double amplitude = 0.3,
+    int sampleRate = whisperSampleRate,
+  }) {
+    final numSamples = sampleRate * durationSeconds;
+    final pcmBytes = <int>[];
+    
+    for (int i = 0; i < numSamples; i++) {
+      final t = i / sampleRate;
+      final value = amplitude * sin(2.0 * pi * frequency * t);
+      
+      final sample = (value * 32767.0).round().clamp(-32768, 32767);
+      
+      pcmBytes.add(sample & 0xFF);
+      pcmBytes.add((sample >> 8) & 0xFF);
+    }
+    
+    return pcmBytes;
+  }
+  
+  static Float32List pcmToFloat32(List<int> pcmData) {
+    final numSamples = pcmData.length ~/ bytesPerSample;
+    final samples = Float32List(numSamples);
+    
+    for (int i = 0; i < numSamples; i++) {
+      final byteIndex = i * bytesPerSample;
+      final sample = (pcmData[byteIndex] | (pcmData[byteIndex + 1] << 8));
+      samples[i] = (sample < 32768 ? sample : sample - 65536) / 32768.0;
+    }
+    
+    return samples;
+  }
+
+  static List<int> float32ToPCM(Float32List samples) {
+    final pcmBytes = <int>[];
+    
+    for (int i = 0; i < samples.length; i++) {
+      final clamped = samples[i].clamp(-1.0, 1.0);
+      final sample = (clamped * 32767.0).round().clamp(-32768, 32767);
+      
+      pcmBytes.add(sample & 0xFF);
+      pcmBytes.add((sample >> 8) & 0xFF);
+    }
+    
+    return pcmBytes;
+  }
+
+  static List<int> trimToValidSamples(List<int> pcmData) {
+    if (pcmData.length % bytesPerSample == 0) {
+      return pcmData;
+    }
+    return pcmData.sublist(0, pcmData.length - 1);
+  }
+
+  static RecordConfig createWhisperRecordConfig() {
+    return const RecordConfig(
+      encoder: AudioEncoder.pcm16bits,
+      sampleRate: whisperSampleRate,
+      numChannels: 1, // Mono
+    );
   }
 }

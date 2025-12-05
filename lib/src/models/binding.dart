@@ -56,7 +56,9 @@ typedef CactusTranscribeNative = Int32 Function(
     Size bufferSize,
     Pointer<Utf8> optionsJson,
     Pointer<NativeFunction<CactusTokenCallbackNative>> callback,
-    Pointer<Void> userData);
+    Pointer<Void> userData,
+    Pointer<Uint8> pcmBuffer,
+    Size pcmBufferSize);
 typedef CactusTranscribeDart = int Function(
     CactusModel model,
     Pointer<Utf8> audioFilePath,
@@ -65,7 +67,9 @@ typedef CactusTranscribeDart = int Function(
     int bufferSize,
     Pointer<Utf8> optionsJson,
     Pointer<NativeFunction<CactusTokenCallbackNative>> callback,
-    Pointer<Void> userData);
+    Pointer<Void> userData,
+    Pointer<Uint8> pcmBuffer,
+    int pcmBufferSize);
 
 typedef RegisterAppNative = Pointer<Utf8> Function(
     Pointer<Utf8> encData);
