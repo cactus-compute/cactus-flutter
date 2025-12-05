@@ -554,8 +554,9 @@ class CactusContext {
 
   static Future<CactusTranscriptionResult> transcribe(
     int handle,
-    String audioFilePath,
     String prompt, {
+    String? audioFilePath,
+    List<int>? pcmData,
     CactusTranscriptionParams? params,
   }) async {
     final transcriptionParams = params ?? CactusTranscriptionParams();
@@ -569,35 +570,15 @@ class CactusContext {
       'bufferSize': transcriptionParams.maxTokens * 8,
       'hasCallback': false,
       'replyPort': null,
-      'pcmData': null,
-    });
-  }
-
-  static Future<CactusTranscriptionResult> transcribePCM(
-    int handle,
-    List<int> pcmData,
-    String prompt, {
-    CactusTranscriptionParams? params,
-  }) async {
-    final transcriptionParams = params ?? CactusTranscriptionParams();
-    final optionsJson = '{"max_tokens":${transcriptionParams.maxTokens}}';
-
-    return await compute(_transcribeInIsolate, {
-      'handle': handle,
-      'audioFilePath': null,
-      'prompt': prompt,
-      'optionsJson': optionsJson,
-      'bufferSize': transcriptionParams.maxTokens * 8,
-      'hasCallback': false,
-      'replyPort': null,
-      'pcmData': Uint8List.fromList(pcmData),
+      'pcmData': pcmData != null ? Uint8List.fromList(pcmData) : null,
     });
   }
 
   static CactusStreamedTranscriptionResult transcribeStream(
     int handle,
-    String audioFilePath,
     String prompt, {
+    String? audioFilePath,
+    List<int>? pcmData,
     CactusTranscriptionParams? params,
   }) {
     final transcriptionParams = params ?? CactusTranscriptionParams();
@@ -613,64 +594,7 @@ class CactusContext {
         final type = message['type'] as String;
         if (type == 'token') {
           final token = message['data'] as String;
-          controller.add(token);
-        } else if (type == 'result') {
-          final result = message['data'] as CactusTranscriptionResult;
-          resultCompleter.complete(result);
-          controller.close();
-          subscription.cancel();
-          replyPort.close();
-        } else if (type == 'error') {
-          final error = message['data'];
-          if (error is CactusTranscriptionResult) {
-            resultCompleter.complete(error);
-          } else {
-            resultCompleter.completeError(error.toString());
-          }
-          controller.addError(error);
-          controller.close();
-          subscription.cancel();
-          replyPort.close();
-        }
-      }
-    });
-
-    Isolate.spawn(_isolateTranscriptionEntry, {
-      'handle': handle,
-      'audioFilePath': audioFilePath,
-      'prompt': prompt,
-      'optionsJson': optionsJson,
-      'bufferSize': transcriptionParams.maxTokens * 8,
-      'hasCallback': true,
-      'replyPort': replyPort.sendPort,
-      'pcmData': null,
-    });
-
-    return CactusStreamedTranscriptionResult(
-      stream: controller.stream,
-      result: resultCompleter.future,
-    );
-  }
-
-  static CactusStreamedTranscriptionResult transcribePCMStream(
-    int handle,
-    List<int> pcmData,
-    String prompt, {
-    required CactusTranscriptionParams params,
-  }) {
-    final optionsJson = '{"max_tokens":${params.maxTokens}}';
-
-    final controller = StreamController<String>();
-    final resultCompleter = Completer<CactusTranscriptionResult>();
-    final replyPort = ReceivePort();
-
-    late StreamSubscription subscription;
-    subscription = replyPort.listen((message) {
-      if (message is Map) {
-        final type = message['type'] as String;
-        if (type == 'token') {
-          final token = message['data'] as String;
-          if(!params.stopSequences.contains(token)) {
+          if(!transcriptionParams.stopSequences.contains(token)) {
             controller.add(token);
           }
         } else if (type == 'result') {
@@ -696,13 +620,13 @@ class CactusContext {
 
     Isolate.spawn(_isolateTranscriptionEntry, {
       'handle': handle,
-      'audioFilePath': null,
+      'audioFilePath': audioFilePath,
       'prompt': prompt,
       'optionsJson': optionsJson,
-      'bufferSize': params.maxTokens * 8,
+      'bufferSize': transcriptionParams.maxTokens * 8,
       'hasCallback': true,
       'replyPort': replyPort.sendPort,
-      'pcmData': Uint8List.fromList(pcmData),
+      'pcmData': pcmData != null ? Uint8List.fromList(pcmData) : null,
     });
 
     return CactusStreamedTranscriptionResult(

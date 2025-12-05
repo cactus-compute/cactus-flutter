@@ -17,7 +17,6 @@ class CactusSTT {
   CactusInitParams defaultInitParams = CactusInitParams();
   CactusTranscriptionParams defaultTranscriptionParams = CactusTranscriptionParams();
   final List<VoiceModel> _models = [];
-  int chunkDurationSec = 5;
 
   final _handleLock = _AsyncLock();
 
@@ -100,8 +99,8 @@ class CactusSTT {
           try {
             final result = await CactusContext.transcribe(
               currentHandle,
-              audioFilePath,
               prompt,
+              audioFilePath: audioFilePath,
               params: transcriptionParams,
             );
             _logTranscriptionTelemetry(result, model, success: result.success, message: result.errorMessage);
@@ -119,52 +118,10 @@ class CactusSTT {
 
     final List<int> buffer = [];
     final completer = Completer<CactusTranscriptionResult>();
-    CactusTranscriptionResult? combinedResult;
 
     final subscription = audioStream!.listen(
-      (pcmChunk) async {
+      (pcmChunk) {
         buffer.addAll(pcmChunk);
-        
-        final bufferDuration = PCMUtils.calculateDuration(buffer);
-        
-        if (bufferDuration >= chunkDurationSec) {
-          final pcmData = PCMUtils.validatePCMBuffer(buffer)
-              ? List<int>.from(buffer)
-              : PCMUtils.trimToValidSamples(buffer);
-          buffer.clear();
-          
-          // Don't transcribe empty buffers
-          if (pcmData.isEmpty) {
-            debugPrint('Skipping empty PCM buffer');
-            return;
-          }
-          
-          try {
-            final result = await _transcribePCMInternal(pcmData, prompt, params);
-            
-            // Combine results
-            if (combinedResult == null) {
-              combinedResult = result;
-            } else {
-              combinedResult = CactusTranscriptionResult(
-                success: result.success,
-                text: "${combinedResult!.text} ${result.text}".trim(),
-                timeToFirstTokenMs: combinedResult!.timeToFirstTokenMs,
-                totalTimeMs: combinedResult!.totalTimeMs + result.totalTimeMs,
-                tokensPerSecond: result.tokensPerSecond,
-              );
-            }
-            
-            onChunk?.call(result);
-          } catch (e) {
-            debugPrint('Failed to transcribe audio chunk: $e');
-            onChunk?.call(CactusTranscriptionResult(
-              success: false,
-              text: '',
-              errorMessage: e.toString(),
-            ));
-          }
-        }
       },
       onError: (error) {
         debugPrint('Audio stream error: $error');
@@ -173,52 +130,45 @@ class CactusSTT {
         }
       },
       onDone: () async {
-        // Process remaining buffer
-        if (buffer.isNotEmpty) {
-          final pcmData = PCMUtils.validatePCMBuffer(buffer)
-              ? buffer
-              : PCMUtils.trimToValidSamples(buffer);
-          
-          // Don't transcribe empty buffers
-          if (pcmData.isEmpty) {
-            debugPrint('Skipping empty final buffer');
-            if (!completer.isCompleted) {
-              completer.complete(combinedResult ?? CactusTranscriptionResult(
-                success: false,
-                text: '',
-                errorMessage: 'No valid audio data received',
-              ));
-            }
-            return;
+        if (buffer.isEmpty) {
+          debugPrint('No audio data received');
+          if (!completer.isCompleted) {
+            completer.complete(CactusTranscriptionResult(
+              success: false,
+              text: '',
+              errorMessage: 'No audio data received',
+            ));
           }
-          
-          try {
-            final result = await _transcribePCMInternal(pcmData, prompt, params);
-            
-            if (combinedResult == null) {
-              combinedResult = result;
-            } else {
-              combinedResult = CactusTranscriptionResult(
-                success: result.success,
-                text: "${combinedResult!.text} ${result.text}".trim(),
-                timeToFirstTokenMs: combinedResult!.timeToFirstTokenMs,
-                totalTimeMs: combinedResult!.totalTimeMs + result.totalTimeMs,
-                tokensPerSecond: result.tokensPerSecond,
-              );
-            }
-            
-            onChunk?.call(result);
-          } catch (e) {
-            debugPrint('Failed to transcribe final buffer: $e');
-          }
+          return;
         }
-        
-        if (!completer.isCompleted) {
-          completer.complete(combinedResult ?? CactusTranscriptionResult(
-            success: false,
-            text: '',
-            errorMessage: 'No audio data received',
-          ));
+
+        final pcmData = PCMUtils.validatePCMBuffer(buffer)
+            ? buffer
+            : PCMUtils.trimToValidSamples(buffer);
+
+        if (pcmData.isEmpty) {
+          debugPrint('No valid audio data after trimming');
+          if (!completer.isCompleted) {
+            completer.complete(CactusTranscriptionResult(
+              success: false,
+              text: '',
+              errorMessage: 'No valid audio data received',
+            ));
+          }
+          return;
+        }
+
+        try {
+          final result = await _transcribePCMInternal(pcmData, prompt, params);
+          if (!completer.isCompleted) {
+            completer.complete(result);
+          }
+          onChunk?.call(result);
+        } catch (e) {
+          debugPrint('Failed to transcribe audio: $e');
+          if (!completer.isCompleted) {
+            completer.completeError(e);
+          }
         }
       },
     );
@@ -253,8 +203,8 @@ class CactusSTT {
         try {
           final streamedResult = CactusContext.transcribeStream(
             currentHandle,
-            audioFilePath,
             prompt,
+            audioFilePath: audioFilePath,
             params: transcriptionParams,
           );
           streamedResult.result.then((result) {
@@ -274,68 +224,13 @@ class CactusSTT {
       throw Exception('Model $_lastInitializedModel is not downloaded. Please download it before transcribing.');
     }
 
-    // Live streaming mode - handles buffering and token streaming
     final tokenController = StreamController<String>();
     final resultCompleter = Completer<CactusTranscriptionResult>();
     final List<int> buffer = [];
-    CactusTranscriptionResult? combinedResult;
 
     final subscription = audioStream!.listen(
-      (pcmChunk) async {
+      (pcmChunk) {
         buffer.addAll(pcmChunk);
-        
-        final bufferDuration = PCMUtils.calculateDuration(buffer);
-        
-        if (bufferDuration >= chunkDurationSec) {
-          final pcmData = PCMUtils.validatePCMBuffer(buffer)
-              ? List<int>.from(buffer)
-              : PCMUtils.trimToValidSamples(buffer);
-          buffer.clear();
-          
-          // Don't transcribe empty buffers
-          if (pcmData.isEmpty) {
-            debugPrint('Skipping empty PCM buffer');
-            return;
-          }
-          
-          try {
-            final streamedResult = await _transcribePCMStreamInternal(pcmData, prompt, params);
-            
-            // Forward tokens
-            streamedResult.stream.listen(
-              (token) {
-                if (!tokenController.isClosed) {
-                  tokenController.add(token);
-                }
-              },
-              onError: (error) {
-                if (!tokenController.isClosed) {
-                  tokenController.addError(error);
-                }
-              },
-            );
-            
-            // Handle result
-            streamedResult.result.then((result) {
-              if (combinedResult == null) {
-                combinedResult = result;
-              } else {
-                combinedResult = CactusTranscriptionResult(
-                  success: result.success,
-                  text: "${combinedResult!.text} ${result.text}".trim(),
-                  timeToFirstTokenMs: combinedResult!.timeToFirstTokenMs,
-                  totalTimeMs: combinedResult!.totalTimeMs + result.totalTimeMs,
-                  tokensPerSecond: result.tokensPerSecond,
-                );
-              }
-            });
-          } catch (e) {
-            debugPrint('Failed to transcribe audio chunk: $e');
-            if (!tokenController.isClosed) {
-              tokenController.addError(e);
-            }
-          }
-        }
       },
       onError: (error) {
         debugPrint('Audio stream error: $error');
@@ -347,71 +242,74 @@ class CactusSTT {
         }
       },
       onDone: () async {
-        // Process remaining buffer
-        if (buffer.isNotEmpty) {
-          final pcmData = PCMUtils.validatePCMBuffer(buffer)
-              ? buffer
-              : PCMUtils.trimToValidSamples(buffer);
-          
-          // Don't transcribe empty buffers
-          if (pcmData.isEmpty) {
-            debugPrint('Skipping empty final buffer');
-            if (!tokenController.isClosed) {
-              tokenController.close();
-            }
-            if (!resultCompleter.isCompleted) {
-              resultCompleter.complete(combinedResult ?? CactusTranscriptionResult(
-                success: false,
-                text: '',
-                errorMessage: 'No valid audio data received',
-              ));
-            }
-            return;
+        if (buffer.isEmpty) {
+          debugPrint('No audio data received');
+          if (!tokenController.isClosed) {
+            tokenController.close();
           }
-          
-          try {
-            final streamedResult = await _transcribePCMStreamInternal(pcmData, prompt, params);
-            
-            streamedResult.stream.listen(
-              (token) {
-                if (!tokenController.isClosed) {
-                  tokenController.add(token);
-                }
-              },
-              onError: (error) {
-                if (!tokenController.isClosed) {
-                  tokenController.addError(error);
-                }
-              },
-            );
-            
-            final result = await streamedResult.result;
-            
-            if (combinedResult == null) {
-              combinedResult = result;
-            } else {
-              combinedResult = CactusTranscriptionResult(
-                success: result.success,
-                text: "${combinedResult!.text} ${result.text}".trim(),
-                timeToFirstTokenMs: combinedResult!.timeToFirstTokenMs,
-                totalTimeMs: combinedResult!.totalTimeMs + result.totalTimeMs,
-                tokensPerSecond: result.tokensPerSecond,
-              );
-            }
-          } catch (e) {
-            debugPrint('Failed to transcribe final buffer: $e');
+          if (!resultCompleter.isCompleted) {
+            resultCompleter.complete(CactusTranscriptionResult(
+              success: false,
+              text: '',
+              errorMessage: 'No audio data received',
+            ));
           }
+          return;
         }
-        
-        if (!tokenController.isClosed) {
-          tokenController.close();
+
+        final pcmData = PCMUtils.validatePCMBuffer(buffer)
+            ? buffer
+            : PCMUtils.trimToValidSamples(buffer);
+
+        if (pcmData.isEmpty) {
+          debugPrint('No valid audio data after trimming');
+          if (!tokenController.isClosed) {
+            tokenController.close();
+          }
+          if (!resultCompleter.isCompleted) {
+            resultCompleter.complete(CactusTranscriptionResult(
+              success: false,
+              text: '',
+              errorMessage: 'No valid audio data received',
+            ));
+          }
+          return;
         }
-        if (!resultCompleter.isCompleted) {
-          resultCompleter.complete(combinedResult ?? CactusTranscriptionResult(
-            success: false,
-            text: '',
-            errorMessage: 'No audio data received',
-          ));
+
+        try {
+          final streamedResult = await _transcribePCMStreamInternal(pcmData, prompt, params);
+
+          streamedResult.stream.listen(
+            (token) {
+              if (!tokenController.isClosed) {
+                tokenController.add(token);
+              }
+            },
+            onError: (error) {
+              if (!tokenController.isClosed) {
+                tokenController.addError(error);
+              }
+            },
+            onDone: () {
+              if (!tokenController.isClosed) {
+                tokenController.close();
+              }
+            },
+          );
+
+          final result = await streamedResult.result;
+          if (!resultCompleter.isCompleted) {
+            resultCompleter.complete(result);
+          }
+        } catch (e) {
+          debugPrint('Failed to transcribe audio: $e');
+          if (!tokenController.isClosed) {
+            tokenController.addError(e);
+            tokenController.close();
+          }
+          if (!resultCompleter.isCompleted) {
+            resultCompleter.completeError(e);
+          }
         }
       },
     );
@@ -448,12 +346,12 @@ class CactusSTT {
 
       if (currentHandle != null) {
         reset();
-        
+
         try {
-          final result = await CactusContext.transcribePCM(
+          final result = await CactusContext.transcribe(
             currentHandle,
-            pcmData,
             prompt,
+            pcmData: pcmData,
             params: transcriptionParams,
           );
           _logTranscriptionTelemetry(result, model, success: result.success, message: result.errorMessage);
@@ -497,10 +395,10 @@ class CactusSTT {
       try {
         reset();
 
-        final streamedResult = CactusContext.transcribePCMStream(
+        final streamedResult = CactusContext.transcribeStream(
           currentHandle,
-          pcmData,
           prompt,
+          pcmData: pcmData,
           params: transcriptionParams,
         );
         streamedResult.result.then((result) {
