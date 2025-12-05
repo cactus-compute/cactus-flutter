@@ -432,6 +432,15 @@ class CactusContext {
     }
   }
 
+  static void resetContext(int handle) {
+    try {
+      bindings.cactusReset(Pointer.fromAddress(handle));
+      debugPrint('Context reset - cache cleared');
+    } catch (e) {
+      debugPrint('Error resetting context: $e');
+    }
+  }
+
   static Future<CactusCompletionResult> completion(
     int handle,
     List<ChatMessage> messages,

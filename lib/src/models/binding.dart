@@ -32,6 +32,9 @@ typedef CactusCompleteDart = int Function(
 typedef CactusDestroyNative = Void Function(CactusModel model);
 typedef CactusDestroyDart = void Function(CactusModel model);
 
+typedef CactusResetNative = Void Function(CactusModel model);
+typedef CactusResetDart = void Function(CactusModel model);
+
 typedef CactusEmbedNative = Int32 Function(
     CactusModel model,
     Pointer<Utf8> text,

@@ -27,6 +27,10 @@ final cactusDestroy = cactusLib
     .lookup<NativeFunction<CactusDestroyNative>>('cactus_destroy')
     .asFunction<CactusDestroyDart>();
 
+final cactusReset = cactusLib
+    .lookup<NativeFunction<CactusResetNative>>('cactus_reset')
+    .asFunction<CactusResetDart>();
+
 final cactusEmbed = cactusLib
     .lookup<NativeFunction<CactusEmbedNative>>('cactus_embed')
     .asFunction<CactusEmbedDart>();

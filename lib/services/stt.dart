@@ -145,6 +145,13 @@ class CactusSTT {
     }
   }
 
+  void reset() {
+    final currentHandle = _handle;
+    if (currentHandle != null) {
+      CactusContext.resetContext(currentHandle);
+    }
+  }
+
   bool isLoaded() => _handle != null;
 
   Future<List<VoiceModel>> getVoiceModels() async {
