@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cactus/cactus.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:record/record.dart';
 
 class STTPage extends StatefulWidget {
   const STTPage({super.key});
@@ -11,6 +13,7 @@ class STTPage extends StatefulWidget {
 
 class _STTPageState extends State<STTPage> {
   late CactusSTT _stt;
+  late AudioRecorder _recorder;
 
   List<VoiceModel> _voiceModels = [];
   String _selectedModel = "whisper-small";
@@ -22,21 +25,28 @@ class _STTPageState extends State<STTPage> {
   bool _isTranscribing = false;
   bool _isLoadingModels = false;
   bool _isUsingDefaultModel = false;
+  bool _isRecording = false;
   String _outputText = "Ready to start. Select a model and initialize to begin.";
   CactusTranscriptionResult? _lastResponse;
   String _downloadProgress = "";
   double? _downloadPercentage;
 
+  StreamSubscription? audioStreamSubscription;
+  String _streamedText = "";
+
   @override
   void initState() {
     super.initState();
     _stt = CactusSTT();
+    _recorder = AudioRecorder();
     _loadVoiceModels();
   }
 
   @override
   void dispose() {
+    _stopRecording();
     _stt.unload();
+    _recorder.dispose();
     super.dispose();
   }
 
@@ -124,6 +134,75 @@ class _STTPageState extends State<STTPage> {
         _downloadProgress = "";
         _downloadPercentage = null;
         _outputText = "Error: ${e.toString()}";
+      });
+    }
+  }
+
+  Future<void> _startRecording() async {
+    if (!_isModelLoaded) {
+      setState(() {
+        _outputText = "Please initialize the model first.";
+      });
+      return;
+    }
+
+    if (!await _recorder.hasPermission()) {
+      setState(() {
+        _outputText = "Microphone permission denied.";
+      });
+      return;
+    }
+
+    try {
+      // Start audio stream
+      final stream = await _recorder.startStream(RecordConfig(
+        encoder: AudioEncoder.pcm16bits,
+        sampleRate: 16000,
+        numChannels: 1,
+      ));
+
+      setState(() {
+        _isRecording = true;
+        _outputText = "🎤 Recording... Speak into the microphone.";
+        _lastResponse = null;
+        _streamedText = "";
+      });
+
+      final streamedResult = await _stt.transcribeStream(
+        audioStream: stream
+      );
+
+      audioStreamSubscription = streamedResult.stream.listen(
+        (token) {
+          setState(() {
+            _streamedText += token;
+          });
+        },
+      );
+
+      streamedResult.result.then((finalResult) {
+        setState(() {
+          _lastResponse = finalResult;
+          _streamedText = finalResult.text;
+          _outputText = "Recording complete.";
+        });
+      });
+
+    } catch (e) {
+      setState(() {
+        _isRecording = false;
+        _outputText = "Error starting recording: ${e.toString()}";
+      });
+    }
+  }
+
+  Future<void> _stopRecording() async {
+    if (_isRecording) {
+      await _recorder.stop();
+
+      setState(() {
+        _isRecording = false;
+        _outputText = "Recording stopped.";
       });
     }
   }
@@ -305,30 +384,72 @@ class _STTPageState extends State<STTPage> {
 
             const SizedBox(height: 4),
 
-            // Transcription button
-            ElevatedButton(
-              onPressed: (_isInitializing || _isTranscribing || !_isModelLoaded || _isLoadingModels)
-                  ? null
-                  : _transcribeFromFile,
-              child: _isTranscribing
-                  ? Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
-                            backgroundColor: Colors.grey.shade300,
+            // Transcription buttons
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: (_isInitializing || _isTranscribing || !_isModelLoaded || _isLoadingModels || _isRecording)
+                        ? null
+                        : _transcribeFromFile,
+                    icon: const Icon(Icons.folder_open, size: 18),
+                    label: const Text('Pick File'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.black,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: (_isInitializing || !_isModelLoaded || _isLoadingModels || _isTranscribing)
+                        ? null
+                        : _isRecording ? _stopRecording : _startRecording,
+                    icon: Icon(_isRecording ? Icons.stop : Icons.mic, size: 18),
+                    label: Text(_isRecording ? 'Stop' : 'Record'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _isRecording ? Colors.red : Colors.green,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 8),
+
+            // Recording status indicator - no buffer display needed
+            if (_isRecording)
+              Card(
+                color: Colors.red.shade50,
+                child: Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: Row(
+                    children: [
+                      const SizedBox(
+                        width: 12,
+                        height: 12,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.red),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text(
+                          'Recording... Transcribing every 5 seconds',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.red,
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        const Text('Transcribing...'),
-                      ],
-                    )
-                  : const Text('Transcribe Audio File'),
-            ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
 
             const SizedBox(height: 8),
 
@@ -360,7 +481,7 @@ class _STTPageState extends State<STTPage> {
                         Expanded(
                           child: SingleChildScrollView(
                             child: Text(
-                              _lastResponse!.text,
+                              _streamedText.isNotEmpty ? _streamedText : _lastResponse!.text,
                               style: const TextStyle(fontSize: 15, height: 1.4),
                             ),
                           ),
