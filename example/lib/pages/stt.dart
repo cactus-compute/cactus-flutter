@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:cactus/cactus.dart';
 import 'package:file_picker/file_picker.dart';
@@ -30,9 +31,11 @@ class _STTPageState extends State<STTPage> {
   CactusTranscriptionResult? _lastResponse;
   String _downloadProgress = "";
   double? _downloadPercentage;
-
-  StreamSubscription? audioStreamSubscription;
   String _streamedText = "";
+
+  // Audio buffer for recording
+  final List<int> _audioBuffer = [];
+  StreamSubscription<Uint8List>? _recordingSubscription;
 
   @override
   void initState() {
@@ -44,7 +47,10 @@ class _STTPageState extends State<STTPage> {
 
   @override
   void dispose() {
-    _stopRecording();
+    _recordingSubscription?.cancel();
+    if (_isRecording) {
+      _recorder.stop();
+    }
     _stt.unload();
     _recorder.dispose();
     super.dispose();
@@ -154,7 +160,10 @@ class _STTPageState extends State<STTPage> {
     }
 
     try {
-      // Start audio stream
+      // Clear previous buffer
+      _audioBuffer.clear();
+
+      // Start audio stream with PCM16 format
       final stream = await _recorder.startStream(RecordConfig(
         encoder: AudioEncoder.pcm16bits,
         sampleRate: 16000,
@@ -163,31 +172,23 @@ class _STTPageState extends State<STTPage> {
 
       setState(() {
         _isRecording = true;
-        _outputText = "🎤 Recording... Speak into the microphone.";
+        _outputText = "Recording... Tap Stop to transcribe";
         _lastResponse = null;
         _streamedText = "";
       });
 
-      final streamedResult = await _stt.transcribeStream(
-        audioStream: stream
-      );
-
-      audioStreamSubscription = streamedResult.stream.listen(
-        (token) {
+      // Collect audio chunks into buffer
+      _recordingSubscription = stream.listen(
+        (audioChunk) {
+          _audioBuffer.addAll(audioChunk);
+        },
+        onError: (error) {
           setState(() {
-            _streamedText += token;
+            _isRecording = false;
+            _outputText = "Error during recording: ${error.toString()}";
           });
         },
       );
-
-      streamedResult.result.then((finalResult) {
-        setState(() {
-          _lastResponse = finalResult;
-          _streamedText = finalResult.text;
-          _outputText = "Recording complete.";
-        });
-      });
-
     } catch (e) {
       setState(() {
         _isRecording = false;
@@ -197,12 +198,87 @@ class _STTPageState extends State<STTPage> {
   }
 
   Future<void> _stopRecording() async {
-    if (_isRecording) {
+    if (!_isRecording) return;
+
+    try {
+      // Stop recording and cancel subscription
       await _recorder.stop();
+      await _recordingSubscription?.cancel();
+      _recordingSubscription = null;
 
       setState(() {
         _isRecording = false;
-        _outputText = "Recording stopped.";
+        _outputText = "Stopping recording and transcribing...";
+      });
+
+      if (_audioBuffer.isNotEmpty) {
+        // Convert buffer to Uint8List
+        final audioData = Uint8List.fromList(_audioBuffer);
+
+        setState(() {
+          _isTranscribing = true;
+          _outputText = "Transcribing recorded audio...";
+        });
+
+        String streamedText = "";
+
+        try {
+          // Transcribe from audio buffer
+          final streamedResult = await _stt.transcribeStream(
+            audioStream: Stream.value(audioData),
+          );
+
+          // Listen to the token stream
+          streamedResult.stream.listen(
+            (token) {
+              setState(() {
+                streamedText += token;
+                _streamedText = streamedText;
+              });
+            },
+            onError: (error) {
+              setState(() {
+                _isTranscribing = false;
+                _outputText = "Error during streaming: ${error.toString()}";
+                _lastResponse = null;
+              });
+            },
+          );
+
+          // Wait for the final result
+          final transcriptionResult = await streamedResult.result;
+
+          setState(() {
+            _isTranscribing = false;
+            if (transcriptionResult.success) {
+              _lastResponse = transcriptionResult;
+              _streamedText = transcriptionResult.text;
+              _outputText = "Mic transcription completed successfully!";
+            } else {
+              _outputText = transcriptionResult.errorMessage ?? "Failed to transcribe recorded audio.";
+              _lastResponse = null;
+            }
+          });
+        } catch (e) {
+          setState(() {
+            _isTranscribing = false;
+            _outputText = "Error during transcription: ${e.toString()}";
+            _lastResponse = null;
+          });
+        } finally {
+          // Clear buffer after transcription
+          _audioBuffer.clear();
+        }
+      } else {
+        setState(() {
+          _outputText = "No audio data recorded.";
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _isRecording = false;
+        _isTranscribing = false;
+        _outputText = "Error stopping recording: ${e.toString()}";
       });
     }
   }
@@ -419,7 +495,7 @@ class _STTPageState extends State<STTPage> {
 
             const SizedBox(height: 8),
 
-            // Recording status indicator - no buffer display needed
+            // Recording status indicator
             if (_isRecording)
               Card(
                 color: Colors.red.shade50,
@@ -438,7 +514,7 @@ class _STTPageState extends State<STTPage> {
                       const SizedBox(width: 8),
                       const Expanded(
                         child: Text(
-                          'Recording... Transcribing every 5 seconds',
+                          'Recording... Tap Stop to transcribe',
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
@@ -471,7 +547,7 @@ class _STTPageState extends State<STTPage> {
                         style: const TextStyle(fontSize: 15),
                       ),
 
-                      if (_lastResponse != null) ...[
+                      if (_isTranscribing || _lastResponse != null) ...[
                         const SizedBox(height: 16),
                         const Text(
                           'Transcription:',
@@ -481,71 +557,73 @@ class _STTPageState extends State<STTPage> {
                         Expanded(
                           child: SingleChildScrollView(
                             child: Text(
-                              _streamedText.isNotEmpty ? _streamedText : _lastResponse!.text,
+                              _streamedText.isNotEmpty ? _streamedText : (_lastResponse?.text ?? ''),
                               style: const TextStyle(fontSize: 15, height: 1.4),
                             ),
                           ),
                         ),
-                        const SizedBox(height: 16),
-                        // Metrics row at the bottom
-                        Container(
-                          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade50,
-                            borderRadius: BorderRadius.circular(8),
+                        if (_lastResponse != null) ...[
+                          const SizedBox(height: 16),
+                          // Metrics row at the bottom
+                          Container(
+                            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade50,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceAround,
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    children: [
+                                      const Text(
+                                        'Model',
+                                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        _selectedModel,
+                                        style: const TextStyle(fontSize: 13),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Expanded(
+                                  child: Column(
+                                    children: [
+                                      const Text(
+                                        'TTFT',
+                                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        '${_lastResponse!.timeToFirstTokenMs.toStringAsFixed(2)} ms',
+                                        style: const TextStyle(fontSize: 13),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Expanded(
+                                  child: Column(
+                                    children: [
+                                      const Text(
+                                        'Total',
+                                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        '${(_lastResponse!.totalTimeMs / 1000).toStringAsFixed(2)} s',
+                                        style: const TextStyle(fontSize: 13),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceAround,
-                            children: [
-                              Expanded(
-                                child: Column(
-                                  children: [
-                                    const Text(
-                                      'Model',
-                                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      _selectedModel,
-                                      style: const TextStyle(fontSize: 13),
-                                      textAlign: TextAlign.center,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Expanded(
-                                child: Column(
-                                  children: [
-                                    const Text(
-                                      'TTFT',
-                                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      '${_lastResponse!.timeToFirstTokenMs.toStringAsFixed(2)} ms',
-                                      style: const TextStyle(fontSize: 13),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Expanded(
-                                child: Column(
-                                  children: [
-                                    const Text(
-                                      'Total',
-                                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      '${(_lastResponse!.totalTimeMs / 1000).toStringAsFixed(2)} s',
-                                      style: const TextStyle(fontSize: 13),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
+                        ],
                       ],
                     ],
                   ),
