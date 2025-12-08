@@ -1,6 +1,9 @@
+import 'dart:async';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:cactus/cactus.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:record/record.dart';
 
 class STTPage extends StatefulWidget {
   const STTPage({super.key});
@@ -11,6 +14,7 @@ class STTPage extends StatefulWidget {
 
 class _STTPageState extends State<STTPage> {
   late CactusSTT _stt;
+  late AudioRecorder _recorder;
 
   List<VoiceModel> _voiceModels = [];
   String _selectedModel = "whisper-small";
@@ -22,21 +26,33 @@ class _STTPageState extends State<STTPage> {
   bool _isTranscribing = false;
   bool _isLoadingModels = false;
   bool _isUsingDefaultModel = false;
+  bool _isRecording = false;
   String _outputText = "Ready to start. Select a model and initialize to begin.";
   CactusTranscriptionResult? _lastResponse;
   String _downloadProgress = "";
   double? _downloadPercentage;
+  String _streamedText = "";
+
+  // Audio buffer for recording
+  final List<int> _audioBuffer = [];
+  StreamSubscription<Uint8List>? _recordingSubscription;
 
   @override
   void initState() {
     super.initState();
     _stt = CactusSTT();
+    _recorder = AudioRecorder();
     _loadVoiceModels();
   }
 
   @override
   void dispose() {
+    _recordingSubscription?.cancel();
+    if (_isRecording) {
+      _recorder.stop();
+    }
     _stt.unload();
+    _recorder.dispose();
     super.dispose();
   }
 
@@ -124,6 +140,145 @@ class _STTPageState extends State<STTPage> {
         _downloadProgress = "";
         _downloadPercentage = null;
         _outputText = "Error: ${e.toString()}";
+      });
+    }
+  }
+
+  Future<void> _startRecording() async {
+    if (!_isModelLoaded) {
+      setState(() {
+        _outputText = "Please initialize the model first.";
+      });
+      return;
+    }
+
+    if (!await _recorder.hasPermission()) {
+      setState(() {
+        _outputText = "Microphone permission denied.";
+      });
+      return;
+    }
+
+    try {
+      // Clear previous buffer
+      _audioBuffer.clear();
+
+      // Start audio stream with PCM16 format
+      final stream = await _recorder.startStream(RecordConfig(
+        encoder: AudioEncoder.pcm16bits,
+        sampleRate: 16000,
+        numChannels: 1,
+      ));
+
+      setState(() {
+        _isRecording = true;
+        _outputText = "Recording... Tap Stop to transcribe";
+        _lastResponse = null;
+        _streamedText = "";
+      });
+
+      // Collect audio chunks into buffer
+      _recordingSubscription = stream.listen(
+        (audioChunk) {
+          _audioBuffer.addAll(audioChunk);
+        },
+        onError: (error) {
+          setState(() {
+            _isRecording = false;
+            _outputText = "Error during recording: ${error.toString()}";
+          });
+        },
+      );
+    } catch (e) {
+      setState(() {
+        _isRecording = false;
+        _outputText = "Error starting recording: ${e.toString()}";
+      });
+    }
+  }
+
+  Future<void> _stopRecording() async {
+    if (!_isRecording) return;
+
+    try {
+      // Stop recording and cancel subscription
+      await _recorder.stop();
+      await _recordingSubscription?.cancel();
+      _recordingSubscription = null;
+
+      setState(() {
+        _isRecording = false;
+        _outputText = "Stopping recording and transcribing...";
+      });
+
+      if (_audioBuffer.isNotEmpty) {
+        // Convert buffer to Uint8List
+        final audioData = Uint8List.fromList(_audioBuffer);
+
+        setState(() {
+          _isTranscribing = true;
+          _outputText = "Transcribing recorded audio...";
+        });
+
+        String streamedText = "";
+
+        try {
+          // Transcribe from audio buffer
+          final streamedResult = await _stt.transcribeStream(
+            audioStream: Stream.value(audioData),
+          );
+
+          // Listen to the token stream
+          streamedResult.stream.listen(
+            (token) {
+              setState(() {
+                streamedText += token;
+                _streamedText = streamedText;
+              });
+            },
+            onError: (error) {
+              setState(() {
+                _isTranscribing = false;
+                _outputText = "Error during streaming: ${error.toString()}";
+                _lastResponse = null;
+              });
+            },
+          );
+
+          // Wait for the final result
+          final transcriptionResult = await streamedResult.result;
+
+          setState(() {
+            _isTranscribing = false;
+            if (transcriptionResult.success) {
+              _lastResponse = transcriptionResult;
+              _streamedText = transcriptionResult.text;
+              _outputText = "Mic transcription completed successfully!";
+            } else {
+              _outputText = transcriptionResult.errorMessage ?? "Failed to transcribe recorded audio.";
+              _lastResponse = null;
+            }
+          });
+        } catch (e) {
+          setState(() {
+            _isTranscribing = false;
+            _outputText = "Error during transcription: ${e.toString()}";
+            _lastResponse = null;
+          });
+        } finally {
+          // Clear buffer after transcription
+          _audioBuffer.clear();
+        }
+      } else {
+        setState(() {
+          _outputText = "No audio data recorded.";
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _isRecording = false;
+        _isTranscribing = false;
+        _outputText = "Error stopping recording: ${e.toString()}";
       });
     }
   }
@@ -305,30 +460,72 @@ class _STTPageState extends State<STTPage> {
 
             const SizedBox(height: 4),
 
-            // Transcription button
-            ElevatedButton(
-              onPressed: (_isInitializing || _isTranscribing || !_isModelLoaded || _isLoadingModels)
-                  ? null
-                  : _transcribeFromFile,
-              child: _isTranscribing
-                  ? Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
-                            backgroundColor: Colors.grey.shade300,
+            // Transcription buttons
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: (_isInitializing || _isTranscribing || !_isModelLoaded || _isLoadingModels || _isRecording)
+                        ? null
+                        : _transcribeFromFile,
+                    icon: const Icon(Icons.folder_open, size: 18),
+                    label: const Text('Pick File'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.black,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: (_isInitializing || !_isModelLoaded || _isLoadingModels || _isTranscribing)
+                        ? null
+                        : _isRecording ? _stopRecording : _startRecording,
+                    icon: Icon(_isRecording ? Icons.stop : Icons.mic, size: 18),
+                    label: Text(_isRecording ? 'Stop' : 'Record'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _isRecording ? Colors.red : Colors.green,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 8),
+
+            // Recording status indicator
+            if (_isRecording)
+              Card(
+                color: Colors.red.shade50,
+                child: Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: Row(
+                    children: [
+                      const SizedBox(
+                        width: 12,
+                        height: 12,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.red),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text(
+                          'Recording... Tap Stop to transcribe',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.red,
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        const Text('Transcribing...'),
-                      ],
-                    )
-                  : const Text('Transcribe Audio File'),
-            ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
 
             const SizedBox(height: 8),
 
@@ -350,7 +547,7 @@ class _STTPageState extends State<STTPage> {
                         style: const TextStyle(fontSize: 15),
                       ),
 
-                      if (_lastResponse != null) ...[
+                      if (_isTranscribing || _lastResponse != null) ...[
                         const SizedBox(height: 16),
                         const Text(
                           'Transcription:',
@@ -360,71 +557,73 @@ class _STTPageState extends State<STTPage> {
                         Expanded(
                           child: SingleChildScrollView(
                             child: Text(
-                              _lastResponse!.text,
+                              _streamedText.isNotEmpty ? _streamedText : (_lastResponse?.text ?? ''),
                               style: const TextStyle(fontSize: 15, height: 1.4),
                             ),
                           ),
                         ),
-                        const SizedBox(height: 16),
-                        // Metrics row at the bottom
-                        Container(
-                          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade50,
-                            borderRadius: BorderRadius.circular(8),
+                        if (_lastResponse != null) ...[
+                          const SizedBox(height: 16),
+                          // Metrics row at the bottom
+                          Container(
+                            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade50,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceAround,
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    children: [
+                                      const Text(
+                                        'Model',
+                                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        _selectedModel,
+                                        style: const TextStyle(fontSize: 13),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Expanded(
+                                  child: Column(
+                                    children: [
+                                      const Text(
+                                        'TTFT',
+                                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        '${_lastResponse!.timeToFirstTokenMs.toStringAsFixed(2)} ms',
+                                        style: const TextStyle(fontSize: 13),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Expanded(
+                                  child: Column(
+                                    children: [
+                                      const Text(
+                                        'Total',
+                                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        '${(_lastResponse!.totalTimeMs / 1000).toStringAsFixed(2)} s',
+                                        style: const TextStyle(fontSize: 13),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceAround,
-                            children: [
-                              Expanded(
-                                child: Column(
-                                  children: [
-                                    const Text(
-                                      'Model',
-                                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      _selectedModel,
-                                      style: const TextStyle(fontSize: 13),
-                                      textAlign: TextAlign.center,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Expanded(
-                                child: Column(
-                                  children: [
-                                    const Text(
-                                      'TTFT',
-                                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      '${_lastResponse!.timeToFirstTokenMs.toStringAsFixed(2)} ms',
-                                      style: const TextStyle(fontSize: 13),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Expanded(
-                                child: Column(
-                                  children: [
-                                    const Text(
-                                      'Total',
-                                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      '${(_lastResponse!.totalTimeMs / 1000).toStringAsFixed(2)} s',
-                                      style: const TextStyle(fontSize: 13),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
+                        ],
                       ],
                     ],
                   ),

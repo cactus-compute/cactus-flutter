@@ -242,31 +242,52 @@ Future<CactusEmbeddingResult> _generateEmbeddingInIsolate(Map<String, dynamic> p
 
 Future<CactusTranscriptionResult> _transcribeInIsolate(Map<String, dynamic> params) async {
   final handle = params['handle'] as int;
-  final audioFilePath = params['audioFilePath'] as String;
+  final audioFilePath = params['audioFilePath'] as String?;
   final prompt = params['prompt'] as String;
   final optionsJson = params['optionsJson'] as String;
   final bufferSize = params['bufferSize'] as int;
   final hasCallback = params['hasCallback'] as bool;
   final SendPort? replyPort = params['replyPort'] as SendPort?;
+  final List<int>? pcmData = params['pcmData'] as List<int>?;
 
-  // Validate audio file exists
-  final audioFile = File(audioFilePath);
-  if (!audioFile.existsSync()) {
-    debugPrint('ERROR: Audio file does not exist at path: $audioFilePath');
+  if (audioFilePath == null && pcmData == null) {
+    debugPrint('ERROR: Neither audio file path nor PCM buffer provided');
     return CactusTranscriptionResult(
       success: false,
       text: '',
-      errorMessage: 'Audio file not found: $audioFilePath'
+      errorMessage: 'Either audio file path or PCM buffer must be provided'
     );
   }
 
-  final fileSize = audioFile.lengthSync();
-  debugPrint('Audio file exists, size: $fileSize bytes');
+  if (audioFilePath != null) {
+    final audioFile = File(audioFilePath);
+    if (!audioFile.existsSync()) {
+      debugPrint('ERROR: Audio file does not exist at path: $audioFilePath');
+      return CactusTranscriptionResult(
+        success: false,
+        text: '',
+        errorMessage: 'Audio file not found: $audioFilePath'
+      );
+    }
+
+    final fileSize = audioFile.lengthSync();
+    debugPrint('Audio file exists, size: $fileSize bytes');
+  } else {
+    debugPrint('Using PCM buffer, size: ${pcmData!.length} bytes');
+  }
 
   final responseBuffer = calloc<Uint8>(bufferSize);
-  final audioFilePathC = audioFilePath.toNativeUtf8(allocator: calloc);
+  final audioFilePathC = audioFilePath?.toNativeUtf8(allocator: calloc);
   final promptC = prompt.toNativeUtf8(allocator: calloc);
   final optionsJsonC = optionsJson.toNativeUtf8(allocator: calloc);
+
+  Pointer<Uint8>? pcmBufferPtr;
+  if (pcmData != null) {
+    final Uint8List pcmBytes = pcmData is Uint8List ? pcmData : Uint8List.fromList(pcmData);
+    pcmBufferPtr = calloc<Uint8>(pcmBytes.length);
+    final nativeList = pcmBufferPtr.asTypedList(pcmBytes.length);
+    nativeList.setAll(0, pcmBytes);
+  }
 
   Pointer<NativeFunction<CactusTokenCallbackNative>>? callbackPointer;
 
@@ -284,13 +305,15 @@ Future<CactusTranscriptionResult> _transcribeInIsolate(Map<String, dynamic> para
 
     final result = bindings.cactusTranscribe(
       Pointer.fromAddress(handle),
-      audioFilePathC,
+      audioFilePathC ?? nullptr,
       promptC,
       responseBuffer.cast<Utf8>(),
       bufferSize,
       optionsJsonC,
       callbackPointer ?? nullptr,
       nullptr,
+      pcmBufferPtr ?? nullptr,
+      pcmData?.length ?? 0,
     );
 
     if (result <= 0) {
@@ -343,9 +366,14 @@ Future<CactusTranscriptionResult> _transcribeInIsolate(Map<String, dynamic> para
   } finally {
     _activeTokenCallback = null;
     calloc.free(responseBuffer);
-    calloc.free(audioFilePathC);
+    if (audioFilePathC != null) {
+      calloc.free(audioFilePathC);
+    }
     calloc.free(promptC);
     calloc.free(optionsJsonC);
+    if (pcmBufferPtr != null) {
+      calloc.free(pcmBufferPtr);
+    }
   }
 }
 
@@ -429,6 +457,15 @@ class CactusContext {
       debugPrint('Context destroyed');
     } catch (e) {
       debugPrint('Error destroying context: $e');
+    }
+  }
+
+  static void resetContext(int handle) {
+    try {
+      bindings.cactusReset(Pointer.fromAddress(handle));
+      debugPrint('Context reset - cache cleared');
+    } catch (e) {
+      debugPrint('Error resetting context: $e');
     }
   }
 
@@ -517,8 +554,9 @@ class CactusContext {
 
   static Future<CactusTranscriptionResult> transcribe(
     int handle,
-    String audioFilePath, 
     String prompt, {
+    String? audioFilePath,
+    List<int>? pcmData,
     CactusTranscriptionParams? params,
   }) async {
     final transcriptionParams = params ?? CactusTranscriptionParams();
@@ -532,13 +570,15 @@ class CactusContext {
       'bufferSize': transcriptionParams.maxTokens * 8,
       'hasCallback': false,
       'replyPort': null,
+      'pcmData': pcmData != null ? Uint8List.fromList(pcmData) : null,
     });
   }
 
   static CactusStreamedTranscriptionResult transcribeStream(
     int handle,
-    String audioFilePath, 
     String prompt, {
+    String? audioFilePath,
+    List<int>? pcmData,
     CactusTranscriptionParams? params,
   }) {
     final transcriptionParams = params ?? CactusTranscriptionParams();
@@ -554,7 +594,9 @@ class CactusContext {
         final type = message['type'] as String;
         if (type == 'token') {
           final token = message['data'] as String;
-          controller.add(token);
+          if(!transcriptionParams.stopSequences.contains(token)) {
+            controller.add(token);
+          }
         } else if (type == 'result') {
           final result = message['data'] as CactusTranscriptionResult;
           resultCompleter.complete(result);
@@ -584,6 +626,7 @@ class CactusContext {
       'bufferSize': transcriptionParams.maxTokens * 8,
       'hasCallback': true,
       'replyPort': replyPort.sendPort,
+      'pcmData': pcmData != null ? Uint8List.fromList(pcmData) : null,
     });
 
     return CactusStreamedTranscriptionResult(

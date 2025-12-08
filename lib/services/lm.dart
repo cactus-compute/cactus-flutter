@@ -90,11 +90,12 @@ class CactusLM {
     return await _handleLock.synchronized(() async {
       CactusCompletionParams completionParams = params ?? defaultCompletionParams;
       final model = params?.model ?? _lastInitializedModel ?? defaultInitParams.model;
-      int? currentHandle = await _getValidatedHandle(model: model, reInit: completionParams.tools?.isNotEmpty == true);
+      int? currentHandle = await _getValidatedHandle(model: model);
       int quantization = (await Supabase.getModel(model))?.quantization ?? 8;
 
       if (currentHandle != null) {
         if(completionParams.tools != null) {
+          reset();
           List<CactusTool>? toolsToUse = completionParams.tools;
           if (enableToolFiltering && completionParams.tools != null && completionParams.tools!.isNotEmpty) {
             toolsToUse = await _filterTools(messages, completionParams.tools!);
@@ -151,11 +152,12 @@ class CactusLM {
   }) async {
     CactusCompletionParams completionParams = params ?? defaultCompletionParams;
     final model = params?.model ?? _lastInitializedModel ?? defaultInitParams.model;
-    int? currentHandle = await _getValidatedHandle(model: model, reInit: completionParams.tools?.isNotEmpty == true);
+    int? currentHandle = await _getValidatedHandle(model: model);
     int quantization = (await Supabase.getModel(model))?.quantization ?? 8;
 
     if (currentHandle != null) {
       if(completionParams.tools != null) {
+        reset();
         List<CactusTool>? toolsToUse = completionParams.tools;
         if (enableToolFiltering && toolsToUse != null && toolsToUse.isNotEmpty) {
           toolsToUse = await _filterTools(messages, toolsToUse);
@@ -259,8 +261,15 @@ class CactusLM {
     return _models;
   }
 
-  Future<int?> _getValidatedHandle({required String model, bool reInit = false}) async {
-    if (_handle != null && (model == _lastInitializedModel) && !reInit) {
+  void reset() {
+    final currentHandle = _handle;
+    if (currentHandle != null) {
+      CactusContext.resetContext(currentHandle);
+    }
+  }
+
+  Future<int?> _getValidatedHandle({required String model}) async {
+    if (_handle != null && (model == _lastInitializedModel)) {
       return _handle;
     }
 
