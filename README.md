@@ -332,6 +332,7 @@ The `CactusLM` class provides sensible defaults for completion parameters:
 - `Future<CactusStreamedCompletionResult> generateCompletionStream({required List<ChatMessage> messages, CactusCompletionParams? params})` - Generate streaming text completion (uses default params if none provided). Automatically filters tools if `enableToolFiltering` is true (default).
 - `Future<List<CactusModel>> getModels()` - Fetch available models with caching
 - `Future<CactusEmbeddingResult> generateEmbedding({required String text, String? modelName})` - Generate text embeddings
+- `void reset()` - Reset the model context without unloading. Clears conversation history while keeping the model in memory for better performance.
 - `void unload()` - Free model from memory
 - `bool isLoaded()` - Check if model is loaded
 
@@ -558,8 +559,9 @@ The `CactusSTT` class uses sensible defaults:
 - `CactusSTT()` - Constructor
 - `Future<void> downloadModel({required String model, CactusProgressCallback? downloadProcessCallback})` - Download a voice model (e.g., "whisper-tiny", "whisper-base")
 - `Future<void> initializeModel({CactusInitParams? params})` - Initialize speech recognition model (uses last initialized model if params not provided)
-- `Future<CactusTranscriptionResult> transcribe({required String audioFilePath, String prompt = whisperPrompt, CactusTranscriptionParams? params})` - Transcribe audio from file path
-- `Future<CactusStreamedTranscriptionResult> transcribeStream({required String audioFilePath, String prompt = whisperPrompt, CactusTranscriptionParams? params})` - Stream transcription token by token
+- `Future<CactusTranscriptionResult> transcribe({String? audioFilePath, Stream<Uint8List>? audioStream, Function(CactusTranscriptionResult)? onChunk, String prompt = whisperPrompt, CactusTranscriptionParams? params})` - Transcribe audio from either a file path or an audio stream. Must provide either `audioFilePath` or `audioStream`, but not both. When using `audioStream`, the `onChunk` callback receives transcription results as they're processed.
+- `Future<CactusStreamedTranscriptionResult> transcribeStream({String? audioFilePath, Stream<Uint8List>? audioStream, String prompt = whisperPrompt, CactusTranscriptionParams? params})` - Stream transcription token by token from either a file path or an audio stream
+- `void reset()` - Reset the model context without unloading. Clears transcription history while keeping the model in memory for better performance.
 - `void unload()` - Free model from memory
 - `bool isLoaded()` - Check if model is loaded
 - `Future<List<VoiceModel>> getVoiceModels()` - Fetch available voice models with caching
