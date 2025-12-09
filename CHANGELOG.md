@@ -1,3 +1,8 @@
+## v1.2.1
+- Added `reset()` method to `CactusLM` and `CactusSTT` classes for clearing context without unloading models
+- Added `audioStream` parameter support in `CactusSTT` transcription methods for streaming audio input
+- Enhanced transcription methods to support both file path and audio stream inputs
+
 ## v1.2.0
 - Move to cactus whisper
 - Memory optimizations
