@@ -77,6 +77,7 @@ class _MyHomePageState extends State<MyHomePage> {
   void initState() {
     super.initState();
     CactusConfig.setTelemetryToken('a83c7f7a-43ad-4823-b012-cbeb587ae788');
+    CactusConfig.setProKey('f9510cdc-38ff-421e-ab8f-f2e6fc2cb8c5');
   }
 
   @override

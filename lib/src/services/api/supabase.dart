@@ -105,7 +105,8 @@ class Supabase {
       
       // Send device data wrapped in device_data object as per API spec
       final body = jsonEncode({
-        'device_data': deviceData
+        'device_data': deviceData,
+        'cactus_pro_key': CactusConfig.cactusProKey,
       });
       request.write(body);
       
