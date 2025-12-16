@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:cactus/models/types.dart';
-import 'package:cactus/services/telemetry.dart';
+import 'package:cactus/services/config.dart';
 import 'package:cactus/src/services/context.dart';
 import 'package:cactus/src/utils/models/download.dart';
 import 'package:cactus/src/services/api/supabase.dart';
@@ -48,7 +48,7 @@ class CactusSTT {
 
   Future<void> initializeModel({final CactusInitParams? params}) async {
     if (!Telemetry.isInitialized) {
-      await Telemetry.init(CactusTelemetry.telemetryToken);
+      await Telemetry.init(CactusConfig.telemetryToken);
     }
 
     final model = params?.model ?? _lastInitializedModel ?? defaultInitParams.model;
