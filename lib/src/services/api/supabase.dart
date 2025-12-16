@@ -90,9 +90,16 @@ class Supabase {
     }
   }
 
-  static Future<String?> registerDevice(Map<String, dynamic> deviceData) async {
+  static Future<String?> registerDevice({
+    Map<String, dynamic>? deviceData,
+    String? deviceId,
+  }) async {
     if (!CactusConfig.isTelemetryEnabled) {
       return 'telemetry-disabled';
+    }
+
+    if (deviceData == null && deviceId == null) {
+      return null;
     }
     
     try {
@@ -105,7 +112,7 @@ class Supabase {
       
       // Send device data wrapped in device_data object as per API spec
       final body = jsonEncode({
-        'device_data': deviceData,
+        deviceData != null ? 'device_data' : 'device_id': deviceData ?? deviceId,
         'cactus_pro_key': CactusConfig.cactusProKey,
       });
       request.write(body);
@@ -115,8 +122,8 @@ class Supabase {
       if (response.statusCode == 200) {
         final responseBody = await response.transform(utf8.decoder).join();
         debugPrint('Device registered successfully');        
-        final deviceId = await registerApp(responseBody);
-        return deviceId;
+        final generatedDeviceId = await registerApp(responseBody);
+        return generatedDeviceId;
       } else {
         return null;
       }

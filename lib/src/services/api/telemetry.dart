@@ -31,7 +31,7 @@ class Telemetry {
       debugPrint('Failed to get device ID, registering device...');
       try {
         final deviceData = await getDeviceMetadata();
-        return await Supabase.registerDevice(deviceData);
+        return await Supabase.registerDevice(deviceData: deviceData);
       } catch (e) {
         return null;
       }
