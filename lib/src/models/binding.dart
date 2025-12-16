@@ -79,5 +79,5 @@ typedef RegisterAppDart = Pointer<Utf8> Function(
 typedef GetAllEntriesNative = Pointer<Utf8> Function();
 typedef GetAllEntriesDart = Pointer<Utf8> Function();
 
-typedef GetDeviceIdNative = Pointer<Utf8> Function();
-typedef GetDeviceIdDart = Pointer<Utf8> Function();
+typedef GetDeviceIdNative = Pointer<Utf8> Function(Pointer<Utf8> token);
+typedef GetDeviceIdDart = Pointer<Utf8> Function(Pointer<Utf8> token);
