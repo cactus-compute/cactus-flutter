@@ -32,6 +32,9 @@ extern "C" {
 class CactusGraph;
 
 namespace cactus {
+namespace npu {
+    class NPUPrefill;
+}
 namespace engine {
 
 class Siglip2Preprocessor;
@@ -349,6 +352,13 @@ struct KVCache {
     void update_from_graph(CactusGraph* gb, const std::vector<size_t>& k_nodes,
                           const std::vector<size_t>& v_nodes, size_t seq_len,
                           size_t num_layers, size_t kv_heads, size_t head_dim);
+
+    // Update KV cache from NPU prefill outputs
+    // NPU outputs are in shape [num_tokens, num_kv_heads, head_dim]
+    // This handles transposition to cache format and sliding window
+    void update_from_npu(size_t layer_idx, const __fp16* k_data, const __fp16* v_data,
+                         size_t num_tokens, size_t kv_heads, size_t head_dim);
+
     bool is_empty() const { return current_seq_len == 0; }
     void* get_key_ptr(size_t layer);
     void* get_value_ptr(size_t layer);
@@ -386,14 +396,16 @@ public:
     virtual bool init(CactusGraph* external_graph, const std::string& model_folder, size_t context_size,
               const std::string& system_prompt = "", bool do_warmup = true);
 
-    virtual uint32_t generate(const std::vector<uint32_t>& tokens, float temperature = -1.0f, float top_p = -1.0f,
-                      size_t top_k = 0, const std::string& profile_file = "", bool prefill_only = false);
+    virtual uint32_t decode(const std::vector<uint32_t>& tokens, float temperature = -1.0f, float top_p = -1.0f,
+                      size_t top_k = 0, const std::string& profile_file = "");
 
-    virtual uint32_t generate_with_images(const std::vector<uint32_t>& tokens, const std::vector<std::string>& image_paths,
+    virtual void prefill(const std::vector<uint32_t>& tokens, size_t chunk_size = 256, const std::string& profile_file = "");
+
+    virtual uint32_t decode_with_images(const std::vector<uint32_t>& tokens, const std::vector<std::string>& image_paths,
                                           float temperature = -1.0f, float top_p = -1.0f,
                                           size_t top_k = 0, const std::string& profile_file = "");
-    
-    virtual uint32_t generate_with_audio(const std::vector<uint32_t>& tokens, const std::vector<float>& mel_bins, float temperature = 0.0f, float top_p = 0.0f,
+
+    virtual uint32_t decode_with_audio(const std::vector<uint32_t>& tokens, const std::vector<float>& mel_bins, float temperature = 0.0f, float top_p = 0.0f,
                       size_t top_k = 0, const std::string& profile_file = "");
 
     std::vector<float> get_embeddings(const std::vector<uint32_t>& tokens, bool pooled = true, const std::string& profile_file = "");
@@ -403,8 +415,12 @@ public:
     virtual std::vector<float> get_audio_embeddings(const std::vector<float>& mel_bins);
 
     virtual void reset_cache() { kv_cache_.reset(); }
-    
+
     void set_cache_window(size_t window_size, size_t sink_size = 4) { kv_cache_.set_window_size(window_size, sink_size); }
+
+    bool load_npu_prefill(const std::string& model_path);
+    bool has_npu_prefill() const;
+    size_t get_prefill_chunk_size() const;
 
     void* graph_handle_;
 
@@ -449,6 +465,11 @@ protected:
     bool init_internal(CactusGraph* gb, const std::string& model_folder, size_t context_size,
                        const std::string& system_prompt, bool do_warmup);
     bool owns_graph_;
+
+    // NPU prefill support
+    std::unique_ptr<npu::NPUPrefill> npu_prefill_;
+    void prefill_npu(const std::vector<uint32_t>& tokens);
+    virtual std::vector<__fp16> get_token_embeddings(const std::vector<uint32_t>& tokens);
 };
 
 std::unique_ptr<Model> create_model(const std::string& model_folder);
