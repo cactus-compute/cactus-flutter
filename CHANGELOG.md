@@ -1,3 +1,8 @@
+## v1.3.0
+- Renamed `CactusTelemetry` to `CactusConfig` for configuration APIs
+- Added `CactusConfig.setProKey()` to enable NPU acceleration
+- Added `forceTools` parameter to `CactusCompletionParams` for forcing tool calling output
+
 ## v1.2.1
 - Added `reset()` method to `CactusLM` and `CactusSTT` classes for clearing context without unloading models
 - Added `audioStream` parameter support in `CactusSTT` transcription methods for streaming audio input
