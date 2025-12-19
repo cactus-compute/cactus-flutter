@@ -216,49 +216,58 @@ inline std::vector<ToolFunction> parse_tools_json(const std::string& json) {
     return tools;
 }
 
-inline void parse_options_json(const std::string& json, 
-                               float& temperature, float& top_p, 
+inline void parse_options_json(const std::string& json,
+                               float& temperature, float& top_p,
                                size_t& top_k, size_t& max_tokens,
-                               std::vector<std::string>& stop_sequences) {
+                               std::vector<std::string>& stop_sequences,
+                               bool& force_tools) {
     temperature = 0.0f;
-    top_p = 0.0f;       
-    top_k = 0;           
-    max_tokens = 100;    
+    top_p = 0.0f;
+    top_k = 0;
+    max_tokens = 100;
+    force_tools = false;
     stop_sequences.clear();
-    
+
     if (json.empty()) return;
-    
+
     size_t pos = json.find("\"temperature\"");
     if (pos != std::string::npos) {
         pos = json.find(':', pos) + 1;
         temperature = std::stof(json.substr(pos));
     }
-    
+
     pos = json.find("\"top_p\"");
     if (pos != std::string::npos) {
         pos = json.find(':', pos) + 1;
         top_p = std::stof(json.substr(pos));
     }
-    
+
     pos = json.find("\"top_k\"");
     if (pos != std::string::npos) {
         pos = json.find(':', pos) + 1;
         top_k = std::stoul(json.substr(pos));
     }
-    
+
     pos = json.find("\"max_tokens\"");
     if (pos != std::string::npos) {
         pos = json.find(':', pos) + 1;
         max_tokens = std::stoul(json.substr(pos));
     }
-    
+
+    pos = json.find("\"force_tools\"");
+    if (pos != std::string::npos) {
+        pos = json.find(':', pos) + 1;
+        while (pos < json.length() && std::isspace(json[pos])) pos++;
+        force_tools = (json.substr(pos, 4) == "true");
+    }
+
     pos = json.find("\"stop_sequences\"");
     if (pos != std::string::npos) {
         pos = json.find('[', pos);
         if (pos != std::string::npos) {
             size_t end_pos = json.find(']', pos);
             size_t seq_pos = json.find('"', pos);
-            
+
             while (seq_pos != std::string::npos && seq_pos < end_pos) {
                 size_t seq_start = seq_pos + 1;
                 size_t seq_end = json.find('"', seq_start);
@@ -445,7 +454,34 @@ extern "C" {
 
 const char* cactus_get_last_error();
 
+__attribute__((weak))
+const char* register_app(const char* encrypted_data);
+
+__attribute__((weak))
+const char* get_device_id(const char* current_token);
+
 #ifdef __cplusplus
+}
+#endif
+
+#ifdef __cplusplus
+extern "C" {
+
+__attribute__((weak))
+inline const char* register_app(const char* encrypted_data) {
+    (void)encrypted_data;
+    static thread_local std::string uuid_storage;
+    uuid_storage = cactus::ffi::generateUUID();
+    return uuid_storage.c_str();
+}
+
+__attribute__((weak))
+inline const char* get_device_id(const char* current_token) {
+    (void)current_token;
+    static thread_local std::string uuid_storage;
+    uuid_storage = cactus::ffi::generateUUID();
+    return uuid_storage.c_str();
+}
 }
 #endif
 

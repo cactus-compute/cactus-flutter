@@ -3,6 +3,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 #if __GNUC__ >= 4
   #define CACTUS_FFI_EXPORT __attribute__ ((visibility ("default")))
@@ -52,7 +53,8 @@ CACTUS_FFI_EXPORT int cactus_embed(
     const char* text,
     float* embeddings_buffer,
     size_t buffer_size,
-    size_t* embedding_dim
+    size_t* embedding_dim,
+    bool normalize
 );
 
 CACTUS_FFI_EXPORT int cactus_image_embed(
@@ -79,11 +81,9 @@ CACTUS_FFI_EXPORT void cactus_destroy(cactus_model_t model);
 
 CACTUS_FFI_EXPORT const char* cactus_get_last_error(void);
 
-// Log levels: 0=DEBUG, 1=INFO, 2=WARN, 3=ERROR, 4=NONE
-CACTUS_FFI_EXPORT void cactus_set_log_level(int level);
+CACTUS_FFI_EXPORT void cactus_set_telemetry_token(const char* token);
 
-typedef void (*cactus_log_callback)(int level, const char* component, const char* message, void* user_data);
-CACTUS_FFI_EXPORT void cactus_set_log_callback(cactus_log_callback callback, void* user_data);
+CACTUS_FFI_EXPORT void cactus_set_pro_key(const char* pro_key);
 
 #ifdef __cplusplus
 }
