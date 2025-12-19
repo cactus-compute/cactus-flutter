@@ -416,6 +416,7 @@ class CactusContext {
     params.temperature != null ? optionsJsonBuffer.write('"temperature":${params.temperature},') : null;
     params.topK != null ? optionsJsonBuffer.write('"top_k":${params.topK},') : null;
     params.topP != null ? optionsJsonBuffer.write('"top_p":${params.topP},') : null;
+    params.forceTools != null ? optionsJsonBuffer.write('"force_tools":${params.forceTools},') : null;
     optionsJsonBuffer.write('"max_tokens":${params.maxTokens}');
     if (params.stopSequences.isNotEmpty) {
       optionsJsonBuffer.write(',"stop_sequences":[');

@@ -39,6 +39,7 @@ class CactusCompletionParams {
   final List<CactusTool>? tools;
   final CompletionMode completionMode;
   final String? cactusToken;
+  final bool? forceTools;
 
   CactusCompletionParams({
     this.model,
@@ -50,6 +51,7 @@ class CactusCompletionParams {
     this.tools,
     this.completionMode = CompletionMode.local,
     this.cactusToken,
+    this.forceTools,
   });
 }
 
