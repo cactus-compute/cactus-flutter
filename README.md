@@ -16,7 +16,7 @@ flutter pub add cactus
 
 ## Getting Started
 
-### Telemetry Setup (Optional)
+### Configuration (Optional)
 
 Telemetry is enabled by default to help improve the SDK. You can easily disable it:
 
@@ -24,13 +24,19 @@ Telemetry is enabled by default to help improve the SDK. You can easily disable 
 import 'package:cactus/cactus.dart';
 
 // Disable telemetry
-CactusTelemetry.isTelemetryEnabled = false;
+CactusConfig.isTelemetryEnabled = false;
 ```
 
 You can also optionally set a telemetry token to track usage across your organization:
 
 ```dart
-CactusTelemetry.setTelemetryToken("your-token-here");
+CactusConfig.setTelemetryToken("your-token-here");
+```
+
+To enable NPU acceleration (requires a Pro key):
+
+```dart
+CactusConfig.setProKey("your-pro-key-here"); // contact founders@cactuscompute.com to get your token!
 ```
 
 ## Language Model (LLM)
@@ -338,7 +344,7 @@ The `CactusLM` class provides sensible defaults for completion parameters:
 
 #### Data Classes
 - `CactusInitParams({String model = "qwen3-0.6", int? contextSize = 2048})` - Model initialization parameters
-- `CactusCompletionParams({String? model, double? temperature, int? topK, double? topP, int maxTokens = 200, List<String> stopSequences = ["<|im_end|>", "<end_of_turn>"], List<CactusTool>? tools, CompletionMode completionMode = CompletionMode.local, String? cactusToken})` - Completion parameters
+- `CactusCompletionParams({String? model, double? temperature, int? topK, double? topP, int maxTokens = 200, List<String> stopSequences = ["<|im_end|>", "<end_of_turn>"], List<CactusTool>? tools, CompletionMode completionMode = CompletionMode.local, String? cactusToken, bool? forceTools})` - Completion parameters
 - `ChatMessage({required String content, required String role, int? timestamp, List<String> images})` - Chat message format
 - `CactusCompletionResult({required bool success, required String response, required double timeToFirstTokenMs, required double totalTimeMs, required double tokensPerSecond, required int prefillTokens, required int decodeTokens, required int totalTokens, List<ToolCall> toolCalls = []})` - Contains response, timing metrics, tool calls, and success status
 - `CactusStreamedCompletionResult({required Stream<String> stream, required Future<CactusCompletionResult> result})` - Contains the stream and the final result of a streamed completion.
