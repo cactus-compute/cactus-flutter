@@ -27,6 +27,8 @@ import 'package:cactus/cactus.dart';
 CactusConfig.isTelemetryEnabled = false;
 ```
 
+When `isTelemetryEnabled = false`, the SDK suppresses all outbound traffic to Cactus infrastructure: log records, device registration, and model-catalog lookups (`getModel`, `getModels`, `getVoiceModels`). This means **new model downloads will fail unless the model metadata is already in the local cache** (populated on any prior successful `getModel` call). For privacy- or offline-first apps, pre-warm the cache on first launch before disabling telemetry, or ship with the model bundled in your app assets.
+
 You can also optionally set a telemetry token to track usage across your organization:
 
 ```dart
