@@ -132,6 +132,9 @@ class Supabase {
     }
   }
 
+  /// Fetch model metadata by slug. When [CactusConfig.isTelemetryEnabled]
+  /// is false, returns the locally cached entry (or null if none exists)
+  /// without making any network call.
   static Future<CactusModel?> getModel(String slug) async {
     if (!CactusConfig.isTelemetryEnabled) {
       return ModelCache.loadModel(slug);
@@ -161,6 +164,8 @@ class Supabase {
     }
   }
 
+  /// Fetch the full model catalog. When [CactusConfig.isTelemetryEnabled]
+  /// is false, returns an empty list without making any network call.
   static Future<List<CactusModel>> fetchModels() async {
     if (!CactusConfig.isTelemetryEnabled) {
       return const <CactusModel>[];
@@ -193,6 +198,10 @@ class Supabase {
     }
   }
 
+  /// Fetch the voice model catalog. When [CactusConfig.isTelemetryEnabled]
+  /// is false, returns an empty list without making any network call —
+  /// callers that need offline voice-model resolution must maintain their
+  /// own cache or ship voice models as bundled assets.
   static Future<List<VoiceModel>> fetchVoiceModels({String? provider}) async {
     if (!CactusConfig.isTelemetryEnabled) {
       return const <VoiceModel>[];

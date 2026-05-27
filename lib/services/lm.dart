@@ -57,7 +57,7 @@ class CactusLM {
   }
 
   Future<void> initializeModel({final CactusInitParams? params}) async {
-    if (!Telemetry.isInitialized) {
+    if (CactusConfig.isTelemetryEnabled && !Telemetry.isInitialized) {
       await Telemetry.init(CactusConfig.telemetryToken);
     }
 
