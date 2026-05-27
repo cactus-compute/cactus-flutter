@@ -133,6 +133,10 @@ class Supabase {
   }
 
   static Future<CactusModel?> getModel(String slug) async {
+    if (!CactusConfig.isTelemetryEnabled) {
+      return ModelCache.loadModel(slug);
+    }
+
     try {
       final client = HttpClient();
       final uri = Uri.parse('$_supabaseUrl/functions/v1/get-models?slug=$slug&sdk_name=flutter&sdk_version=$packageVersion');
@@ -158,6 +162,10 @@ class Supabase {
   }
 
   static Future<List<CactusModel>> fetchModels() async {
+    if (!CactusConfig.isTelemetryEnabled) {
+      return const <CactusModel>[];
+    }
+
     try {
       final client = HttpClient();
       final uri = Uri.parse('$_supabaseUrl/functions/v1/get-models?sdk_name=flutter&sdk_version=$packageVersion');
@@ -186,6 +194,10 @@ class Supabase {
   }
 
   static Future<List<VoiceModel>> fetchVoiceModels({String? provider}) async {
+    if (!CactusConfig.isTelemetryEnabled) {
+      return const <VoiceModel>[];
+    }
+
     final client = HttpClient();
 
     try {
